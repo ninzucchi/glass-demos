@@ -510,7 +510,7 @@ export function AnalogyChart({ variant }: { variant: HomeVariant }) {
                 className="flex items-center px-3 text-sm text-secondary"
                 style={{ height: HEADER_H }}
               >
-                {column.system}
+                {isProposed ? "Proposed Taxonomy" : column.system}
               </span>
               {column.nodes.map((node, i) => (
                 <span
