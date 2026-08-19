@@ -6,6 +6,7 @@ import { SettingsSection } from "./components/ui/SettingsSection";
 import { flattenThreads, initialWorkspaces, resolvePath } from "./data";
 import type { IconName } from "./icons/iconNames";
 import type { Message, Project, Thread, ViewMode, Workspace, WorkspaceItem } from "./types";
+import { version } from "../package.json";
 
 /** Pool for freshly created groups' circle badges. */
 const GROUP_ICONS: IconName[] = [
@@ -526,7 +527,8 @@ export default function App() {
             never slides under the window, and static so switching can't jitter. */}
         <aside className="flex shrink-0 flex-col gap-6 rounded-window bg-chrome p-5 shadow-sm">
           <SettingsSection
-            title="Hierarchy Approach"
+            // Version stamp rides along so a Vercel deploy is identifiable.
+            title={`Hierarchy Approach · v${version}`}
             value={homeVariant}
             onChange={setHomeVariant}
           // Each layout is named by its entity types, top-down as they appear
