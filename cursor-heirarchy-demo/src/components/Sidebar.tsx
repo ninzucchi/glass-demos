@@ -72,7 +72,10 @@ function SectionHeader({
       onClick={onToggle}
       className={clsx(
         DISCLOSURE_GROUP,
-        "flex min-h-[24px] cursor-pointer items-center gap-1 px-1.5 py-1",
+        // Fixed height: the hover-revealed plus button is taller than the
+        // text, so content-driven sizing would make headers with a create
+        // affordance taller than ones without (title jitter across variants).
+        "flex h-7 cursor-pointer items-center gap-1 px-1.5",
       )}
     >
       <span className="truncate text-sm text-tertiary mix-blend-plus-darker">{label}</span>
@@ -1311,7 +1314,10 @@ function WorkspaceGroup({
   // (agents) inside start collapsed.
   const [open, setOpen] = useState(true);
   return (
-    <div className="flex flex-col gap-px">
+    // Expanded groups get 8px of breathing room after them, but only between
+    // siblings — never stacking against a section boundary (skipped on
+    // last-child). Collapsed groups stay 1px from their neighbors.
+    <div className={clsx("flex flex-col gap-px", open && "[&:not(:last-child)]:pb-2")}>
       {/* Badge click toggles collapse; the rest of the row opens the
           workspace's main chat (same pattern as project rows). Folder rows
           aren't chats — the whole row toggles instead. */}
@@ -1368,9 +1374,7 @@ function WorkspaceGroup({
         <CreateButton label="New chat" onClick={() => onCreateChat(workspace.id)} />
       </div>
       {open && (
-        // Extra breathing room only under an expanded group's children;
-        // collapsed groups stay 1px from their neighbors.
-        <div className="flex flex-col gap-px pb-2">
+        <div className="flex flex-col gap-px">
           {workspace.items.some(
             (i) => i.kind === "project" || isListed(i.thread),
           ) ? (
@@ -1442,7 +1446,8 @@ function ProjectGroup({
       ? { create: "New chat", empty: "No Chats" }
       : { create: "New thread", empty: "No Threads" };
   return (
-    <div className="flex flex-col gap-px">
+    // Between-siblings breathing room when expanded; see WorkspaceGroup.
+    <div className={clsx("flex flex-col gap-px", open && "[&:not(:last-child)]:pb-2")}>
       <Cell
         depth={depth}
         variant="project"
@@ -1499,7 +1504,7 @@ function ProjectGroup({
         <CreateButton label={nounLabels.create} onClick={() => onCreateThread(project.id)} />
       </Cell>
       {open && (
-        <div className="flex flex-col gap-px pb-2">
+        <div className="flex flex-col gap-px">
           {listedThreads.length > 0 ? (
             listedThreads.map((thread) => (
               <ThreadCell
@@ -1550,7 +1555,13 @@ function ThreadCell({
   const subthreads = (thread.threads ?? []).filter(isListed);
   const hasChildren = subthreads.length > 0;
   return (
-    <div className="flex flex-col gap-px">
+    // Between-siblings breathing room when expanded; see WorkspaceGroup.
+    <div
+      className={clsx(
+        "flex flex-col gap-px",
+        open && hasChildren && "[&:not(:last-child)]:pb-2",
+      )}
+    >
       <Cell
         depth={depth}
         variant="thread"
@@ -1593,7 +1604,7 @@ function ThreadCell({
         )}
       </Cell>
       {open && hasChildren && (
-        <div className="flex flex-col gap-px pb-2">
+        <div className="flex flex-col gap-px">
           {subthreads.map((sub) => (
             <ThreadCell
               key={sub.id}
