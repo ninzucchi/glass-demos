@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { Icon, type IconName } from "./ui/Icon";
@@ -985,12 +985,14 @@ export function Sidebar({
           >
             <div className="flex flex-col gap-px">
               {/* No loose top-level chats — Home surfaces only its projects.
-                  Projects hoist out of their workspace and trail it as
-                  top-level siblings. This proposal has no agents, so
+                  Every project (from every workspace) hoists into one flat
+                  run of top-level siblings: a group created from a space's
+                  chats owes it nothing afterwards. The space folders (chats
+                  only) trail the projects. This proposal has no agents, so
                   agent projects (e.g. EA) stay out. */}
               <ItemList
-                items={home.items.filter(
-                  (i) => i.kind === "project" && i.project.kind === "group",
+                items={workspaces.flatMap((w) =>
+                  w.items.filter((i) => i.kind === "project" && i.project.kind === "group"),
                 )}
                 depth={0}
                 projectLeading="icon"
@@ -1005,38 +1007,21 @@ export function Sidebar({
                 onCreateThread={onCreateThread}
               />
               {spaces.map((workspace) => (
-                <Fragment key={workspace.id}>
-                  <WorkspaceGroup
-                    workspace={{ ...workspace, items: flatChats(workspace, false) }}
-                    leading="icon"
-                    selectedId={selectedId}
-                    multi={multi}
-                    dnd={dnd}
-                    renamer={renamer}
-                    onWorkspaceContextMenu={openWorkspaceMenu}
-                    onToggleMulti={toggleMulti}
-                    onThreadContextMenu={openMenu}
-                    onSelect={onSelect}
-                    onCreateChat={onCreateChat}
-                    onCreateThread={onCreateThread}
-                  />
-                  <ItemList
-                    items={workspace.items.filter(
-                      (i) => i.kind === "project" && i.project.kind === "group",
-                    )}
-                    depth={0}
-                    projectLeading="icon"
-                    selectedId={selectedId}
-                    multi={multi}
-                    dnd={dnd}
-                    renamer={renamer}
-                    onToggleMulti={toggleMulti}
-                    onThreadContextMenu={openMenu}
-                    onProjectContextMenu={openProjectMenu}
-                    onSelect={onSelect}
-                    onCreateThread={onCreateThread}
-                  />
-                </Fragment>
+                <WorkspaceGroup
+                  key={workspace.id}
+                  workspace={{ ...workspace, items: flatChats(workspace, false) }}
+                  leading="icon"
+                  selectedId={selectedId}
+                  multi={multi}
+                  dnd={dnd}
+                  renamer={renamer}
+                  onWorkspaceContextMenu={openWorkspaceMenu}
+                  onToggleMulti={toggleMulti}
+                  onThreadContextMenu={openMenu}
+                  onSelect={onSelect}
+                  onCreateChat={onCreateChat}
+                  onCreateThread={onCreateThread}
+                />
               ))}
             </div>
           </Section>

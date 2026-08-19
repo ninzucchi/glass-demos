@@ -178,7 +178,12 @@ function homeSections(
       break;
     case "sq":
     case "projects-readonly":
-      sections.push({ label: "Chats", rows: spaces.map((w) => spaceRow(variant, w)) });
+      // Folder spaces aren't chat-able, so instead of drilling into a pushed
+      // list, each space flattens into a home section (like the sidebar's
+      // folders); only its read-only groups still push.
+      for (const w of spaces) {
+        sections.push({ label: w.name, rows: workspaceListRows(variant, w) });
+      }
       break;
     case "projects-separate":
       sections.push({
@@ -189,23 +194,25 @@ function homeSections(
           ),
         ),
       });
-      sections.push({ label: "Chats", rows: spaces.map((w) => spaceRow(variant, w)) });
+      // Folder spaces flatten into sections (see sq above).
+      for (const w of spaces) {
+        sections.push({ label: w.name, rows: workspaceListRows(variant, w) });
+      }
       break;
     case "all-projects":
+      // Every project hoists into one flat run of siblings (a group created
+      // from a space's chats owes it nothing); space folders trail them.
       sections.push({
         label: "Projects",
         rows: [
-          ...(home?.items.flatMap((i) =>
-            i.kind === "project" && i.project.kind === "group" ? [projectRow(variant, i.project)] : [],
-          ) ?? []),
-          ...spaces.flatMap((w) => [
-            spaceRow(variant, w),
-            ...w.items.flatMap((i) =>
+          ...workspaces.flatMap((w) =>
+            w.items.flatMap((i) =>
               i.kind === "project" && i.project.kind === "group"
                 ? [projectRow(variant, i.project)]
                 : [],
             ),
-          ]),
+          ),
+          ...spaces.map((w) => spaceRow(variant, w)),
         ],
       });
       break;
@@ -285,7 +292,11 @@ function deriveScreens(
 
   const includeWorkspace =
     workspace.id === selectedId ||
-    (workspace.id !== HOME_ID && !(project && HOISTED_PROJECTS.includes(variant)));
+    (workspace.id !== HOME_ID &&
+      // Folder spaces flatten into home sections, so their contents push
+      // with no space screen in between (same as hoisted projects).
+      !FOLDER_SPACES.includes(variant) &&
+      !(project && HOISTED_PROJECTS.includes(variant)));
   if (includeWorkspace) {
     screens.push(
       FOLDER_SPACES.includes(variant)
@@ -474,8 +485,9 @@ function MobileHome({
     <div className="relative flex h-full flex-col">
       <MobileNavBar trailing={[{ icon: "magnifying-glass", label: "Search" }]} />
       <div className="scrollbar-overlay flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3 pb-28 pt-1">
-        {sections.map((section) => (
-          <section key={section.label} className="flex flex-col gap-1">
+        {sections.map((section, i) => (
+          // Space-name sections can collide (duplicate names), so key by slot.
+          <section key={`${i}-${section.label}`} className="flex flex-col gap-1">
             <h2 className="px-2 text-sm font-medium text-quaternary">{section.label}</h2>
             <div className="flex flex-col">
               {section.rows.map((row) => (
