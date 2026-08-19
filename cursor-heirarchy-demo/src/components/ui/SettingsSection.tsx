@@ -32,10 +32,10 @@ export function SettingsSection<T extends string>({
                   : "text-secondary hover:bg-quaternary",
               )}
             >
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+              <span className="pl-0.5">{option.label}</span>
+              <span className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center">
                 {option.value === value && <Icon name="check" size="sm" color="primary" />}
               </span>
-              <span className="pl-0.5">{option.label}</span>
             </button>
             {option.dividerAfter && <div className="my-1 border-t" />}
           </Fragment>
