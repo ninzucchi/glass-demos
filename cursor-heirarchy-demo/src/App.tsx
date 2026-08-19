@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AnalogyChart } from "./components/AnalogyChart";
 import { ChatPanel } from "./components/ChatPanel";
 import { AGENT_NOUN_VARIANTS, Sidebar, type HomeVariant } from "./components/Sidebar";
+import { Icon } from "./components/ui/Icon";
 import { SettingsSection } from "./components/ui/SettingsSection";
 import { flattenThreads, initialWorkspaces, resolvePath } from "./data";
 import type { IconName } from "./icons/iconNames";
@@ -93,12 +94,26 @@ export default function App() {
      *  project or parent thread. */
     kind: "chat" | "thread";
   } | null>(null);
+  // The pristine seed currently loaded; `workspaces` drifting from this ref
+  // (any runtime edit) is what surfaces the Reset button under the window.
+  const [seedRef, setSeedRef] = useState<Workspace[]>(initialWorkspaces);
   const changeDataState = (state: DataState) => {
+    const seed = seedForState(state);
     setDataState(state);
-    setWorkspaces(seedForState(state));
+    setSeedRef(seed);
+    setWorkspaces(seed);
     setPendingReply(null);
+    setDrafts({});
     // The old selection may not exist in the new seed; land somewhere safe.
     setSelection({ id: state === "start" ? HOME_ID : "ws-acme", mode: "full" });
+  };
+  /** Discards every runtime edit and reloads the active seed. */
+  const resetToSeed = () => {
+    setWorkspaces(seedRef);
+    setPendingReply(null);
+    setDrafts({});
+    setRenameRequestId(null);
+    setSelection({ id: dataState === "start" ? HOME_ID : "ws-acme", mode: "full" });
   };
   // Freshly created container (group/agent/space) whose sidebar row should
   // open in inline-rename with its placeholder name selected.
@@ -518,14 +533,21 @@ export default function App() {
     );
   };
 
+  // Any drift from the loaded seed — hierarchy edits or unsent drafts —
+  // makes the demo "dirty" and offers Reset.
+  const isDirty =
+    workspaces !== seedRef || Object.values(drafts).some((t) => t.trim());
+
   return (
     <div className="flex h-full flex-col gap-6 p-8">
       {/* Window row: the settings panel sits in flow beside the mock window
           (never overlapping it), both centered on the same vertical axis. */}
       <div className="flex min-h-0 w-full flex-1 items-center justify-center gap-6">
         {/* Prototype settings panel. Sized by its widest (nowrap) label so it
-            never slides under the window, and static so switching can't jitter. */}
-        <aside className="flex shrink-0 flex-col gap-6 rounded-window bg-chrome p-5 shadow-sm">
+            never slides under the window, and static so switching can't jitter.
+            Always as tall as the window beside it; on short viewports it
+            scrolls internally instead of painting over the chart below. */}
+        <aside className="scrollbar-overlay flex h-full min-h-0 shrink-0 flex-col gap-6 overflow-y-auto rounded-window bg-chrome p-5 shadow-sm">
           <SettingsSection
             // Version stamp rides along so a Vercel deploy is identifiable.
             title={`Hierarchy Approach · v${version}`}
@@ -564,7 +586,9 @@ export default function App() {
             ]}
           />
         </aside>
-        <div className="flex h-full max-h-[780px] w-full min-w-0 max-w-[1180px] overflow-hidden rounded-window bg-sidebar shadow-window backdrop-blur-[12px]">
+        {/* The mock window fills all remaining space inside the page padding;
+            relative so the Reset FAB can pin to its corner. */}
+        <div className="relative flex h-full w-full min-w-0 overflow-hidden rounded-window bg-sidebar shadow-window backdrop-blur-[12px]">
           <Sidebar
             workspaces={displayWorkspaces}
             homeVariant={homeVariant}
@@ -608,6 +632,18 @@ export default function App() {
               onSendMessage={sendMessage}
             />
           </main>
+          {/* Reset FAB: overlays the window's corner instead of taking
+              layout space, appearing only once the seed has been edited. */}
+          {isDirty && (
+            <button
+              type="button"
+              onClick={resetToSeed}
+              className="absolute bottom-3 right-3 z-10 flex h-7 items-center gap-1.5 rounded-full bg-elevated pl-2.5 pr-3 text-base text-secondary shadow-[0_0_0_1px_var(--border-tertiary),0_4px_12px_rgba(0,0,0,0.1)] transition-colors duration-fast hover:bg-quaternary-opaque hover:text-primary"
+            >
+              <Icon name="arrow-ccw" size="sm" color="secondary" />
+              Reset
+            </button>
+          )}
         </div>
       </div>
       {/* Full-width chart row, inset only by the page padding. */}
