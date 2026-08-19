@@ -997,8 +997,9 @@ function ExpandedComposer({
         </div>
       </div>
       {setupActions && (
-        <div className="flex justify-center gap-2 pt-1">
+        <div className="flex gap-2 pt-1">
           <SetupPill icon="file-plus" label="Add Files" />
+          <SetupPill icon="folder-plus" label="Add Folder" />
           <SetupPill icon="extensions" label="Add Plugins" />
         </div>
       )}
