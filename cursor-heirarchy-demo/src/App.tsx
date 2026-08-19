@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { AnalogyChart } from "./components/AnalogyChart";
 import { ChatPanel } from "./components/ChatPanel";
 import { AGENT_NOUN_VARIANTS, Sidebar, type HomeVariant } from "./components/Sidebar";
@@ -79,6 +79,18 @@ const seedForState = (state: DataState): Workspace[] => {
 };
 
 export default function App() {
+  // Native scrollbar width (0 with macOS overlay scrollbars, ~8px classic),
+  // published as --scrollbar-w for the pr-gutter-* compensated paddings.
+  useLayoutEffect(() => {
+    const probe = document.createElement("div");
+    probe.style.cssText =
+      "position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll;";
+    document.body.appendChild(probe);
+    const w = probe.offsetWidth - probe.clientWidth;
+    document.documentElement.style.setProperty("--scrollbar-w", `${w}px`);
+    probe.remove();
+  }, []);
+
   const [workspaces, setWorkspaces] = useState(initialWorkspaces);
   const [homeVariant, setHomeVariant] = useState<HomeVariant>("distinct");
   const [dataState, setDataState] = useState<DataState>("complex");
@@ -547,7 +559,7 @@ export default function App() {
             never slides under the window, and static so switching can't jitter.
             Always as tall as the window beside it; on short viewports it
             scrolls internally instead of painting over the chart below. */}
-        <aside className="scrollbar-overlay flex h-full min-h-0 shrink-0 flex-col gap-6 overflow-y-auto rounded-window bg-chrome p-5 shadow-sm">
+        <aside className="scrollbar-overlay gutter-stable pr-gutter-5 flex h-full min-h-0 shrink-0 flex-col gap-6 overflow-y-auto rounded-window bg-chrome py-5 pl-5 shadow-sm">
           <SettingsSection
             // Version stamp rides along so a Vercel deploy is identifiable.
             title={`Hierarchy Approach · v${version}`}

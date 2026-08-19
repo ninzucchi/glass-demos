@@ -45,6 +45,21 @@
 }
 
 @layer utilities {
+  /* Scrollbar-compensated insets: scrollbar-gutter reserves the native
+     scrollbar's width (0 with macOS overlay scrollbars, ~8px classic — the
+     runtime-measured --scrollbar-w), and the right padding gives back the
+     difference, so gutter + padding always sums to the intended inset and
+     rows stay symmetric in either mode. */
+  .gutter-stable {
+    scrollbar-gutter: stable;
+  }
+  .pr-gutter-2 {
+    padding-right: max(0px, calc(0.5rem - var(--scrollbar-w, 0px)));
+  }
+  .pr-gutter-5 {
+    padding-right: max(0px, calc(1.25rem - var(--scrollbar-w, 0px)));
+  }
+
   /* Overlay scrollbar: thumb hidden until hover/focus-within (from cursor-neue). */
   .scrollbar-overlay {
     scrollbar-color: transparent transparent;

@@ -621,7 +621,10 @@ export function Sidebar({
         <ActionCell icon="extensions" label="Customize" />
       </div>
       <div
-        className="scrollbar-overlay flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-2 pt-3"
+        // gutter-stable + pr-gutter-2: the native scrollbar's width (whatever
+        // the platform mode) plus right padding always sums to the same 8px
+        // inset as the left, so rows never lose their right edge to a thumb.
+        className="scrollbar-overlay gutter-stable pr-gutter-2 flex min-h-0 flex-1 flex-col gap-3 overflow-auto pl-2 pt-3"
         style={{
           maskImage:
             "linear-gradient(to bottom, transparent, #000 20px, #000 calc(100% - 20px), transparent)",
