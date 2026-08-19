@@ -37,7 +37,7 @@ const r = (note: string): M => ({ match: "mismatch", note });
 const slackCol = (workspace: M, channel: M, thread: M, dm: M): Column => ({
   system: "Slack",
   nodes: [
-    { term: "Workspace", example: "Acme", level: 0, analogs: ["Space", "Home"], ...workspace },
+    { term: "Workspace", example: "Acme", level: 0, analogs: ["Space", "Workspace", "Home"], ...workspace },
     { term: "Channel", example: "#proj-mobile", level: 1, analogs: ["Agent", "Group", "Project"], ...channel },
     { term: "Thread", example: "re: standup", level: 2, analogs: ["Thread"], ...thread },
     { term: "DM", example: "@dana", level: 1, analogs: ["Chat"], ...dm },
@@ -47,7 +47,7 @@ const slackCol = (workspace: M, channel: M, thread: M, dm: M): Column => ({
 const fsCol = (root: M, folder: M, folderRec: M, fileNested: M, fileLoose: M): Column => ({
   system: "File system",
   nodes: [
-    { term: "Root", example: "~", level: 0, analogs: ["Space", "Home"], ...root },
+    { term: "Root", example: "~", level: 0, analogs: ["Space", "Workspace", "Home"], ...root },
     { term: "Folder", example: "Documents", level: 1, analogs: ["Agent", "Group", "Project"], ...folder },
     { term: "Folder …", example: "Taxes", level: 2, analogs: ["Agent", "Group", "Project"], ...folderRec },
     { term: "File", example: "resume.pdf", level: 2, analogs: ["Thread", "Chat"], ...fileNested },
@@ -58,7 +58,7 @@ const fsCol = (root: M, folder: M, folderRec: M, fileNested: M, fileLoose: M): C
 const imCol = (list: M, person: M, reply: M, group: M, business: M): Column => ({
   system: "iMessage",
   nodes: [
-    { term: "Chat list", level: 0, analogs: ["Space", "Home"], ...list },
+    { term: "Chat list", level: 0, analogs: ["Space", "Workspace", "Home"], ...list },
     { term: "Person", example: "Maya", level: 1, analogs: ["Chat", "Agent"], ...person },
     { term: "Reply", example: "“sounds good”", level: 2, analogs: ["Thread"], ...reply },
     { term: "Group", example: "Family", level: 1, analogs: ["Group"], ...group },
@@ -69,10 +69,10 @@ const imCol = (list: M, person: M, reply: M, group: M, business: M): Column => (
 const notionCol = (priv: M, block: M, blockRec: M, teamspace: M, tsBlock: M): Column => ({
   system: "Notion",
   nodes: [
-    { term: "Private", example: "Home", level: 0, analogs: ["Home", "Space"], ...priv },
+    { term: "Private", example: "Home", level: 0, analogs: ["Home", "Space", "Workspace"], ...priv },
     { term: "Block", example: "Roadmap", level: 1, analogs: ["Agent", "Group", "Project", "Chat", "Thread"], ...block },
     { term: "Block …", level: 2, analogs: ["Thread"], ...blockRec },
-    { term: "Teamspace", example: "Design", level: 0, analogs: ["Space"], ...teamspace },
+    { term: "Teamspace", example: "Design", level: 0, analogs: ["Space", "Workspace"], ...teamspace },
     { term: "Block", example: "Sprint notes", level: 1, analogs: ["Chat", "Thread", "Agent", "Group", "Project"], ...tsBlock },
   ],
 });
@@ -80,81 +80,86 @@ const notionCol = (priv: M, block: M, blockRec: M, teamspace: M, tsBlock: M): Co
 /** The proposed layout's possible hierarchy, flattened depth-first. Siblings
  *  at the same level under one parent show heterogeneous membership (e.g. a
  *  Space holding agents, groups, and loose threads side by side). */
+// Examples mirror the actual seed data so the chart reads like the sidebar:
+// "Acme Labs" (space), "Scribe" (Home agent), "Authentication" (Acme group),
+// and their real chats/threads.
 const PROPOSED: Record<HomeVariant, TreeNode[]> = {
   // No agent/group distinction here: every container in a space is an agent.
   distinct: [
-    pn(0, "Space", "Design"),
-    pn(1, "Agent", "Research"),
-    pn(2, "Thread", "Logo v2"),
-    pn(1, "Thread", "Kickoff"),
+    pn(0, "Space", "Acme Labs"),
+    pn(1, "Agent", "Authentication"),
+    pn(2, "Thread", "Sign in with Apple"),
+    pn(1, "Thread", "Fix flaky CI tests"),
     pn(2, "Thread …"),
   ],
   // No space entity: former spaces are just more agents at the top level.
   flat: [
-    pn(0, "Chat", "Kickoff"),
+    pn(0, "Chat", "v60 vs French Press"),
     pn(1, "Thread …"),
-    pn(0, "Agent", "Research"),
-    pn(1, "Thread", "Logo v2"),
+    pn(0, "Agent", "Scribe"),
+    pn(1, "Thread", "Design review notes"),
     pn(2, "Thread …"),
-    pn(0, "Agent", "Design"),
-    pn(1, "Chat", "Standup"),
+    pn(0, "Agent", "Acme Labs"),
+    pn(1, "Chat", "Fix flaky CI tests"),
   ],
   // No agent/group distinction here: every container is an agent.
   sections: [
     pn(0, "Home"),
-    pn(1, "Chat", "Kickoff"),
-    pn(1, "Agent", "Research"),
-    pn(2, "Thread", "Logo v2"),
-    pn(0, "Space", "Design"),
-    pn(1, "Agent", "Onboarding"),
-    pn(2, "Thread", "Q3 recap"),
-    pn(1, "Chat", "Standup"),
+    pn(1, "Chat", "v60 vs French Press"),
+    pn(1, "Agent", "Scribe"),
+    pn(2, "Thread", "Design review notes"),
+    pn(0, "Space", "Acme Labs"),
+    pn(1, "Agent", "Authentication"),
+    pn(2, "Thread", "Sign in with Apple"),
+    pn(1, "Chat", "Fix flaky CI tests"),
   ],
   // No space entity here either — everything at the top level is an agent.
   "flat-home-agent": [
     pn(0, "Agent", "Home"),
-    pn(1, "Chat", "Kickoff"),
-    pn(0, "Agent", "Research"),
-    pn(1, "Thread", "Logo v2"),
+    pn(1, "Chat", "v60 vs French Press"),
+    pn(0, "Agent", "Scribe"),
+    pn(1, "Thread", "Design review notes"),
     pn(2, "Thread …"),
-    pn(0, "Agent", "Design"),
-    pn(1, "Chat", "Standup"),
+    pn(0, "Agent", "Acme Labs"),
+    pn(1, "Chat", "Fix flaky CI tests"),
   ],
   // Home's chats sit flat at the top; the agent circles chat back.
   "space-agent": [
-    pn(0, "Chat", "Kickoff"),
-    pn(0, "Agent", "Design"),
-    pn(1, "Group", "Onboarding"),
-    pn(2, "Thread", "Logo v2"),
-    pn(1, "Thread", "Standup"),
+    pn(0, "Chat", "v60 vs French Press"),
+    pn(0, "Agent", "Acme Labs"),
+    pn(1, "Group", "Authentication"),
+    pn(2, "Thread", "Sign in with Apple"),
+    pn(1, "Thread", "Fix flaky CI tests"),
     pn(2, "Thread …"),
   ],
   "space-agent-readonly": [
-    pn(0, "Chat", "Kickoff"),
-    pn(0, "Agent", "Design"),
-    pn(1, "Group", "Onboarding"),
-    pn(2, "Thread", "Logo v2"),
-    pn(1, "Thread", "Standup"),
+    pn(0, "Chat", "v60 vs French Press"),
+    pn(0, "Agent", "Acme Labs"),
+    pn(1, "Group", "Authentication"),
+    pn(2, "Thread", "Sign in with Apple"),
+    pn(1, "Thread", "Fix flaky CI tests"),
     pn(2, "Thread …"),
   ],
-  sq: [pn(0, "Space", "Design"), pn(1, "Chat", "Kickoff")],
+  sq: [pn(0, "Space", "Acme Labs"), pn(1, "Chat", "Fix flaky CI tests")],
   "projects-separate": [
-    pn(0, "Project", "Website"),
-    pn(1, "Thread", "Logo v2"),
-    pn(0, "Space", "Design"),
-    pn(1, "Chat", "Kickoff"),
+    pn(0, "Project", "Authentication"),
+    pn(1, "Thread", "Sign in with Apple"),
+    pn(0, "Space", "Acme Labs"),
+    pn(1, "Chat", "Fix flaky CI tests"),
   ],
   "all-projects": [
-    pn(0, "Space", "Design"),
-    pn(1, "Chat", "Kickoff"),
-    pn(0, "Project", "Website"),
-    pn(1, "Thread", "Logo v2"),
+    pn(0, "Space", "Acme Labs"),
+    pn(1, "Chat", "Fix flaky CI tests"),
+    pn(0, "Project", "Authentication"),
+    pn(1, "Thread", "Sign in with Apple"),
   ],
+  // This variant's vocabulary calls the top-level containers workspaces
+  // (matching its approach label), not spaces.
   "projects-readonly": [
-    pn(0, "Space", "Design"),
-    pn(1, "Chat", "Kickoff"),
-    pn(1, "Group", "Onboarding"),
-    pn(2, "Thread", "Logo v2"),
+    pn(0, "Workspace", "Acme Labs"),
+    pn(1, "Chat", "Fix flaky CI tests"),
+    pn(1, "Group", "Authentication"),
+    pn(2, "Thread", "Sign in with Apple"),
   ],
 };
 
