@@ -1,0 +1,340 @@
+/* Glass design tokens. Ported from the portal globals.
+   Core colors are derived into semantic ramps via color-mix(in oklab, var(--base) N%, ...).
+   Reference the SEMANTIC tokens (--text-*, --bg-*, --border-*, --icon-*) in UI, never the core. */
+
+:root {
+  /* Layout */
+  --toolbar-h: 36px;
+  --sidebar-w: 232px;
+  --window-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 24px 64px -12px rgba(0, 0, 0, 0.45),
+    0 8px 24px -8px rgba(0, 0, 0, 0.35);
+
+  /* Motion: shared easing curve. Single source of truth — reference via var()
+     (Tailwind's transitionTimingFunction + CSS keyframes); never inline a curve
+     so all motion stays uniform. Standard `ease` (cubic-bezier(0.25,0.1,0.25,1)). */
+  --ease-default: cubic-bezier(0.25, 0.1, 0.25, 1);
+
+  /* Motion durations (enum). Reference via var() or the Tailwind
+     duration-fast/base/slow utilities; don't hardcode ms. */
+  --duration-fast: 100ms;
+  --duration-base: 150ms;
+  --duration-slow: 200ms;
+
+  /* Typography (size / line-height) */
+  --font-size-xs: 0.6875rem;
+  --line-height-xs: 0.875rem;
+  --font-size-sm: 0.75rem;
+  --line-height-sm: 1rem;
+  --font-size-base: 0.8125rem;
+  --line-height-base: 1.125rem;
+  --font-size-lg: 0.875rem;
+  --line-height-lg: 1.25rem;
+  --font-size-xl: 1.0625rem;
+  --line-height-xl: 1.375rem;
+  --font-size-2xl: 1.125rem;
+  --line-height-2xl: 1.4375rem;
+  --font-size-3xl: 1.25rem;
+  --line-height-3xl: 1.5625rem;
+}
+
+/* Light core colors */
+:root {
+  --sidebar: #f3f3f3;
+  --chrome: #f7f7f7;
+  --editor: #fcfcfc;
+  --base: #141414;
+  /* Always-light neutral (does NOT invert with theme). For text/fills on dark
+     or vivid surfaces. Light theme matches editor; dark theme matches base. */
+  --luminous: #fcfcfc;
+  --accent: #3c7cab;
+  --brand: #f54e00;
+  --focus: #3c7cab;
+  --success: #1f8a65;
+  --warn: #c08532;
+  --danger: #cf2d56;
+  --red: #cf2d56;
+  --orange: #db704b;
+  --yellow: #c08532;
+  --green: #1f8a65;
+  --cyan: #4c7f8c;
+  --blue: #3c7cab;
+  --magenta: #b8448b;
+  --purple: #7754d9;
+
+  --shadow-primary: rgba(20, 20, 20, 0.12);
+  --shadow-secondary: rgba(20, 20, 20, 0.072);
+  --shadow-tertiary: rgba(20, 20, 20, 0.036);
+
+  --desktop-bg: radial-gradient(120% 120% at 30% 10%, #2a2d33 0%, #17181b 55%, #0d0e10 100%);
+}
+
+/* Dark core colors */
+:root.dark {
+  --sidebar: #141414;
+  --chrome: #141414;
+  --editor: #181818;
+  --base: #e4e4e4;
+  --luminous: #e4e4e4;
+  --accent: #81a1c1;
+  --brand: #f54e00;
+  --focus: #5da1e5;
+  --success: #3fa266;
+  --warn: #f1b467;
+  --danger: #e34671;
+  --red: #fc6b83;
+  --orange: #d08770;
+  --yellow: #d2943e;
+  --green: #3fa266;
+  --cyan: #88c0d0;
+  --blue: #5da1e5;
+  --magenta: #b48ead;
+  --purple: #9386f2;
+
+  --shadow-primary: rgba(0, 0, 0, 0.4);
+  --shadow-secondary: rgba(0, 0, 0, 0.24);
+  --shadow-tertiary: rgba(0, 0, 0, 0.12);
+
+  --desktop-bg: radial-gradient(120% 120% at 30% 10%, #1a1c1f 0%, #101113 55%, #060708 100%);
+}
+
+/* Shared semantic colors (reference these in UI) */
+:root {
+  /* Text */
+  --text-primary: color-mix(in oklab, var(--base) 94%, transparent);
+  --text-secondary: color-mix(in oklab, var(--base) 70%, transparent);
+  --text-tertiary: color-mix(in oklab, var(--base) 48%, transparent);
+  --text-quaternary: color-mix(in oklab, var(--base) 32%, transparent);
+  --text-inverted: var(--editor);
+  --text-inverted-secondary: color-mix(in oklab, var(--editor) 70%, transparent);
+  --text-luminous: var(--luminous);
+  --text-luminous-secondary: color-mix(in oklab, var(--luminous) 70%, transparent);
+  --text-luminous-tertiary: color-mix(in oklab, var(--luminous) 48%, transparent);
+  --text-luminous-quaternary: color-mix(in oklab, var(--luminous) 36%, transparent);
+  --text-brand: var(--brand);
+
+  /* Icon */
+  --icon-primary: color-mix(in oklab, var(--base) 86%, var(--chrome));
+  --icon-secondary: color-mix(in oklab, var(--base) 62%, var(--chrome));
+  --icon-tertiary: color-mix(in oklab, var(--base) 40%, var(--chrome));
+  --icon-quaternary: color-mix(in oklab, var(--base) 24%, var(--chrome));
+  --icon-accent: color-mix(in oklab, var(--accent) 92%, transparent);
+  --icon-accent-secondary: color-mix(in oklab, var(--accent) 78%, transparent);
+  --icon-accent-tertiary: color-mix(in oklab, var(--accent) 56%, transparent);
+  --icon-accent-quaternary: color-mix(in oklab, var(--accent) 40%, transparent);
+
+  /* Background neutrals */
+  --bg-chrome: var(--chrome);
+  --bg-editor: var(--editor);
+  --bg-sidebar: color-mix(in oklab, var(--sidebar) 92%, transparent);
+  --bg-elevated: var(--editor);
+  --bg-unified-elevated: var(--editor);
+  --bg-scrim: rgba(0, 0, 0, 0.4);
+
+  --bg-neutral: var(--base);
+  --bg-neutral-hover: color-mix(in oklab, var(--chrome) 10%, var(--base));
+  --bg-neutral-secondary: color-mix(in oklab, var(--base) 24%, transparent);
+
+  --bg-luminous: var(--luminous);
+  --bg-luminous-secondary: color-mix(in oklab, var(--luminous) 24%, transparent);
+  --bg-luminous-tertiary: color-mix(in oklab, var(--luminous) 12%, transparent);
+  --bg-luminous-quaternary: color-mix(in oklab, var(--luminous) 8%, transparent);
+
+  --bg-primary: color-mix(in oklab, var(--base) 20%, transparent);
+  --bg-secondary: color-mix(in oklab, var(--base) 14%, transparent);
+  --bg-tertiary: color-mix(in oklab, var(--base) 8%, transparent);
+  --bg-quaternary: color-mix(in oklab, var(--base) 6%, transparent);
+  --bg-quinary: color-mix(in oklab, var(--base) 4%, transparent);
+  --bg-primary-opaque: color-mix(in oklab, var(--base) 20%, var(--chrome));
+  --bg-secondary-opaque: color-mix(in oklab, var(--base) 14%, var(--chrome));
+  --bg-tertiary-opaque: color-mix(in oklab, var(--base) 8%, var(--chrome));
+  --bg-quaternary-opaque: color-mix(in oklab, var(--base) 6%, var(--chrome));
+  --bg-quinary-opaque: color-mix(in oklab, var(--base) 4%, var(--chrome));
+
+  --bg-brand: var(--brand);
+  --bg-brand-hover: color-mix(in oklab, var(--base) 10%, var(--brand));
+
+  /* Border */
+  --border-primary: color-mix(in oklab, var(--base) 20%, transparent);
+  --border-secondary: color-mix(in oklab, var(--base) 12%, transparent);
+  --border-tertiary: color-mix(in oklab, var(--base) 8%, transparent);
+  --border-quaternary: color-mix(in oklab, var(--base) 4%, transparent);
+  /* Genuinely opaque equivalents of the translucent borders: the tint mixed
+     INTO the elevated surface (no alpha left), mirroring the bg-*-opaque ramp.
+     The prior `border-tertiary 100%` form was a no-op (0% elevated) and stayed
+     translucent, so it bled whatever sat behind it. */
+  --border-tertiary-opaque: color-mix(in oklab, var(--base) 8%, var(--bg-elevated));
+  --border-quaternary-opaque: color-mix(in oklab, var(--base) 4%, var(--bg-elevated));
+  --border-neutral: color-mix(in oklab, var(--base) 80%, transparent);
+  --border-focus: var(--focus);
+
+  /* Shadows. The leading `0 0 0 1px` ring is a baked-in hairline border
+     (matches Figma `elevated/box-shadow-*`), so elevated surfaces should NOT
+     also apply a real CSS border or they double up. */
+  --cursor-box-shadow-sm: 0 0 0 1px var(--border-quaternary), 0 2px 8px 0 var(--shadow-secondary);
+  --cursor-box-shadow-base: 0 0 0 1px var(--border-quaternary), 0 0 4px 0 var(--shadow-secondary),
+    0 8px 24px -2px var(--shadow-secondary);
+  --cursor-box-shadow-lg: 0 0 0 1px var(--border-quaternary), 0 0 4px 0 var(--shadow-secondary),
+    0 16px 24px 0 var(--shadow-secondary);
+  --cursor-box-shadow-xl: 0 0 0 1px var(--border-quaternary), 0 0 4px 0 var(--shadow-secondary),
+    0 12px 24px 0 var(--shadow-secondary), 0 24px 36px 0 var(--shadow-secondary);
+
+  /* Semantic color families: accent / success / warn / danger */
+  --text-accent: var(--accent);
+  --text-accent-secondary: color-mix(in oklab, var(--accent) 78%, transparent);
+  --text-accent-tertiary: color-mix(in oklab, var(--accent) 56%, transparent);
+  --text-accent-quaternary: color-mix(in oklab, var(--accent) 40%, transparent);
+  --text-success: var(--success);
+  --text-success-secondary: color-mix(in oklab, var(--success) 78%, transparent);
+  --text-success-tertiary: color-mix(in oklab, var(--success) 56%, transparent);
+  --text-success-quaternary: color-mix(in oklab, var(--success) 40%, transparent);
+  --text-warn: var(--warn);
+  --text-warn-secondary: color-mix(in oklab, var(--warn) 78%, transparent);
+  --text-warn-tertiary: color-mix(in oklab, var(--warn) 56%, transparent);
+  --text-warn-quaternary: color-mix(in oklab, var(--warn) 40%, transparent);
+  --text-danger: var(--danger);
+  --text-danger-secondary: color-mix(in oklab, var(--danger) 78%, transparent);
+  --text-danger-tertiary: color-mix(in oklab, var(--danger) 56%, transparent);
+  --text-danger-quaternary: color-mix(in oklab, var(--danger) 40%, transparent);
+
+  --bg-accent: var(--accent);
+  --bg-accent-secondary: color-mix(in oklab, var(--accent) 24%, transparent);
+  --bg-accent-tertiary: color-mix(in oklab, var(--accent) 12%, transparent);
+  --bg-accent-quaternary: color-mix(in oklab, var(--accent) 8%, transparent);
+  --bg-success: var(--success);
+  --bg-success-secondary: color-mix(in oklab, var(--success) 24%, transparent);
+  --bg-success-tertiary: color-mix(in oklab, var(--success) 12%, transparent);
+  --bg-success-quaternary: color-mix(in oklab, var(--success) 8%, transparent);
+  --bg-warn: var(--warn);
+  --bg-warn-secondary: color-mix(in oklab, var(--warn) 24%, transparent);
+  --bg-warn-tertiary: color-mix(in oklab, var(--warn) 12%, transparent);
+  --bg-warn-quaternary: color-mix(in oklab, var(--warn) 8%, transparent);
+  --bg-danger: var(--danger);
+  --bg-danger-secondary: color-mix(in oklab, var(--danger) 24%, transparent);
+  --bg-danger-tertiary: color-mix(in oklab, var(--danger) 12%, transparent);
+  --bg-danger-quaternary: color-mix(in oklab, var(--danger) 8%, transparent);
+
+  --border-accent: color-mix(in oklab, var(--accent) 92%, transparent);
+  --border-accent-secondary: color-mix(in oklab, var(--accent) 56%, transparent);
+  --border-accent-tertiary: color-mix(in oklab, var(--accent) 42%, transparent);
+  --border-accent-quaternary: color-mix(in oklab, var(--accent) 28%, transparent);
+  --border-success: color-mix(in oklab, var(--success) 92%, transparent);
+  --border-success-secondary: color-mix(in oklab, var(--success) 56%, transparent);
+  --border-success-tertiary: color-mix(in oklab, var(--success) 42%, transparent);
+  --border-success-quaternary: color-mix(in oklab, var(--success) 28%, transparent);
+  --border-warn: color-mix(in oklab, var(--warn) 92%, transparent);
+  --border-warn-secondary: color-mix(in oklab, var(--warn) 56%, transparent);
+  --border-warn-tertiary: color-mix(in oklab, var(--warn) 42%, transparent);
+  --border-warn-quaternary: color-mix(in oklab, var(--warn) 28%, transparent);
+  --border-danger: color-mix(in oklab, var(--danger) 92%, transparent);
+  --border-danger-secondary: color-mix(in oklab, var(--danger) 56%, transparent);
+  --border-danger-tertiary: color-mix(in oklab, var(--danger) 42%, transparent);
+  --border-danger-quaternary: color-mix(in oklab, var(--danger) 28%, transparent);
+}
+
+/* Color families: red orange yellow green cyan blue magenta purple.
+   text: 100/78/56/40 - bg: 92/24/12/8 - border: 92/56/42/28 */
+:root {
+  --text-red: var(--red);
+  --text-red-secondary: color-mix(in oklab, var(--red) 78%, transparent);
+  --text-red-tertiary: color-mix(in oklab, var(--red) 56%, transparent);
+  --text-red-quaternary: color-mix(in oklab, var(--red) 40%, transparent);
+  --bg-red: color-mix(in oklab, var(--red) 92%, transparent);
+  --bg-red-secondary: color-mix(in oklab, var(--red) 24%, transparent);
+  --bg-red-tertiary: color-mix(in oklab, var(--red) 12%, transparent);
+  --bg-red-quaternary: color-mix(in oklab, var(--red) 8%, transparent);
+  --border-red: color-mix(in oklab, var(--red) 92%, transparent);
+  --border-red-secondary: color-mix(in oklab, var(--red) 56%, transparent);
+  --border-red-tertiary: color-mix(in oklab, var(--red) 42%, transparent);
+  --border-red-quaternary: color-mix(in oklab, var(--red) 28%, transparent);
+
+  --text-orange: var(--orange);
+  --text-orange-secondary: color-mix(in oklab, var(--orange) 78%, transparent);
+  --text-orange-tertiary: color-mix(in oklab, var(--orange) 56%, transparent);
+  --text-orange-quaternary: color-mix(in oklab, var(--orange) 40%, transparent);
+  --bg-orange: color-mix(in oklab, var(--orange) 92%, transparent);
+  --bg-orange-secondary: color-mix(in oklab, var(--orange) 24%, transparent);
+  --bg-orange-tertiary: color-mix(in oklab, var(--orange) 12%, transparent);
+  --bg-orange-quaternary: color-mix(in oklab, var(--orange) 8%, transparent);
+  --border-orange: color-mix(in oklab, var(--orange) 92%, transparent);
+  --border-orange-secondary: color-mix(in oklab, var(--orange) 56%, transparent);
+  --border-orange-tertiary: color-mix(in oklab, var(--orange) 42%, transparent);
+  --border-orange-quaternary: color-mix(in oklab, var(--orange) 28%, transparent);
+
+  --text-yellow: var(--yellow);
+  --text-yellow-secondary: color-mix(in oklab, var(--yellow) 78%, transparent);
+  --text-yellow-tertiary: color-mix(in oklab, var(--yellow) 56%, transparent);
+  --text-yellow-quaternary: color-mix(in oklab, var(--yellow) 40%, transparent);
+  --bg-yellow: color-mix(in oklab, var(--yellow) 92%, transparent);
+  --bg-yellow-secondary: color-mix(in oklab, var(--yellow) 24%, transparent);
+  --bg-yellow-tertiary: color-mix(in oklab, var(--yellow) 12%, transparent);
+  --bg-yellow-quaternary: color-mix(in oklab, var(--yellow) 8%, transparent);
+  --border-yellow: color-mix(in oklab, var(--yellow) 92%, transparent);
+  --border-yellow-secondary: color-mix(in oklab, var(--yellow) 56%, transparent);
+  --border-yellow-tertiary: color-mix(in oklab, var(--yellow) 42%, transparent);
+  --border-yellow-quaternary: color-mix(in oklab, var(--yellow) 28%, transparent);
+
+  --text-green: var(--green);
+  --text-green-secondary: color-mix(in oklab, var(--green) 78%, transparent);
+  --text-green-tertiary: color-mix(in oklab, var(--green) 56%, transparent);
+  --text-green-quaternary: color-mix(in oklab, var(--green) 40%, transparent);
+  --bg-green: color-mix(in oklab, var(--green) 92%, transparent);
+  --bg-green-secondary: color-mix(in oklab, var(--green) 24%, transparent);
+  --bg-green-tertiary: color-mix(in oklab, var(--green) 12%, transparent);
+  --bg-green-quaternary: color-mix(in oklab, var(--green) 8%, transparent);
+  --border-green: color-mix(in oklab, var(--green) 92%, transparent);
+  --border-green-secondary: color-mix(in oklab, var(--green) 56%, transparent);
+  --border-green-tertiary: color-mix(in oklab, var(--green) 42%, transparent);
+  --border-green-quaternary: color-mix(in oklab, var(--green) 28%, transparent);
+
+  --text-cyan: var(--cyan);
+  --text-cyan-secondary: color-mix(in oklab, var(--cyan) 78%, transparent);
+  --text-cyan-tertiary: color-mix(in oklab, var(--cyan) 56%, transparent);
+  --text-cyan-quaternary: color-mix(in oklab, var(--cyan) 40%, transparent);
+  --bg-cyan: color-mix(in oklab, var(--cyan) 92%, transparent);
+  --bg-cyan-secondary: color-mix(in oklab, var(--cyan) 24%, transparent);
+  --bg-cyan-tertiary: color-mix(in oklab, var(--cyan) 12%, transparent);
+  --bg-cyan-quaternary: color-mix(in oklab, var(--cyan) 8%, transparent);
+  --border-cyan: color-mix(in oklab, var(--cyan) 92%, transparent);
+  --border-cyan-secondary: color-mix(in oklab, var(--cyan) 56%, transparent);
+  --border-cyan-tertiary: color-mix(in oklab, var(--cyan) 42%, transparent);
+  --border-cyan-quaternary: color-mix(in oklab, var(--cyan) 28%, transparent);
+
+  --text-blue: var(--blue);
+  --text-blue-secondary: color-mix(in oklab, var(--blue) 78%, transparent);
+  --text-blue-tertiary: color-mix(in oklab, var(--blue) 56%, transparent);
+  --text-blue-quaternary: color-mix(in oklab, var(--blue) 40%, transparent);
+  --bg-blue: color-mix(in oklab, var(--blue) 92%, transparent);
+  --bg-blue-secondary: color-mix(in oklab, var(--blue) 24%, transparent);
+  --bg-blue-tertiary: color-mix(in oklab, var(--blue) 12%, transparent);
+  --bg-blue-quaternary: color-mix(in oklab, var(--blue) 8%, transparent);
+  --border-blue: color-mix(in oklab, var(--blue) 92%, transparent);
+  --border-blue-secondary: color-mix(in oklab, var(--blue) 56%, transparent);
+  --border-blue-tertiary: color-mix(in oklab, var(--blue) 42%, transparent);
+  --border-blue-quaternary: color-mix(in oklab, var(--blue) 28%, transparent);
+
+  --text-magenta: var(--magenta);
+  --text-magenta-secondary: color-mix(in oklab, var(--magenta) 78%, transparent);
+  --text-magenta-tertiary: color-mix(in oklab, var(--magenta) 56%, transparent);
+  --text-magenta-quaternary: color-mix(in oklab, var(--magenta) 40%, transparent);
+  --bg-magenta: color-mix(in oklab, var(--magenta) 92%, transparent);
+  --bg-magenta-secondary: color-mix(in oklab, var(--magenta) 24%, transparent);
+  --bg-magenta-tertiary: color-mix(in oklab, var(--magenta) 12%, transparent);
+  --bg-magenta-quaternary: color-mix(in oklab, var(--magenta) 8%, transparent);
+  --border-magenta: color-mix(in oklab, var(--magenta) 92%, transparent);
+  --border-magenta-secondary: color-mix(in oklab, var(--magenta) 56%, transparent);
+  --border-magenta-tertiary: color-mix(in oklab, var(--magenta) 42%, transparent);
+  --border-magenta-quaternary: color-mix(in oklab, var(--magenta) 28%, transparent);
+
+  --text-purple: var(--purple);
+  --text-purple-secondary: color-mix(in oklab, var(--purple) 78%, transparent);
+  --text-purple-tertiary: color-mix(in oklab, var(--purple) 56%, transparent);
+  --text-purple-quaternary: color-mix(in oklab, var(--purple) 40%, transparent);
+  --bg-purple: color-mix(in oklab, var(--purple) 92%, transparent);
+  --bg-purple-secondary: color-mix(in oklab, var(--purple) 24%, transparent);
+  --bg-purple-tertiary: color-mix(in oklab, var(--purple) 12%, transparent);
+  --bg-purple-quaternary: color-mix(in oklab, var(--purple) 8%, transparent);
+  --border-purple: color-mix(in oklab, var(--purple) 92%, transparent);
+  --border-purple-secondary: color-mix(in oklab, var(--purple) 56%, transparent);
+  --border-purple-tertiary: color-mix(in oklab, var(--purple) 42%, transparent);
+  --border-purple-quaternary: color-mix(in oklab, var(--purple) 28%, transparent);
+}

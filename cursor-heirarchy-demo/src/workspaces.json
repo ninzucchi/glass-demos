@@ -1,0 +1,1013 @@
+[
+  {
+    "id": "ws-home",
+    "name": "Home",
+    "icon": "house",
+    "messages": [
+      {
+        "id": "m-home-1",
+        "role": "user",
+        "text": "Hello, what can you help me with?",
+        "at": "2026-08-15T09:41:00"
+      },
+      {
+        "id": "m-home-2",
+        "role": "agent",
+        "thoughtSecs": 4,
+        "text": "I can help with pretty much anything personal — planning trips, comparing gear, drafting messages, or just thinking something through. Bigger topics can spin off into their own threads so this chat stays readable.",
+        "at": "2026-08-15T09:41:20"
+      },
+      {
+        "id": "m-home-3",
+        "role": "user",
+        "text": "I went down a Mondrian rabbit hole last night — where does De Stijl actually come from?",
+        "at": "2026-08-15T09:43:00"
+      },
+      {
+        "id": "m-home-4",
+        "role": "agent",
+        "thoughtSecs": 6,
+        "text": "Great rabbit hole — it starts in 1917 Leiden with a journal, not a gallery. I opened a thread with the full history so this chat stays readable.",
+        "at": "2026-08-15T09:43:40"
+      },
+      {
+        "id": "m-home-5",
+        "role": "user",
+        "text": "Settle a debate for me: v60 or French press?",
+        "at": "2026-08-16T08:12:00"
+      },
+      {
+        "id": "m-home-6",
+        "role": "agent",
+        "thoughtSecs": 3,
+        "text": "Happy to weigh in — it mostly comes down to cleanup tolerance and how bright you like your cup. Opened a thread with the full comparison.",
+        "at": "2026-08-16T08:12:30"
+      }
+    ],
+    "items": [
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-destijl",
+          "title": "History of De Stijl",
+          "pinned": true,
+          "createdAt": "2026-08-15T09:44:00",
+          "parentMessageId": "m-home-4",
+          "createdBy": "agent",
+          "messages": [
+            {
+              "id": "m-destijl-1",
+              "role": "user",
+              "text": "Give me the full history — who started it, and what were they reacting to?",
+              "at": "2026-08-15T09:44:10"
+            },
+            {
+              "id": "m-destijl-2",
+              "role": "agent",
+              "thoughtSecs": 9,
+              "text": "De Stijl started in 1917 around Theo van Doesburg's journal of the same name. Mondrian supplied the theory — neoplasticism: strip painting to horizontals, verticals, primaries, and non-colors — and Rietveld carried it into three dimensions with the Red and Blue Chair and the Schröder House.",
+              "at": "2026-08-15T09:45:00"
+            },
+            {
+              "id": "m-destijl-3",
+              "role": "user",
+              "text": "How did it end up influencing design today?",
+              "at": "2026-08-15T10:02:00"
+            },
+            {
+              "id": "m-destijl-4",
+              "role": "agent",
+              "thoughtSecs": 5,
+              "text": "Mostly through the Bauhaus, where van Doesburg lectured — the grid, primary palettes, and asymmetric balance flowed into typography and architecture, and you can trace a straight line to Swiss grid systems and flat digital UI. The movement itself fizzled by 1931 after Mondrian and van Doesburg fell out over the diagonal.",
+              "at": "2026-08-15T10:02:40"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-v60",
+          "title": "v60 vs French Press",
+          "createdAt": "2026-08-16T08:13:00",
+          "parentMessageId": "m-home-6",
+          "createdBy": "agent",
+          "messages": [
+            {
+              "id": "m-v60-2",
+              "role": "agent",
+              "thoughtSecs": 7,
+              "text": "For a single cup I'd take the v60: paper filter gives a cleaner, brighter cup and cleanup is ten seconds. The press wins on forgiveness — coarse grind, four minutes, no technique — but you trade clarity for body and sludge.",
+              "at": "2026-08-16T08:14:00"
+            },
+            {
+              "id": "m-v60-3",
+              "role": "user",
+              "text": "What grinder setting should I start with?",
+              "at": "2026-08-16T08:16:00"
+            },
+            {
+              "id": "m-v60-4",
+              "role": "agent",
+              "thoughtSecs": 4,
+              "text": "Medium-fine, about the texture of table salt. If the brew runs past 3 minutes or tastes bitter, go coarser; if it gushes through and tastes sour, go finer.",
+              "at": "2026-08-16T08:16:40"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "project",
+        "project": {
+          "id": "p-ea",
+          "name": "Executive Assistant",
+          "kind": "agent",
+          "icon": "briefcase",
+          "messages": [
+            {
+              "id": "m-ea-1",
+              "role": "user",
+              "text": "What kinds of things can you take off my plate?",
+              "at": "2026-08-14T09:41:00"
+            },
+            {
+              "id": "m-ea-2",
+              "role": "agent",
+              "thoughtSecs": 8,
+              "text": "As an executive assistant, I'd be most useful as a layer between you and the operational clutter around your work — calendar, reservations, reminders, follow-ups.",
+              "at": "2026-08-14T09:41:45"
+            },
+            {
+              "id": "m-ea-3",
+              "role": "user",
+              "text": "Add my dentist appointment to my calendar — Thursday at 2",
+              "at": "2026-08-14T09:43:00"
+            },
+            {
+              "id": "m-ea-4",
+              "role": "agent",
+              "thoughtSecs": 3,
+              "text": "Added \"Dentist\" for Thursday at 2:00 PM. Want a reminder the evening before?",
+              "at": "2026-08-14T09:43:20"
+            },
+            {
+              "id": "m-ea-5",
+              "role": "user",
+              "text": "I need dinner sorted for Friday — client-facing, so somewhere decent",
+              "at": "2026-08-14T16:19:00"
+            },
+            {
+              "id": "m-ea-6",
+              "role": "agent",
+              "thoughtSecs": 4,
+              "text": "On it — started a thread to compare spots and lock in the reservation.",
+              "at": "2026-08-14T16:19:30"
+            },
+            {
+              "id": "m-ea-7",
+              "role": "user",
+              "text": "The Denver offsite is confirmed — can you handle flights?",
+              "at": "2026-08-16T08:29:00"
+            },
+            {
+              "id": "m-ea-8",
+              "role": "agent",
+              "thoughtSecs": 3,
+              "text": "Sure — started a thread to compare fares and hold the best option.",
+              "at": "2026-08-16T08:29:40"
+            }
+          ],
+          "threads": [
+            {
+              "id": "t-dinner",
+              "title": "Dinner Reservation",
+              "pinned": true,
+              "createdAt": "2026-08-14T16:20:00",
+              "parentMessageId": "m-ea-6",
+              "messages": [
+                {
+                  "id": "m-dinner-1",
+                  "role": "user",
+                  "text": "Table for 4, somewhere within walking distance of the office",
+                  "at": "2026-08-14T16:20:10"
+                },
+                {
+                  "id": "m-dinner-2",
+                  "role": "agent",
+                  "thoughtSecs": 9,
+                  "text": "Two options within a 10-minute walk: Lupa at 7:30 (Italian, quieter back room) or Nari at 8:00 (Thai, livelier). Both hold the reservation for 24 hours.",
+                  "at": "2026-08-14T16:21:00"
+                },
+                {
+                  "id": "m-dinner-3",
+                  "role": "user",
+                  "text": "Lupa at 7:30 works",
+                  "at": "2026-08-14T16:24:00"
+                },
+                {
+                  "id": "m-dinner-4",
+                  "role": "agent",
+                  "thoughtSecs": 2,
+                  "text": "Booked — Lupa, Friday 7:30 PM, party of 4, under your name. Confirmation is in your inbox.",
+                  "at": "2026-08-14T16:24:30"
+                }
+              ]
+            },
+            {
+              "id": "t-flights",
+              "title": "Flights for the Offsite",
+              "createdAt": "2026-08-16T08:30:00",
+              "parentMessageId": "m-ea-8",
+              "messages": [
+                {
+                  "id": "m-flights-1",
+                  "role": "user",
+                  "text": "Out Tuesday morning, back Thursday evening — direct if possible",
+                  "at": "2026-08-16T08:30:10"
+                },
+                {
+                  "id": "m-flights-2",
+                  "role": "agent",
+                  "thoughtSecs": 6,
+                  "text": "Best fit: United 8:05 AM out, 6:40 PM return Thursday, $312 round trip. There's a cheaper 6 AM departure but it means a 4:30 wake-up. Want me to hold the United one?",
+                  "at": "2026-08-16T08:31:00"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "kind": "project",
+        "project": {
+          "id": "p-prmgr",
+          "name": "PR Manager",
+          "kind": "agent",
+          "icon": "git-pull-request",
+          "messages": [
+            {
+              "id": "m-prmgr-1",
+              "role": "user",
+              "text": "What's the state of my open PRs?",
+              "at": "2026-08-16T10:00:00"
+            },
+            {
+              "id": "m-prmgr-2",
+              "role": "agent",
+              "thoughtSecs": 7,
+              "text": "Three open: the sidebar refactor has two approvals and a merge conflict, the icon pipeline is waiting on CI, and the settings panel has been idle for four days with no reviewers assigned.",
+              "at": "2026-08-16T10:00:45"
+            },
+            {
+              "id": "m-prmgr-3",
+              "role": "user",
+              "text": "Sort out the sidebar one first",
+              "at": "2026-08-16T10:03:00"
+            },
+            {
+              "id": "m-prmgr-4",
+              "role": "agent",
+              "thoughtSecs": 3,
+              "text": "On it — opened a thread to resolve the conflict and get it merged.",
+              "at": "2026-08-16T10:03:30"
+            }
+          ],
+          "threads": [
+            {
+              "id": "t-sidebar-pr",
+              "title": "Merge the sidebar refactor",
+              "createdAt": "2026-08-16T10:04:00",
+              "parentMessageId": "m-prmgr-4",
+              "createdBy": "agent",
+              "messages": [
+                {
+                  "id": "m-sidebar-pr-1",
+                  "role": "agent",
+                  "thoughtSecs": 12,
+                  "text": "The conflict is in Sidebar.tsx — both branches touched the disclosure row markup. Main's version keeps the aria attributes yours dropped, so I merged main's structure with your styling. Rebased and pushed; CI is running.",
+                  "at": "2026-08-16T10:06:00"
+                },
+                {
+                  "id": "m-sidebar-pr-2",
+                  "role": "agent",
+                  "thoughtSecs": 2,
+                  "text": "CI is green. Two approvals still stand after the rebase — ready to merge on your word.",
+                  "at": "2026-08-16T10:22:00"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "kind": "project",
+        "project": {
+          "id": "p-scribe",
+          "name": "Scribe",
+          "kind": "agent",
+          "icon": "pen-nib",
+          "messages": [
+            {
+              "id": "m-scribe-1",
+              "role": "user",
+              "text": "Can you keep notes from my meetings and turn them into summaries?",
+              "at": "2026-08-15T13:00:00"
+            },
+            {
+              "id": "m-scribe-2",
+              "role": "agent",
+              "thoughtSecs": 5,
+              "text": "Yes — share a transcript or invite me to the call and I'll produce a summary with decisions and action items. Each meeting gets its own thread so the history stays browsable.",
+              "at": "2026-08-15T13:00:40"
+            },
+            {
+              "id": "m-scribe-3",
+              "role": "user",
+              "text": "Start with this morning's design review",
+              "at": "2026-08-15T13:02:00"
+            },
+            {
+              "id": "m-scribe-4",
+              "role": "agent",
+              "thoughtSecs": 3,
+              "text": "Done — notes are in a thread below.",
+              "at": "2026-08-15T13:02:30"
+            }
+          ],
+          "threads": [
+            {
+              "id": "t-design-review",
+              "title": "Design review notes",
+              "createdAt": "2026-08-15T13:03:00",
+              "parentMessageId": "m-scribe-4",
+              "createdBy": "agent",
+              "messages": [
+                {
+                  "id": "m-review-notes-1",
+                  "role": "agent",
+                  "thoughtSecs": 14,
+                  "text": "Summary: the team settled on the flat sidebar variant for the next prototype round. Decisions — spaces keep their main chat; groups become read-only folders. Action items: Ankit to update the hierarchy tool, Dana to draft copy for empty states by Friday.",
+                  "at": "2026-08-15T13:05:00"
+                },
+                {
+                  "id": "m-review-notes-2",
+                  "role": "user",
+                  "text": "Send the action items to the team channel",
+                  "at": "2026-08-15T13:10:00"
+                },
+                {
+                  "id": "m-review-notes-3",
+                  "role": "agent",
+                  "thoughtSecs": 2,
+                  "text": "Posted to #design with owners and due dates. I'll nudge here if anything is still open Thursday.",
+                  "at": "2026-08-15T13:10:30"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "ws-acme",
+    "name": "Acme Labs",
+    "messages": [
+      {
+        "id": "m-acme-1",
+        "role": "user",
+        "text": "Morning — what needs my attention today?",
+        "at": "2026-08-17T09:15:00"
+      },
+      {
+        "id": "m-acme-2",
+        "role": "agent",
+        "thoughtSecs": 11,
+        "text": "Three things: the working tree has drifted from main and could use a summary before standup, CI has been flaky on the auth suite since Friday, and the onboarding doc rewrite is still waiting on your review.",
+        "at": "2026-08-17T09:16:00"
+      },
+      {
+        "id": "m-acme-3",
+        "role": "user",
+        "text": "Start with the working tree, then look at CI",
+        "at": "2026-08-17T09:38:00"
+      },
+      {
+        "id": "m-acme-4",
+        "role": "agent",
+        "thoughtSecs": 4,
+        "text": "On it — spinning both off into their own threads so you can follow each independently.",
+        "at": "2026-08-17T09:38:30"
+      }
+    ],
+    "items": [
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-tree",
+          "title": "Summarize working tree",
+          "createdAt": "2026-08-17T09:41:00",
+          "parentMessageId": "m-acme-4",
+          "createdBy": "agent",
+          "messages": [
+            {
+              "id": "m-tree-2",
+              "role": "agent",
+              "thoughtSecs": 14,
+              "text": "12 files changed across two efforts: the sidebar refactor (new disclosure rows, thread cells, selection state) and the chat panel split view. No schema or dependency changes. Two files have uncommitted debug logging you probably want to drop.",
+              "at": "2026-08-17T09:42:00"
+            },
+            {
+              "id": "m-tree-3",
+              "role": "user",
+              "text": "Where's the debug logging?",
+              "at": "2026-08-17T09:44:00"
+            },
+            {
+              "id": "m-tree-4",
+              "role": "agent",
+              "thoughtSecs": 3,
+              "text": "The debug logging is in ChatPanel.tsx (a console.table of timeline items) and data.ts (a console.log in resolvePath). Both are inside otherwise-clean diffs.",
+              "at": "2026-08-17T09:44:30"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-ci",
+          "title": "Fix flaky CI tests",
+          "createdAt": "2026-08-17T11:05:00",
+          "parentMessageId": "m-acme-4",
+          "createdBy": "agent",
+          "messages": [
+            {
+              "id": "m-ci-2",
+              "role": "agent",
+              "thoughtSecs": 21,
+              "text": "Pulled the last 20 runs: every failure is in token-refresh.spec and lands on the same assertion. The test races a 5s token expiry against a real timer — on slow runners the refresh fires late. Mocking the clock should fix it.",
+              "at": "2026-08-17T11:07:00"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-onboard",
+          "title": "Onboarding doc rewrite",
+          "createdAt": "2026-08-15T14:30:00",
+          "parentMessageId": "m-acme-2",
+          "messages": [
+            {
+              "id": "m-onboard-1",
+              "role": "user",
+              "text": "Rewrite the onboarding doc — it still references the old monorepo layout",
+              "at": "2026-08-15T14:30:10"
+            },
+            {
+              "id": "m-onboard-2",
+              "role": "agent",
+              "thoughtSecs": 18,
+              "text": "Draft ready. Restructured around the new layout: setup in under 10 minutes, then a guided first PR. Cut the stale sections on the deprecated build system entirely.",
+              "at": "2026-08-15T14:33:00"
+            },
+            {
+              "id": "m-onboard-3",
+              "role": "user",
+              "text": "Keep a short appendix on the old build for the two legacy services",
+              "at": "2026-08-15T15:01:00"
+            },
+            {
+              "id": "m-onboard-4",
+              "role": "agent",
+              "thoughtSecs": 6,
+              "text": "Appendix added — one page covering the legacy build for billing-svc and mailer only. Full draft is ready for your review.",
+              "at": "2026-08-15T15:08:00"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-spacing",
+          "title": "Sidebar cell spacing",
+          "createdAt": "2026-08-16T10:20:00",
+          "messages": [
+            {
+              "id": "m-spacing-1",
+              "role": "user",
+              "text": "The rows in the sidebar feel cramped — is there a spacing issue?",
+              "at": "2026-08-16T10:20:10"
+            },
+            {
+              "id": "m-spacing-2",
+              "role": "agent",
+              "thoughtSecs": 9,
+              "text": "Found it: thread cells use a 24px row height while the disclosure rows are 28px, so mixed lists look uneven. Normalizing everything to 28px with a 1px gap fixes the rhythm without changing density much.",
+              "at": "2026-08-16T10:21:00"
+            },
+            {
+              "id": "m-spacing-3",
+              "role": "user",
+              "text": "Do it, but keep the compact feel",
+              "at": "2026-08-16T10:24:00"
+            },
+            {
+              "id": "m-spacing-4",
+              "role": "agent",
+              "thoughtSecs": 5,
+              "text": "Done — 28px rows across the board, trimmed the vertical padding inside cells by 2px to compensate. Net height of a 10-row list grows by only 6px.",
+              "at": "2026-08-16T10:25:00"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-emptystate",
+          "title": "Empty state polish",
+          "createdAt": "2026-08-15T16:40:00",
+          "messages": [
+            {
+              "id": "m-empty-1",
+              "role": "user",
+              "text": "New workspaces look broken — there's just a blank panel",
+              "at": "2026-08-15T16:40:10"
+            },
+            {
+              "id": "m-empty-2",
+              "role": "agent",
+              "thoughtSecs": 7,
+              "text": "Right now the chat panel renders nothing when a workspace has no messages. I'd add a centered empty state: short line of copy plus the composer already focused, so the first action is obvious.",
+              "at": "2026-08-15T16:41:00"
+            },
+            {
+              "id": "m-empty-3",
+              "role": "user",
+              "text": "What copy are you thinking?",
+              "at": "2026-08-15T16:43:00"
+            },
+            {
+              "id": "m-empty-4",
+              "role": "agent",
+              "thoughtSecs": 4,
+              "text": "Something quiet like \"Start a conversation\" — no illustration, no button. The focused composer does the inviting.",
+              "at": "2026-08-15T16:43:30"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-shortcuts",
+          "title": "Keyboard shortcuts audit",
+          "createdAt": "2026-08-14T11:10:00",
+          "messages": [
+            {
+              "id": "m-shortcuts-1",
+              "role": "user",
+              "text": "Audit our keyboard shortcuts — a few collide with browser defaults",
+              "at": "2026-08-14T11:10:10"
+            },
+            {
+              "id": "m-shortcuts-2",
+              "role": "agent",
+              "thoughtSecs": 16,
+              "text": "Two real collisions: Cmd+D (new thread) fights the bookmark dialog, and Cmd+Shift+C (copy link) opens devtools in Chrome. Everything else is clean. Suggest Cmd+T-style alternatives are taken, so Cmd+E and Cmd+Shift+L respectively.",
+              "at": "2026-08-14T11:12:00"
+            },
+            {
+              "id": "m-shortcuts-3",
+              "role": "user",
+              "text": "Take Cmd+E for new thread, leave copy link unbound for now",
+              "at": "2026-08-14T11:20:00"
+            },
+            {
+              "id": "m-shortcuts-4",
+              "role": "agent",
+              "thoughtSecs": 3,
+              "text": "Rebound and documented. Copy link is menu-only until we pick something; the shortcuts sheet reflects both changes.",
+              "at": "2026-08-14T11:21:00"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-latency",
+          "title": "Search latency regression",
+          "createdAt": "2026-08-17T13:50:00",
+          "messages": [
+            {
+              "id": "m-latency-1",
+              "role": "user",
+              "text": "Search feels slower since the Friday deploy — can you check?",
+              "at": "2026-08-17T13:50:10"
+            },
+            {
+              "id": "m-latency-2",
+              "role": "agent",
+              "thoughtSecs": 24,
+              "text": "Confirmed: p95 went from 180ms to 410ms after Friday's deploy. The new fuzzy matcher re-tokenizes the full corpus on every keystroke instead of using the cached index. Memoizing the tokenizer brings it back under 200ms locally.",
+              "at": "2026-08-17T13:53:00"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-relnotes",
+          "title": "Release notes draft",
+          "createdAt": "2026-08-15T17:30:00",
+          "messages": [
+            {
+              "id": "m-relnotes-1",
+              "role": "user",
+              "text": "Draft release notes for 0.9 — keep it readable, not a changelog dump",
+              "at": "2026-08-15T17:30:10"
+            },
+            {
+              "id": "m-relnotes-2",
+              "role": "agent",
+              "thoughtSecs": 12,
+              "text": "Draft ready. Led with threaded conversations and the new grouping, folded the 14 fix-level commits into a single \"polish\" section, and cut anything users can't see. About 200 words.",
+              "at": "2026-08-15T17:32:00"
+            },
+            {
+              "id": "m-relnotes-3",
+              "role": "user",
+              "text": "Mention the keyboard shortcut changes too",
+              "at": "2026-08-15T17:40:00"
+            },
+            {
+              "id": "m-relnotes-4",
+              "role": "agent",
+              "thoughtSecs": 4,
+              "text": "Added a one-liner under polish: \"New thread is now Cmd+E; a full shortcuts sheet lives under Help.\"",
+              "at": "2026-08-15T17:41:00"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "project",
+        "project": {
+          "id": "p-auth",
+          "name": "Authentication",
+          "kind": "group",
+          "icon": "key",
+          "messages": [
+            {
+              "id": "m-auth-1",
+              "role": "user",
+              "text": "What's left before we can ship social sign-in?",
+              "at": "2026-08-13T10:00:00"
+            },
+            {
+              "id": "m-auth-2",
+              "role": "agent",
+              "thoughtSecs": 9,
+              "text": "Two workstreams: Apple sign-in needs the App Store review checklist done, and Google needs the consent screen re-verified after the domain change. Tracking each in its own thread below.",
+              "at": "2026-08-13T10:01:00"
+            }
+          ],
+          "threads": [
+            {
+              "id": "t-apple",
+              "title": "Sign in with Apple",
+              "createdAt": "2026-08-13T10:05:00",
+              "parentMessageId": "m-auth-2",
+              "createdBy": "agent",
+              "messages": [
+                {
+                  "id": "m-apple-2",
+                  "role": "agent",
+                  "thoughtSecs": 8,
+                  "text": "Apple review checklist has three items outstanding: hide-email relay must be handled on the backend, the button needs Apple's exact styling, and we need a test account with 2FA for the reviewer.",
+                  "at": "2026-08-13T10:06:00"
+                },
+                {
+                  "id": "m-apple-3",
+                  "role": "agent",
+                  "thoughtSecs": 4,
+                  "text": "Update: button styling is done and the relay handling is in review - just the reviewer test account left.",
+                  "at": "2026-08-13T14:30:00"
+                },
+                {
+                  "id": "m-apple-4",
+                  "role": "user",
+                  "text": "I'll create the test account today — remind me what it needs?",
+                  "at": "2026-08-13T15:10:00"
+                },
+                {
+                  "id": "m-apple-5",
+                  "role": "agent",
+                  "thoughtSecs": 3,
+                  "text": "A real Apple ID with 2FA enabled, signed into a device the reviewer can't lock out, plus the credentials in the review notes. That's the whole list.",
+                  "at": "2026-08-13T15:10:40"
+                }
+              ]
+            },
+            {
+              "id": "t-google",
+              "title": "Sign in with Google",
+              "createdAt": "2026-08-13T10:08:00",
+              "parentMessageId": "m-auth-2",
+              "createdBy": "agent",
+              "messages": [
+                {
+                  "id": "m-google-2",
+                  "role": "agent",
+                  "thoughtSecs": 5,
+                  "text": "Consent screen re-verification went in Tuesday; Google quotes 3-5 business days. The staging client ID still works in the meantime, so dev isn't blocked.",
+                  "at": "2026-08-13T10:09:00"
+                },
+                {
+                  "id": "m-google-3",
+                  "role": "user",
+                  "text": "Ping me the moment verification clears",
+                  "at": "2026-08-13T10:15:00"
+                },
+                {
+                  "id": "m-google-4",
+                  "role": "agent",
+                  "thoughtSecs": 2,
+                  "text": "Will do — I'm polling the verification status daily and will flag it here as soon as it flips.",
+                  "at": "2026-08-13T10:15:30"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "kind": "project",
+        "project": {
+          "id": "p-uibot",
+          "name": "UI Bot",
+          "kind": "group",
+          "icon": "robot",
+          "messages": [
+            {
+              "id": "m-uibot-1",
+              "role": "user",
+              "text": "Two visual bugs came in from QA this morning",
+              "at": "2026-08-16T13:00:00"
+            },
+            {
+              "id": "m-uibot-2",
+              "role": "agent",
+              "thoughtSecs": 6,
+              "text": "Got them — the dropdown clipping and the sidebar slide-in jank. Splitting into two threads so the fixes land independently.",
+              "at": "2026-08-16T13:01:00"
+            }
+          ],
+          "threads": [
+            {
+              "id": "t-bug",
+              "title": "Fix Bug",
+              "createdAt": "2026-08-16T13:05:00",
+              "parentMessageId": "m-uibot-2",
+              "createdBy": "agent",
+              "messages": [
+                {
+                  "id": "m-bug-2",
+                  "role": "agent",
+                  "thoughtSecs": 10,
+                  "text": "QA's dropdown bug is an overflow-hidden ancestor clipping the menu. Portaling the dropdown to the body fixes it without touching the modal's scroll behavior - patch is ready for review.",
+                  "at": "2026-08-16T13:07:00"
+                },
+                {
+                  "id": "m-bug-3",
+                  "role": "user",
+                  "text": "Does the portal break the dropdown's position when the modal scrolls?",
+                  "at": "2026-08-16T13:15:00"
+                },
+                {
+                  "id": "m-bug-4",
+                  "role": "agent",
+                  "thoughtSecs": 6,
+                  "text": "No — it repositions on scroll via an anchor rect observer, same approach the tooltip uses. Tested with the modal at both scroll extremes.",
+                  "at": "2026-08-16T13:16:00"
+                }
+              ]
+            },
+            {
+              "id": "t-anim",
+              "title": "Fix Animation",
+              "createdAt": "2026-08-16T13:10:00",
+              "parentMessageId": "m-uibot-2",
+              "createdBy": "agent",
+              "messages": [
+                {
+                  "id": "m-anim-2",
+                  "role": "agent",
+                  "thoughtSecs": 7,
+                  "text": "The sidebar slide-in stutter was the width animation forcing layout every frame. Switched it to a transform with will-change - smooth at 60fps on the throttled profile.",
+                  "at": "2026-08-16T13:12:00"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "kind": "project",
+        "project": {
+          "id": "p-analytics",
+          "name": "Analytics",
+          "kind": "group",
+          "icon": "chart-bars",
+          "messages": [
+            {
+              "id": "m-analytics-1",
+              "role": "user",
+              "text": "We need funnel data for the new signup flow",
+              "at": "2026-08-12T11:00:00"
+            },
+            {
+              "id": "m-analytics-2",
+              "role": "agent",
+              "thoughtSecs": 13,
+              "text": "The flow has no instrumentation past the landing page. I'd add events at each step, then extend the dashboard once data starts flowing — threads below for each half.",
+              "at": "2026-08-12T11:02:00"
+            }
+          ],
+          "threads": [
+            {
+              "id": "t-events",
+              "title": "Set up events",
+              "createdAt": "2026-08-12T11:05:00",
+              "parentMessageId": "m-analytics-2",
+              "createdBy": "agent",
+              "messages": [
+                {
+                  "id": "m-events-2",
+                  "role": "agent",
+                  "thoughtSecs": 9,
+                  "text": "Added signup_started, email_submitted, verified, and completed events with the plan tier as a property. They're flowing to staging now.",
+                  "at": "2026-08-12T11:08:00"
+                }
+              ]
+            },
+            {
+              "id": "t-dashboard",
+              "title": "Update dashboard",
+              "createdAt": "2026-08-14T09:30:00",
+              "parentMessageId": "m-analytics-2",
+              "createdBy": "agent",
+              "messages": [
+                {
+                  "id": "m-dash-2",
+                  "role": "agent",
+                  "thoughtSecs": 11,
+                  "text": "Funnel panel is live: conversion between each step, split by plan tier, with a 7-day trend. Biggest drop-off is email verification at 34%.",
+                  "at": "2026-08-14T09:33:00"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "ws-figma",
+    "name": "Figma Plugins",
+    "messages": [
+      {
+        "id": "m-figma-1",
+        "role": "user",
+        "text": "Let's get the icon export plugin ready for review",
+        "at": "2026-08-17T15:00:00"
+      },
+      {
+        "id": "m-figma-2",
+        "role": "agent",
+        "thoughtSecs": 5,
+        "text": "Manifest and command entries look good. The main open question is the export naming scheme — opened a thread with a proposal.",
+        "at": "2026-08-17T15:01:00"
+      }
+    ],
+    "items": [
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-naming",
+          "title": "Export naming scheme",
+          "createdAt": "2026-08-17T15:05:00",
+          "parentMessageId": "m-figma-2",
+          "createdBy": "agent",
+          "messages": [
+            {
+              "id": "m-naming-2",
+              "role": "agent",
+              "thoughtSecs": 6,
+              "text": "Proposal: kebab-case from the layer name with the size as a suffix (icon-arrow-16.svg). Frames export their children individually, and collisions get a numeric suffix.",
+              "at": "2026-08-17T15:06:00"
+            },
+            {
+              "id": "m-naming-3",
+              "role": "user",
+              "text": "Good — but strip any emoji from layer names first",
+              "at": "2026-08-17T15:12:00"
+            },
+            {
+              "id": "m-naming-4",
+              "role": "agent",
+              "thoughtSecs": 3,
+              "text": "Done. Emoji and non-ASCII symbols are stripped before slugging; names that end up empty fall back to the node id.",
+              "at": "2026-08-17T15:12:40"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "ws-japan",
+    "name": "Trip to Japan",
+    "icon": "plane",
+    "messages": [
+      {
+        "id": "m-japan-1",
+        "role": "user",
+        "text": "Let's plan the Japan trip — 10 days in mid-November, flying into Tokyo",
+        "at": "2026-08-15T09:44:00"
+      },
+      {
+        "id": "m-japan-2",
+        "role": "agent",
+        "thoughtSecs": 12,
+        "text": "For a 10-day mid-November trip into Tokyo, rough shape: 4 nights Tokyo, 3 nights Kyoto, 1 night Osaka, then back to Tokyo for the last 2. Foliage peaks in Kyoto around Nov 20, so I'd anchor the Kyoto leg to that.",
+        "at": "2026-08-15T09:45:00"
+      },
+      {
+        "id": "m-japan-3",
+        "role": "user",
+        "text": "Add a day trip to Nara from Kyoto",
+        "at": "2026-08-15T10:02:00"
+      },
+      {
+        "id": "m-japan-4",
+        "role": "agent",
+        "thoughtSecs": 5,
+        "text": "Done — Nara slots in nicely on the middle Kyoto day. It's 45 minutes on the Kintetsu line; Todai-ji plus the deer park is a comfortable half day, leaving the evening for Gion.",
+        "at": "2026-08-15T10:02:40"
+      },
+      {
+        "id": "m-japan-5",
+        "role": "agent",
+        "thoughtSecs": 5,
+        "text": "Heads up — ryokan availability in Kyoto for your dates is down to a handful of options. Want me to hold one before the itinerary is final?",
+        "at": "2026-08-16T09:00:00"
+      }
+    ],
+    "items": [
+      {
+        "kind": "thread",
+        "thread": {
+          "id": "t-ryokan",
+          "title": "Ryokan Shortlist",
+          "createdAt": "2026-08-16T09:05:00",
+          "parentMessageId": "m-japan-5",
+          "messages": [
+            {
+              "id": "m-ryokan-1",
+              "role": "user",
+              "text": "Which ones are still open? Budget is around $400 a night",
+              "at": "2026-08-16T09:05:10"
+            },
+            {
+              "id": "m-ryokan-2",
+              "role": "agent",
+              "thoughtSecs": 8,
+              "text": "Three left under $400: Hoshinoya-adjacent Gion machiya ($380, private bath), Nishiyama in central Kyoto ($290, shared onsen), and a riverside spot in Arashiyama ($350, kaiseki dinner included). The Arashiyama one books out first.",
+              "at": "2026-08-16T09:06:00"
+            },
+            {
+              "id": "m-ryokan-3",
+              "role": "user",
+              "text": "Hold the Arashiyama one",
+              "at": "2026-08-16T09:10:00"
+            },
+            {
+              "id": "m-ryokan-4",
+              "role": "agent",
+              "thoughtSecs": 3,
+              "text": "Held for 48 hours — two nights, riverside room, dinner included. It'll release automatically if we don't confirm by Thursday.",
+              "at": "2026-08-16T09:10:30"
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

@@ -1,0 +1,64 @@
+@import "./styles/tokens.css";
+@import "./styles/icons.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    background-color: #f2f2f2;
+  }
+
+  body {
+    @apply font-sans antialiased text-base text-primary;
+    background: #f2f2f2;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior: none;
+  }
+
+  *:focus {
+    outline: none;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--text-quaternary) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--text-quaternary);
+    border-radius: 999px;
+  }
+}
+
+@layer utilities {
+  /* Overlay scrollbar: thumb hidden until hover/focus-within (from cursor-neue). */
+  .scrollbar-overlay {
+    scrollbar-color: transparent transparent;
+  }
+  .scrollbar-overlay:hover,
+  .scrollbar-overlay:focus-within {
+    scrollbar-color: var(--text-quaternary) transparent;
+  }
+  .scrollbar-overlay::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    transition: background-color var(--duration-base) var(--ease-default);
+  }
+  .scrollbar-overlay:hover::-webkit-scrollbar-thumb,
+  .scrollbar-overlay:focus-within::-webkit-scrollbar-thumb {
+    background-color: var(--text-quaternary);
+  }
+}
