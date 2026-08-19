@@ -229,10 +229,10 @@ function RenameInput({
 const isExposed = (t: Thread) =>
   t.createdBy !== "agent" || t.messages.some((m) => m.role === "user");
 
-/** Threads that still live in their workspace/project list. Pinned ones are
- *  lifted into the Pinned section so they don't render (and highlight) twice.
- *  Exported for the mobile shell, which mirrors this listing logic. */
-export const isListed = (t: Thread) => isExposed(t) && !t.pinned;
+/** Threads that still live in their workspace/project list. Pinned threads
+ *  list inline like any other while the Pinned section is hidden. Exported
+ *  for the mobile shell, which mirrors this listing logic. */
+export const isListed = (t: Thread) => isExposed(t);
 
 /** Leading badge for a collapsible row: identity badge at rest, disclosure
  *  chevron on row hover. Both stay mounted and only toggle opacity (instant
@@ -515,13 +515,6 @@ export function Sidebar({
     }
     setMenu({ x: e.clientX, y: e.clientY });
   };
-  const pinned = workspaces.flatMap((w) =>
-    w.items.flatMap((i) =>
-      flattenThreads(i.kind === "thread" ? [i.thread] : i.project.threads).filter(
-        (t) => t.pinned,
-      ),
-    ),
-  );
   // Clicking anywhere outside the sidebar clears the multi-selection. The
   // menu has no blocking backdrop (so shift+click can keep adding threads
   // while it's open); mousedown outside the menu closes it instead.
@@ -646,27 +639,6 @@ export function Sidebar({
             "linear-gradient(to bottom, transparent, #000 20px, #000 calc(100% - 20px), transparent)",
         }}
       >
-        {pinned.length > 0 && (
-          <Section label="Pinned">
-            <div className="flex flex-col gap-px">
-              {pinned.map((thread) => (
-                <ThreadCell
-                  key={thread.id}
-                  thread={thread}
-                  depth={0}
-                  selectedId={selectedId}
-                  multi={multi}
-                  dnd={dnd}
-                  renamer={renamer}
-                  onSelect={onSelect}
-                  onToggleMulti={toggleMulti}
-                  onContextMenu={openMenu}
-                />
-              ))}
-            </div>
-          </Section>
-        )}
-
         {homeVariant === "sections" && home && (
           <>
             <Section

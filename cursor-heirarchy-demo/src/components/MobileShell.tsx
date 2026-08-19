@@ -119,15 +119,6 @@ function homeSections(
   const spaces = workspaces.filter((w) => w.id !== HOME_ID);
   const sections: { label: string; rows: Row[] }[] = [];
 
-  const pinned = workspaces
-    .flatMap((w) =>
-      w.items.flatMap((i) =>
-        flattenThreads(i.kind === "thread" ? [i.thread] : i.project.threads),
-      ),
-    )
-    .filter((t) => t.pinned);
-  if (pinned.length > 0) sections.push({ label: "Pinned", rows: pinned.map(threadRow) });
-
   switch (variant) {
     case "sections":
       sections.push({
