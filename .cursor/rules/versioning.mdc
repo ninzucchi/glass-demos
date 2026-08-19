@@ -1,0 +1,17 @@
+---
+description: Semver bump required for cursor-heirarchy-demo changes
+globs: cursor-heirarchy-demo/**
+alwaysApply: false
+---
+
+# Versioning
+
+`cursor-heirarchy-demo/package.json` `version` is displayed in the app's
+sidebar footer to identify Vercel deployments. Bump it (classic semver) in the
+same commit as any user-visible change:
+
+- **Patch** (1.0.x): fixes, styling tweaks, copy changes
+- **Minor** (1.x.0): new features, new hierarchy approaches or settings
+- **Major** (x.0.0): redesigns or breaking changes to the demo's structure
+
+No bump needed for non-visible changes (comments, refactors, tooling).
