@@ -133,8 +133,9 @@ export const AGENT_NOUN_VARIANTS: HomeVariant[] = [
 ];
 
 /** What a row being dragged is, and what a row being hovered is. Validity is
- *  hierarchy-driven: threads drop into workspaces, projects, and (where the
- *  layout shows nesting) other threads; projects only drop into workspaces. */
+ *  hierarchy-driven: threads drop into workspaces and projects to move, and
+ *  onto other threads to form a group with them (never nesting); projects
+ *  only drop into workspaces. */
 type DragKind = "thread" | "project";
 type TargetKind = "workspace" | "project" | "thread";
 
@@ -397,7 +398,7 @@ interface SidebarProps {
   onCreateSpace: () => void;
   /** Moves the given threads into a new "Untitled group" project. */
   onGroup: (threadIds: string[]) => void;
-  /** Drag-and-drop: moves threads into a workspace, group, or thread. */
+  /** Drag-and-drop: moves threads into a workspace or group. */
   onMove: (threadIds: string[], targetId: string) => void;
   /** Drag-and-drop: reparents projects (agents/groups) into a workspace. */
   onMoveProject: (projectIds: string[], workspaceId: string) => void;
@@ -543,16 +544,13 @@ export function Sidebar({
     invalid: Set<string>;
   } | null>(null);
   const [dropId, setDropId] = useState<string | null>(null);
-  // The SQ family flattens chats inside folders, so thread-in-thread nesting
-  // has no visible slot there — thread rows stop accepting drops.
-  const threadNesting = !["sq", "projects-separate", "all-projects", "projects-readonly"].includes(
-    homeVariant,
-  );
   const canDrop = (targetId: string, targetKind: TargetKind) => {
     if (!drag) return false;
     // Projects can't nest — a workspace (space) is their only valid parent.
     if (drag.kind === "project") return targetKind === "workspace";
-    if (targetKind === "thread" && !threadNesting) return false;
+    // Dropping onto a thread groups the two together rather than nesting, so
+    // thread targets only work in layouts that have groups (SQ doesn't).
+    if (targetKind === "thread" && homeVariant === "sq") return false;
     return !drag.invalid.has(targetId);
   };
   const dnd: Dnd = {
@@ -564,17 +562,23 @@ export function Sidebar({
         return;
       }
       const ids = multi.includes(id) ? multi : [id];
-      // A dragged thread can't drop into itself or its own subtree.
+      // A dragged thread can't drop into itself or its own subtree, and
+      // grouping it with one of its own ancestors would be a no-op — block
+      // both so the drop highlight never lies.
       const invalid = new Set<string>();
+      const walk = (threads: Thread[], ancestors: string[]) => {
+        for (const t of threads) {
+          if (ids.includes(t.id)) {
+            for (const d of flattenThreads([t])) invalid.add(d.id);
+            for (const a of ancestors) invalid.add(a);
+          } else {
+            walk(t.threads ?? [], [...ancestors, t.id]);
+          }
+        }
+      };
       for (const w of workspaces) {
         for (const i of w.items) {
-          for (const t of flattenThreads(
-            i.kind === "thread" ? [i.thread] : i.project.threads,
-          )) {
-            if (ids.includes(t.id)) {
-              for (const d of flattenThreads([t])) invalid.add(d.id);
-            }
-          }
+          walk(i.kind === "thread" ? [i.thread] : i.project.threads, []);
         }
       }
       setDrag({ kind, ids, invalid });
@@ -594,6 +598,9 @@ export function Sidebar({
       if (!canDrop(targetId, targetKind)) return;
       e.preventDefault();
       if (drag!.kind === "project") onMoveProject(drag!.ids, targetId);
+      // Thread onto thread: form a group of the two (anchored at the target,
+      // so the group takes its slot) instead of nesting a subthread.
+      else if (targetKind === "thread") onGroup([targetId, ...drag!.ids]);
       else onMove(drag!.ids, targetId);
       setMulti([]);
       setDrag(null);
@@ -1550,8 +1557,8 @@ function ThreadCell({
         dataThreadId={thread.id}
         selected={selectedId === thread.id}
         multiSelected={multi.includes(thread.id)}
-        // Drag source, and drop target for nesting as a subthread. Dragging
-        // pauses while the row is being renamed.
+        // Drag source, and drop target for grouping with this thread.
+        // Dragging pauses while the row is being renamed.
         dragProps={{
           ...(renamer.id === thread.id ? {} : dragSourceProps(dnd, "thread", thread.id)),
           ...dropProps(dnd, thread.id, "thread"),
