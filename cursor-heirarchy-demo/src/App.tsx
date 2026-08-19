@@ -1,8 +1,10 @@
 import { useLayoutEffect, useState } from "react";
 import { AnalogyChart } from "./components/AnalogyChart";
 import { ChatPanel } from "./components/ChatPanel";
+import { MobileShell, type IndexStyle } from "./components/MobileShell";
 import { AGENT_NOUN_VARIANTS, Sidebar, type HomeVariant } from "./components/Sidebar";
 import { Icon } from "./components/ui/Icon";
+import { SegmentedControl } from "./components/ui/SegmentedControl";
 import { SettingsSection } from "./components/ui/SettingsSection";
 import { flattenThreads, initialWorkspaces, resolvePath } from "./data";
 import type { IconName } from "./icons/iconNames";
@@ -43,6 +45,10 @@ const HOME_ID = "ws-home";
  *  holds, from an empty first run to the full accumulated mess. Switching
  *  resets any runtime edits to the chosen seed. */
 type DataState = "start" | "simple" | "complex";
+
+/** Desktop renders sidebar + chat side by side; mobile renders the same
+ *  construction in a phone frame where nesting becomes push navigation. */
+type Device = "desktop" | "mobile";
 
 /** Keeps a workspace's first few chats and projects (projects trimmed to a
  *  couple of threads each) for the light "simple" seed. */
@@ -93,6 +99,10 @@ export default function App() {
 
   const [workspaces, setWorkspaces] = useState(initialWorkspaces);
   const [homeVariant, setHomeVariant] = useState<HomeVariant>("distinct");
+  const [device, setDevice] = useState<Device>("desktop");
+  // Mobile-only: how a top-level container exposes its child index (nav-bar
+  // sheet vs footer chat/index swap).
+  const [indexStyle, setIndexStyle] = useState<IndexStyle>("sheet");
   const [dataState, setDataState] = useState<DataState>("complex");
   const [selection, setSelection] = useState<Selection | null>({ id: "ws-acme", mode: "full" });
   // Reply-spawned threads aren't real entities yet: they live here until the
@@ -107,7 +117,7 @@ export default function App() {
     kind: "chat" | "thread";
   } | null>(null);
   // The pristine seed currently loaded; `workspaces` drifting from this ref
-  // (any runtime edit) is what surfaces the Reset button under the window.
+  // (any runtime edit) is what enables the settings panel's Reset button.
   const [seedRef, setSeedRef] = useState<Workspace[]>(initialWorkspaces);
   const changeDataState = (state: DataState) => {
     const seed = seedForState(state);
@@ -550,6 +560,14 @@ export default function App() {
   const isDirty =
     workspaces !== seedRef || Object.values(drafts).some((t) => t.trim());
 
+  // Mobile back-to-root: clears the selection, popping the push stack to the
+  // home list (abandoning any still-empty pending reply, like navigating
+  // away does).
+  const popToRoot = () => {
+    setSelection(null);
+    setPendingReply(null);
+  };
+
   return (
     <div className="flex h-full flex-col gap-6 p-8">
       {/* Window row: the settings panel sits in flow beside the mock window
@@ -559,7 +577,23 @@ export default function App() {
             never slides under the window, and static so switching can't jitter.
             Always as tall as the window beside it; on short viewports it
             scrolls internally instead of painting over the chart below. */}
-        <aside className="scrollbar-overlay gutter-stable pr-gutter-5 flex h-full min-h-0 shrink-0 flex-col gap-6 overflow-y-auto rounded-window bg-chrome py-5 pl-5 shadow-sm">
+        <aside className="flex h-full min-h-0 shrink-0 flex-col rounded-window bg-chrome shadow-sm">
+          <div className="scrollbar-overlay gutter-stable pr-gutter-5 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pb-2 pl-5 pt-5">
+          {/* First so toggling the mobile-only settings below never reflows
+              this control's position. */}
+          <SegmentedControl
+            value={device}
+            onChange={(d) => {
+              setDevice(d);
+              // Mobile starts on the outermost index (home list) — no stale
+              // pushed stack, and no push animation on the switch itself.
+              if (d === "mobile") popToRoot();
+            }}
+            options={[
+              { value: "desktop", label: "Desktop" },
+              { value: "mobile", label: "Mobile (WIP)" },
+            ]}
+          />
           <SettingsSection
             // Version stamp rides along so a Vercel deploy is identifiable.
             title={`Hierarchy Approach · v${version}`}
@@ -587,6 +621,19 @@ export default function App() {
             { value: "flat-home-agent", label: "5B. Chats, Agents, Threads (Home Agent)" },
           ]}
           />
+          {/* Mobile-only fork: how a top-level container exposes its child
+              index — nav-bar sheet vs the footer chat/index swap. */}
+          {device === "mobile" && (
+            <SettingsSection
+              title="Index"
+              value={indexStyle}
+              onChange={setIndexStyle}
+              options={[
+                { value: "sheet", label: "Sheet" },
+                { value: "footer", label: "Footer" },
+              ]}
+            />
+          )}
           <SettingsSection
             title="State"
             value={dataState}
@@ -597,66 +644,90 @@ export default function App() {
               { value: "complex", label: "Complex" },
             ]}
           />
-        </aside>
-        {/* The mock window fills all remaining space inside the page padding;
-            relative so the Reset FAB can pin to its corner. */}
-        <div className="relative flex h-full w-full min-w-0 overflow-hidden rounded-window bg-sidebar shadow-window backdrop-blur-[12px]">
-          <Sidebar
-            workspaces={displayWorkspaces}
-            homeVariant={homeVariant}
-            selectedId={selection?.id ?? null}
-            renameRequestId={renameRequestId}
-            onRenameRequestHandled={() => setRenameRequestId(null)}
-            onSelect={select}
-            onCreateChat={createChat}
-            onCreateThread={createThread}
-            onCreateProject={createProject}
-            onCreateSpace={createSpace}
-            onGroup={groupThreads}
-            onMove={moveThreads}
-            onMoveProject={moveProjects}
-            onRename={renameEntity}
-            onDelete={deleteThreads}
-            onDeleteProject={deleteProject}
-          />
-          <main className="flex min-w-0 flex-1 border-l border-tertiary bg-chrome">
-            <ChatPanel
-              path={path}
-              mode={selection?.mode ?? "full"}
-              workspaces={displayWorkspaces}
-              // Match the sidebar: these variants render spaces as circles.
-              spaceBadgeShape={
-                homeVariant === "flat" ||
-                homeVariant === "flat-home-agent" ||
-                homeVariant === "space-agent" ||
-                homeVariant === "space-agent-readonly"
-                  ? "circle"
-                  : "chiclet"
-              }
-              // Agent-noun layouts draw no agent/group distinction.
-              projectBadge={AGENT_NOUN_VARIANTS.includes(homeVariant) ? "face" : "kind"}
-              drafts={drafts}
-              onDraftChange={setDraft}
-              onSelect={select}
-              onMove={moveThreads}
-              onCreateChat={createChat}
-              onCreateThread={createThread}
-              onSendMessage={sendMessage}
-            />
-          </main>
-          {/* Reset FAB: overlays the window's corner instead of taking
-              layout space, appearing only once the seed has been edited. */}
-          {isDirty && (
+          </div>
+          {/* Fixed footer so Reset can't scroll out of view; always rendered
+              (disabled when pristine) so the panel never jumps. */}
+          <div className="shrink-0 px-5 pb-5 pt-2">
             <button
               type="button"
               onClick={resetToSeed}
-              className="absolute bottom-3 right-3 z-10 flex h-7 items-center gap-1.5 rounded-full bg-elevated pl-2.5 pr-3 text-base text-secondary shadow-[0_0_0_1px_var(--border-tertiary),0_4px_12px_rgba(0,0,0,0.1)] transition-colors duration-fast hover:bg-quaternary-opaque hover:text-primary"
+              disabled={!isDirty}
+              className="flex h-7 w-full items-center justify-center gap-1.5 rounded-full bg-elevated text-base text-secondary shadow-[0_0_0_1px_var(--border-tertiary)] transition-colors duration-fast enabled:hover:bg-quaternary-opaque enabled:hover:text-primary disabled:opacity-40"
             >
               <Icon name="arrow-ccw" size="sm" color="secondary" />
               Reset
             </button>
-          )}
-        </div>
+          </div>
+        </aside>
+        {device === "desktop" ? (
+          // The mock window fills all remaining space inside the page padding.
+          <div className="flex h-full w-full min-w-0 overflow-hidden rounded-window bg-sidebar shadow-window backdrop-blur-[12px]">
+            <Sidebar
+              workspaces={displayWorkspaces}
+              homeVariant={homeVariant}
+              selectedId={selection?.id ?? null}
+              renameRequestId={renameRequestId}
+              onRenameRequestHandled={() => setRenameRequestId(null)}
+              onSelect={select}
+              onCreateChat={createChat}
+              onCreateThread={createThread}
+              onCreateProject={createProject}
+              onCreateSpace={createSpace}
+              onGroup={groupThreads}
+              onMove={moveThreads}
+              onMoveProject={moveProjects}
+              onRename={renameEntity}
+              onDelete={deleteThreads}
+              onDeleteProject={deleteProject}
+            />
+            <main className="flex min-w-0 flex-1 border-l border-tertiary bg-chrome">
+              <ChatPanel
+                path={path}
+                mode={selection?.mode ?? "full"}
+                workspaces={displayWorkspaces}
+                // Match the sidebar: these variants render spaces as circles.
+                spaceBadgeShape={
+                  homeVariant === "flat" ||
+                  homeVariant === "flat-home-agent" ||
+                  homeVariant === "space-agent" ||
+                  homeVariant === "space-agent-readonly"
+                    ? "circle"
+                    : "chiclet"
+                }
+                // Agent-noun layouts draw no agent/group distinction.
+                projectBadge={AGENT_NOUN_VARIANTS.includes(homeVariant) ? "face" : "kind"}
+                drafts={drafts}
+                onDraftChange={setDraft}
+                onSelect={select}
+                onMove={moveThreads}
+                onCreateChat={createChat}
+                onCreateThread={createThread}
+                onSendMessage={sendMessage}
+              />
+            </main>
+          </div>
+        ) : (
+          // Phone frame, centered in the window row. The mobile type ramp
+          // applies inside it, and nesting renders as push navigation.
+          <div className="flex h-full w-full min-w-0 items-center justify-center">
+            <div className="type-mobile relative h-full max-h-[844px] w-[390px] overflow-hidden rounded-window bg-sidebar shadow-window backdrop-blur-[12px]">
+              <MobileShell
+                workspaces={displayWorkspaces}
+                homeVariant={homeVariant}
+                indexStyle={indexStyle}
+                path={path}
+                selectedId={selection?.id ?? null}
+                drafts={drafts}
+                onDraftChange={setDraft}
+                onSelect={select}
+                onPopToRoot={popToRoot}
+                onCreateChat={createChat}
+                onCreateThread={createThread}
+                onSendMessage={sendMessage}
+              />
+            </div>
+          </div>
+        )}
       </div>
       {/* Full-width chart row, inset only by the page padding. */}
       <AnalogyChart variant={homeVariant} />
