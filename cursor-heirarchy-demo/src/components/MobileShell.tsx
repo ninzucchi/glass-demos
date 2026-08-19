@@ -497,8 +497,9 @@ function MobileHome({
           </section>
         ))}
       </div>
-      {/* Gradient footer keeps the pill legible over the scrolling list. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end bg-gradient-to-t from-sidebar via-sidebar/85 to-transparent px-4 pb-5 pt-12">
+      {/* Gradient footer keeps the pill legible over the scrolling list;
+          12px insets keep the pill concentric with the frame's radius. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end bg-gradient-to-t from-sidebar via-sidebar/85 to-transparent px-3 pb-3 pt-12">
         <button
           type="button"
           onClick={() => onCreateChat(HOME_ID)}

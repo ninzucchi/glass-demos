@@ -587,7 +587,13 @@ export default function App() {
               setDevice(d);
               // Mobile starts on the outermost index (home list) — no stale
               // pushed stack, and no push animation on the switch itself.
-              if (d === "mobile") popToRoot();
+              // Desktop always shows a chat pane, so restore the default
+              // selection if mobile left none.
+              if (d === "mobile") {
+                popToRoot();
+              } else if (!selection) {
+                setSelection({ id: dataState === "start" ? HOME_ID : "ws-acme", mode: "full" });
+              }
             }}
             options={[
               { value: "desktop", label: "Desktop" },
@@ -710,7 +716,9 @@ export default function App() {
           // Phone frame, centered in the window row. The mobile type ramp
           // applies inside it, and nesting renders as push navigation.
           <div className="flex h-full w-full min-w-0 items-center justify-center">
-            <div className="type-mobile relative h-full max-h-[844px] w-[390px] overflow-hidden rounded-window bg-sidebar shadow-window backdrop-blur-[12px]">
+            {/* 34px radius keeps the frame concentric with the 44px capsule
+                controls inside it (22px radius + 12px inset). */}
+            <div className="type-mobile relative h-full max-h-[844px] w-[390px] overflow-hidden rounded-[34px] bg-sidebar shadow-window backdrop-blur-[12px]">
               <MobileShell
                 workspaces={displayWorkspaces}
                 homeVariant={homeVariant}
