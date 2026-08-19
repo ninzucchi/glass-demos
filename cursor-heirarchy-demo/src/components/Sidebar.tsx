@@ -361,12 +361,24 @@ function DisclosureIcon({
   );
 }
 
-/** Plain folder glyph leading for the SQ-family rows (no identity badge,
- *  no chevron swap — the folder itself signals open/closed). */
+/** Plain folder glyph leading for the SQ-family rows: folder at rest (its
+ *  open/closed glyph mirrors the state), swapping to a disclosure chevron on
+ *  row hover so collapsibility reads like every other leading. */
 function FolderLeading({ open }: { open: boolean }) {
   return (
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-      <Icon name={open ? "folder-open" : "folder"} size="base" color="secondary" />
+    <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+      <Icon
+        name={open ? "folder-open" : "folder"}
+        size="base"
+        color="secondary"
+        className="group-hover/disclosure:opacity-0"
+      />
+      <Icon
+        name={open ? "chevron-down" : "chevron-right"}
+        size="base"
+        color="secondary"
+        className="absolute opacity-0 group-hover/disclosure:opacity-100"
+      />
     </span>
   );
 }
