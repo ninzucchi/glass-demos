@@ -12,6 +12,10 @@ const COLUMN = "mx-auto w-full max-w-[640px] px-3";
  *  ~360px). Below this, an open thread takes over the pane instead. */
 const SPLIT_MIN_WIDTH = 860;
 
+/** Home is the default surface, not a user-created container, so its empty
+ *  chat skips the big-entity setup pills. Mirrors Sidebar's HOME_ID. */
+const HOME_ID = "ws-home";
+
 /** Space dropdown on the composer's context chip: picking a space moves the
  *  open chat there. */
 interface SpacePicker {
@@ -270,6 +274,9 @@ function ChatPanelContent({
         }
         className="min-w-0 flex-1"
         isNew={parent.messages.length === 0 && parent.threads.length === 0}
+        // Big-entity empty states (a fresh space/project/agent main chat, not
+        // Home, not threads) offer setup pills under the composer.
+        setupActions={!parentThread && (!!project || workspace.id !== HOME_ID)}
         context={parent.subtitle ?? parent.title}
         draft={drafts[parent.id] ?? ""}
         onDraftChange={(text) => onDraftChange(parent.id, text)}
@@ -329,6 +336,7 @@ function ChatView({
   className,
   isNew = false,
   context,
+  setupActions = false,
   picker,
   quote,
   draft,
@@ -350,6 +358,9 @@ function ChatView({
   isNew?: boolean;
   /** Container name shown as the chip above the expanded composer. */
   context?: string;
+  /** Big-entity new-chat state (fresh space/project/agent): setup pills under
+   *  the expanded composer. */
+  setupActions?: boolean;
   /** Makes the context chip a dropdown that moves the chat to a space. */
   picker?: SpacePicker;
   /** Highlighted text the thread replies to, quoted at the top of the
@@ -450,6 +461,7 @@ function ChatView({
           <ExpandedComposer
             context={context}
             picker={picker}
+            setupActions={setupActions}
             value={draft}
             onChange={onDraftChange}
             onSend={onSend}
@@ -924,12 +936,16 @@ const EXPANDED_INPUT_MAX_H = 200; // 10 lines, then the textarea scrolls
 function ExpandedComposer({
   context,
   picker,
+  setupActions = false,
   value,
   onChange,
   onSend,
 }: {
   context?: string;
   picker?: SpacePicker;
+  /** Setup pills (Add Files / Add Plugins) under the card, for freshly
+   *  created big entities (space/project/agent). */
+  setupActions?: boolean;
   value: string;
   onChange: (text: string) => void;
   onSend?: (text: string) => void;
@@ -980,6 +996,25 @@ function ExpandedComposer({
           <DictateButton />
         </div>
       </div>
+      {setupActions && (
+        <div className="flex justify-center gap-2 pt-1">
+          <SetupPill icon="file-plus" label="Add Files" />
+          <SetupPill icon="extensions" label="Add Plugins" />
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Pill-shaped setup action under the expanded composer (demo-only, inert). */
+function SetupPill({ icon, label }: { icon: IconName; label: string }) {
+  return (
+    <button
+      type="button"
+      className="flex h-7 items-center gap-1.5 rounded-full px-3 text-base text-secondary shadow-[0_0_0_1px_var(--border-secondary)] transition-colors duration-fast hover:bg-quaternary hover:text-primary"
+    >
+      <Icon name={icon} size="sm" color="secondary" />
+      {label}
+    </button>
   );
 }
