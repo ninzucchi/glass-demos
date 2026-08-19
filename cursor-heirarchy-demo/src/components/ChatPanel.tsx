@@ -329,11 +329,13 @@ function ChatPanelContent({
   );
 }
 
-function ChatView({
+export function ChatView({
   title,
   subtitle,
   badge,
   className,
+  hideHeader = false,
+  footerFade = false,
   isNew = false,
   context,
   setupActions = false,
@@ -353,6 +355,12 @@ function ChatView({
   /** Identity badge before the title (project/agent chats). */
   badge?: { icon?: IconName; shape?: "circle" | "face" };
   className?: string;
+  /** Mobile screens render their own navigation bar above, so the desktop
+   *  header row (back chevron + title) is skipped. */
+  hideHeader?: boolean;
+  /** Fades the transcript out above the composer (mobile) so scrolling
+   *  content doesn't clash with it. */
+  footerFade?: boolean;
   /** Empty chat: centered expanded composer instead of a transcript
    *  (cursor-neue's new-agent state). */
   isNew?: boolean;
@@ -425,6 +433,7 @@ function ChatView({
 
   return (
     <section className={clsx("flex min-h-0 flex-col", className)}>
+      {!hideHeader && (
       <header className="flex h-toolbar shrink-0 items-center gap-1.5 px-3">
         {onBack && (
           <button
@@ -452,6 +461,7 @@ function ChatView({
           </button>
         )}
       </header>
+      )}
 
       {isNew && !quote ? (
         // New-chat state (from cursor-neue): centered expanded composer.
@@ -502,12 +512,26 @@ function ChatView({
         </div>
       </div>
 
+      {footerFade ? (
+        <div className="relative">
+          {/* Content fades out just above the composer instead of cutting
+              hard against it. */}
+          <div className="pointer-events-none absolute inset-x-0 -top-12 h-12 bg-gradient-to-t from-chrome to-transparent" />
+          <Composer
+            placeholder={quote ? "Reply in thread..." : "/ for commands, @ to add context..."}
+            value={draft}
+            onChange={onDraftChange}
+            onSend={onSend}
+          />
+        </div>
+      ) : (
       <Composer
         placeholder={quote ? "Reply in thread..." : "/ for commands, @ to add context..."}
         value={draft}
         onChange={onDraftChange}
         onSend={onSend}
       />
+      )}
         </>
       )}
     </section>
@@ -530,8 +554,9 @@ type TimelineEntry =
  *  for over an hour. Threads anchored to a base message (parentMessageId)
  *  hang under it: user-started threads as reply pills, agent-created ones as
  *  cards. Unanchored threads and out-of-turn thread replies surface as
- *  timestamp-styled event lines in time order. */
-function Timeline({
+ *  timestamp-styled event lines in time order. Exported for the mobile
+ *  shell's chat screens. */
+export function Timeline({
   messages,
   threads = [],
   activeThreadId = null,

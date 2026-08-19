@@ -230,8 +230,9 @@ const isExposed = (t: Thread) =>
   t.createdBy !== "agent" || t.messages.some((m) => m.role === "user");
 
 /** Threads that still live in their workspace/project list. Pinned ones are
- *  lifted into the Pinned section so they don't render (and highlight) twice. */
-const isListed = (t: Thread) => isExposed(t) && !t.pinned;
+ *  lifted into the Pinned section so they don't render (and highlight) twice.
+ *  Exported for the mobile shell, which mirrors this listing logic. */
+export const isListed = (t: Thread) => isExposed(t) && !t.pinned;
 
 /** Leading badge for a collapsible row: identity badge at rest, disclosure
  *  chevron on row hover. Both stay mounted and only toggle opacity (instant
@@ -384,8 +385,9 @@ function FolderLeading({ open }: { open: boolean }) {
 }
 
 /** SQ-style chat list for a workspace: optionally dissolves its groups, then
- *  splats all nesting so every chat renders as a leaf row. */
-function flatChats(workspace: Workspace, dissolveProjects: boolean): Workspace["items"] {
+ *  splats all nesting so every chat renders as a leaf row. Exported for the
+ *  mobile shell's folder-space list screens. */
+export function flatChats(workspace: Workspace, dissolveProjects: boolean): Workspace["items"] {
   const top = workspace.items.flatMap((i) =>
     i.kind === "thread" ? [i.thread] : dissolveProjects ? i.project.threads : [],
   );
