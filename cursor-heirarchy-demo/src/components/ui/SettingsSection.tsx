@@ -17,23 +17,25 @@ export function SettingsSection<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-sm text-quaternary">{title}</span>
-      <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1">
+      <span className="px-1.5 text-sm text-quaternary">{title}</span>
+      <div className="flex flex-col gap-px">
         {options.map((option) => (
           <Fragment key={option.value}>
             <button
               type="button"
               onClick={() => onChange(option.value)}
               className={clsx(
-                "flex items-center gap-1 whitespace-nowrap text-left text-base transition-colors duration-fast",
-                option.value === value ? "text-primary" : "text-tertiary hover:text-secondary",
+                "flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 text-left text-base transition-colors duration-fast",
+                option.value === value
+                  ? "bg-quaternary text-primary"
+                  : "text-secondary hover:bg-quaternary",
               )}
             >
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                 {option.value === value && <Icon name="check" size="sm" color="primary" />}
               </span>
-              {option.label}
+              <span className="pl-0.5">{option.label}</span>
             </button>
             {option.dividerAfter && <div className="my-1 border-t" />}
           </Fragment>
