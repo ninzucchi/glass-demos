@@ -44,7 +44,35 @@
   }
 }
 
+/* Mobile push-nav motion: screens enter from the right, sheets rise from the
+   bottom, scrims fade in. Exits run via transitions on the same transforms. */
+@keyframes screen-push {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes scrim-fade {
+  from {
+    opacity: 0;
+  }
+}
+
 @layer utilities {
+  .animate-screen-push {
+    animation: screen-push var(--duration-slow) var(--ease-default);
+  }
+  .animate-sheet-rise {
+    animation: sheet-rise var(--duration-slow) var(--ease-default);
+  }
+  .animate-scrim-fade {
+    animation: scrim-fade var(--duration-slow) var(--ease-default);
+  }
+
   /* Scrollbar-compensated insets: scrollbar-gutter reserves the native
      scrollbar's width (0 with macOS overlay scrollbars, ~8px classic — the
      runtime-measured --scrollbar-w), and the right padding gives back the
@@ -58,6 +86,31 @@
   }
   .pr-gutter-5 {
     padding-right: max(0px, calc(1.25rem - var(--scrollbar-w, 0px)));
+  }
+
+  /* 1px gradient border ring (quaternary → secondary → quaternary), masked so
+     it works over transparent fills. Requires a border-radius on the element. */
+  .border-gradient-subtle {
+    position: relative;
+  }
+  .border-gradient-subtle::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      to bottom,
+      var(--border-quaternary),
+      var(--border-secondary),
+      var(--border-quaternary)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
   }
 
   /* Overlay scrollbar: thumb hidden until hover/focus-within (from cursor-neue). */
