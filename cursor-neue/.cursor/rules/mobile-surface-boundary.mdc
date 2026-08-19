@@ -1,0 +1,25 @@
+---
+description: Import boundary between the mobile demo (src/mobile) and the desktop demo
+globs: src/mobile/**
+alwaysApply: false
+---
+
+# Mobile Demo Boundary
+
+`src/mobile/` is a separate demo surface with its own Vite entry (`/mobile.html`). It must stay decoupled from the desktop demo so the two can evolve independently.
+
+Mobile code may import ONLY from the shared design-system layer:
+
+- `@/components/ui`, `@/icons`, `@/styles`, `@/index.css`, `@/assets`
+- `@/lib` and `@/config` only for pieces that are genuinely surface-agnostic
+
+Mobile code must NOT import desktop-only code:
+
+- `@/components/{desktop,window,layout,tile,tabs,chat,sidebar,content}`
+- `@/store`, `@/data`, `@/types`, `@/App`
+
+Other rules:
+
+- Mobile owns its state: stores, types, and seed data live under `src/mobile/`. Never reuse desktop zustand stores.
+- Nothing outside `src/mobile/` may import from `src/mobile/`.
+- If a shared-layer piece turns out to be desktop-flavored, fork it into `src/mobile/` instead of adding mobile branches to the shared code.
