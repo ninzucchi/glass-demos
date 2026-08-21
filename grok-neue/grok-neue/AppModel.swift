@@ -55,7 +55,7 @@ struct ChatContext {
 final class AppModel {
     var workspaces: [Workspace] = SampleData.workspaces
     var variant: HomeVariant = .sections
-    var indexStyle: IndexStyle = .sheet
+    var indexStyle: IndexStyle = .footer
     var path: [Route] = []
 
     // MARK: - Navigation

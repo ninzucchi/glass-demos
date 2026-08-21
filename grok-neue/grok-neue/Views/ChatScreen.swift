@@ -32,23 +32,22 @@ private enum ChatViewMode {
     case index, chat
 }
 
+// Pinned beside the back button; macOS has no top-bar leading placement,
+// so it falls back to the generic navigation slot there.
+#if os(macOS)
+private let indexButtonPlacement: ToolbarItemPlacement = .navigation
+#else
+private let indexButtonPlacement: ToolbarItemPlacement = .topBarLeading
+#endif
+
 private struct ChatBody: View {
     let model: AppModel
     let context: ChatContext
     let usesFooterIndex: Bool
     @State private var draft = ""
     @State private var showsIndex = false
-    // No initial value at declaration: the landing mode depends on
-    // usesFooterIndex (footer screens land on the index), and the @State
-    // macro forbids reassigning a defaulted value in init.
-    @State private var mode: ChatViewMode
-
-    init(model: AppModel, context: ChatContext, usesFooterIndex: Bool) {
-        self.model = model
-        self.context = context
-        self.usesFooterIndex = usesFooterIndex
-        self.mode = usesFooterIndex ? .index : .chat
-    }
+    // Footer screens land on the chat; the capsule swaps to the index.
+    @State private var mode: ChatViewMode = .chat
 
     private var showsIndexBody: Bool {
         usesFooterIndex && mode == .index
@@ -103,7 +102,7 @@ private struct ChatBody: View {
                 ChatTitle(title: context.title, subtitle: context.subtitle, badge: context.badge)
             }
             if !context.childRows.isEmpty && !usesFooterIndex {
-                ToolbarItem(placement: .navigation) {
+                ToolbarItem(placement: indexButtonPlacement) {
                     Button {
                         showsIndex = true
                     } label: {
