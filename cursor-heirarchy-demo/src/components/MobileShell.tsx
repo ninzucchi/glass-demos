@@ -562,8 +562,8 @@ function MobileChatScreen({
   footerIndex?: boolean;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  // Footer-index screens land on the child index; the capsule swaps to chat.
-  const [view, setView] = useState<"chat" | "index">(footerIndex ? "index" : "chat");
+  // Footer-index screens land on the chat; the capsule swaps to the index.
+  const [view, setView] = useState<"chat" | "index">("chat");
   const showIndex = footerIndex && view === "index" && !!chat.sheet;
 
   // Reply in this chat spawns (or reopens) a thread anchored to the message;

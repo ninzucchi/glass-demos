@@ -171,7 +171,7 @@ export default function App() {
   const [device, setDevice] = useState<Device>("desktop");
   // Mobile-only: how a top-level container exposes its child index (nav-bar
   // sheet vs footer chat/index swap).
-  const [indexStyle, setIndexStyle] = useState<IndexStyle>("sheet");
+  const [indexStyle, setIndexStyle] = useState<IndexStyle>("footer");
   const [dataState, setDataState] = useState<DataState>("complex");
   const [selection, setSelection] = useState<Selection | null>({ id: "ws-acme", mode: "full" });
   // Reply-spawned threads aren't real entities yet: they live here until the
