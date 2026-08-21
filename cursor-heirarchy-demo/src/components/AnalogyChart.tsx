@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { HomeVariant } from "./Sidebar";
+import { Icon } from "./ui/Icon";
 
 /** How faithfully a system's concept translates to the proposed layout. */
 type Match = "direct" | "partial" | "mismatch";
@@ -474,6 +475,21 @@ export function AnalogyChart({ variant }: { variant: HomeVariant }) {
   // Row index disambiguates Proposed rows sharing a term (two "Chat"s etc.);
   // system columns still match on the term alone.
   const [hovered, setHovered] = useState<{ row: number; term: string } | null>(null);
+  // Collapsed to a slim reopen bar; the window row above absorbs the height.
+  const [collapsed, setCollapsed] = useState(false);
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setCollapsed(false)}
+        className="flex h-9 shrink-0 items-center justify-between rounded-window bg-chrome px-4 text-sm text-secondary shadow-sm transition-colors duration-fast hover:text-primary"
+      >
+        Taxonomy Chart
+        <Icon name="chevron-up-small" size="sm" color="inherit" />
+      </button>
+    );
+  }
 
   const rowStyle = (node: TreeNode, isProposed: boolean, row: number) => {
     if (!hovered) return "text-secondary";
@@ -487,7 +503,15 @@ export function AnalogyChart({ variant }: { variant: HomeVariant }) {
   return (
     // Own panel below the window; the inner grid reserves MAX_ROWS of height
     // so the panel never resizes (and the window never reflows) on switch.
-    <div className="shrink-0 rounded-window bg-chrome px-4 py-3 shadow-sm">
+    <div className="relative shrink-0 rounded-window bg-chrome px-4 py-3 shadow-sm">
+      <button
+        type="button"
+        onClick={() => setCollapsed(true)}
+        title="Hide chart"
+        className="absolute right-3 top-3 flex size-6 items-center justify-center rounded-md text-secondary transition-colors duration-fast hover:bg-quaternary-opaque hover:text-primary"
+      >
+        <Icon name="chevron-down-small" size="sm" color="inherit" />
+      </button>
       <div
         className="grid"
         style={{
