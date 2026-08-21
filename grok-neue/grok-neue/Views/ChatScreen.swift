@@ -28,8 +28,9 @@ struct ChatScreen: View {
 }
 
 /// What a footer-index screen is currently showing.
-private enum ChatViewMode {
+private enum ChatViewMode: Equatable {
     case index, chat
+    case content(ContentSurface)
 }
 
 // Pinned beside the back button; macOS has no top-bar leading placement,
@@ -53,47 +54,60 @@ private struct ChatBody: View {
         usesFooterIndex && mode == .index
     }
 
+    /// The conversation-grown surface on screen, if the capsule picked one.
+    private var activeSurface: ContentSurface? {
+        guard usesFooterIndex, case .content(let surface) = mode else { return nil }
+        return surface
+    }
+
     var body: some View {
         let repliesByMessage = Dictionary(
             grouping: context.threads.filter { $0.parentMessageID != nil },
             by: { $0.parentMessageID! }
         )
+        let surfaces = usesFooterIndex ? ContentSurface.surfaces(for: context.messages) : []
 
-        ScrollView {
+        VStack(spacing: 0) {
             if showsIndexBody {
                 // Child index takes over the screen (footer approach).
-                VStack(spacing: 0) {
-                    ForEach(context.childRows) { row in
-                        EntityRowView(row: row) { model.open(row) }
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(context.childRows) { row in
+                            EntityRowView(row: row) { model.open(row) }
+                        }
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+            } else if let surface = activeSurface {
+                SurfacePlaceholder(surface: surface)
             } else {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    ForEach(context.messages) { message in
-                        MessageCell(
-                            message: message,
-                            replies: repliesByMessage[message.id] ?? [],
-                            onOpenThread: { model.openThread($0.id) }
-                        )
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        ForEach(context.messages) { message in
+                            MessageCell(
+                                message: message,
+                                replies: repliesByMessage[message.id] ?? [],
+                                onOpenThread: { model.openThread($0.id) }
+                            )
+                        }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .defaultScrollAnchor(.bottom)
             }
         }
-        .defaultScrollAnchor(showsIndexBody ? .top : .bottom)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 6) {
-                if !showsIndexBody {
+                if !showsIndexBody && activeSurface == nil {
                     Composer(draft: $draft) {
                         model.send(draft, to: context.id)
                         draft = ""
                     }
                 }
                 if usesFooterIndex {
-                    IndexChatToggle(mode: $mode)
+                    IndexChatToggle(mode: $mode, surfaces: surfaces)
                 }
             }
         }
@@ -220,18 +234,44 @@ private struct ReplyPill: View {
 }
 
 /// Footer capsule swapping a footer-index screen between the entity's child
-/// index and its main chat.
+/// index, its main chat, and any conversation-grown content surfaces.
 private struct IndexChatToggle: View {
     @Binding var mode: ChatViewMode
+    let surfaces: [ContentSurface]
 
     var body: some View {
         HStack(spacing: 0) {
             ToggleSegment(icon: "list.bullet", isActive: mode == .index) { mode = .index }
             ToggleSegment(icon: "bubble", isActive: mode == .chat) { mode = .chat }
+            ForEach(surfaces) { surface in
+                ToggleSegment(icon: surface.icon, isActive: mode == .content(surface)) {
+                    mode = .content(surface)
+                }
+            }
         }
         .padding(2)
         .background(Color.bg.quaternary, in: .capsule)
         .padding(.bottom, 6)
+        // New surfaces slide the capsule open right as the send lands.
+        .animation(.snappy, value: surfaces)
+    }
+}
+
+/// Empty placeholder for a grown surface — just the medium's identity, to
+/// sell the "conversation grows tabs" simulation.
+private struct SurfacePlaceholder: View {
+    let surface: ContentSurface
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: surface.icon)
+                .font(.xxl)
+                .foregroundStyle(Color.icon.quaternary)
+            Text(surface.label)
+                .font(.base.medium)
+                .foregroundStyle(Color.text.quaternary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
