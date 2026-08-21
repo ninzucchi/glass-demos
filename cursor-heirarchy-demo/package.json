@@ -1,7 +1,7 @@
 {
   "name": "hierarchy-tool",
   "private": true,
-  "version": "1.2.5",
+  "version": "1.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

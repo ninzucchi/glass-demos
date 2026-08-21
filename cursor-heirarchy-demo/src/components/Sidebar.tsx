@@ -41,6 +41,11 @@ export type HomeVariant =
   | "all-projects"
   | "projects-readonly";
 
+/** Orthogonal to HomeVariant: "entities" renders the variant's hierarchy;
+ *  "recency" replaces it with one flat run of chats bucketed by last
+ *  activity (Today / Yesterday / ...). */
+export type SortMode = "entities" | "recency";
+
 /** One entry in a create-type menu: the entity a plus button can make. */
 interface CreateOption {
   icon: IconName;
@@ -384,6 +389,100 @@ function FolderLeading({ open }: { open: boolean }) {
   );
 }
 
+/** A thread's last activity: its newest message, else its creation time. */
+const lastActiveAt = (t: Thread): number => {
+  const times = [t.createdAt, ...t.messages.map((m) => m.at)]
+    .map((iso) => Date.parse(iso))
+    .filter(Number.isFinite);
+  return times.length > 0 ? Math.max(...times) : 0;
+};
+
+const DAY_MS = 86_400_000;
+
+/** One row in the "By Recency" list. The unit is still a thread, but it can
+ *  be an agent one — a container's own main chat (a project's, or a
+ *  workspace's) that you might have been talking to — vs a plain one. */
+export type RecencyEntry =
+  | { kind: "thread"; thread: Thread }
+  | {
+      kind: "agent";
+      id: string;
+      name: string;
+      icon?: IconName;
+      /** What the id names, for the right context menu (rename vs delete). */
+      entity: "workspace" | "project";
+    };
+
+/** Newest message timestamp, or 0 when there are none. */
+const newestMessageAt = (messages: { at: string }[]): number =>
+  Math.max(0, ...messages.map((m) => Date.parse(m.at)).filter(Number.isFinite));
+
+/** Recency sections for the "By Recency" sort: every listed chat from every
+ *  workspace (groups dissolved, nesting splatted) plus every container main
+ *  chat with activity (agent threads), bucketed by last activity, newest
+ *  first. Anchored to the newest activity in the data — not the wall clock —
+ *  so the static seed still spreads across sections as time passes. */
+export function recencyBuckets(
+  workspaces: Workspace[],
+): { label: string; entries: RecencyEntry[] }[] {
+  const items: { entry: RecencyEntry; active: number }[] = [];
+  for (const w of workspaces) {
+    // The workspace's main chat only surfaces once it has been talked in
+    // (workspaces have no createdAt to anchor an empty chat to).
+    const wsActive = newestMessageAt(w.messages);
+    if (wsActive > 0) {
+      items.push({
+        entry: { kind: "agent", id: w.id, name: w.name, icon: w.icon, entity: "workspace" },
+        active: wsActive,
+      });
+    }
+    for (const item of w.items) {
+      if (item.kind === "project") {
+        const p = item.project;
+        const active = Math.max(
+          newestMessageAt(p.messages),
+          p.createdAt ? Date.parse(p.createdAt) : 0,
+        );
+        if (active > 0) {
+          items.push({
+            entry: { kind: "agent", id: p.id, name: p.name, icon: p.icon, entity: "project" },
+            active,
+          });
+        }
+      }
+      const top = item.kind === "thread" ? [item.thread] : item.project.threads;
+      for (const t of flattenThreads(top).filter(isListed)) {
+        items.push({
+          entry: { kind: "thread", thread: { ...t, threads: undefined } },
+          active: lastActiveAt(t),
+        });
+      }
+    }
+  }
+  if (items.length === 0) return [];
+
+  // End of the newest activity's day = that day's midnight boundary.
+  const anchor = new Date(Math.max(...items.map((c) => c.active)));
+  anchor.setHours(24, 0, 0, 0);
+  const from = (daysBack: number) => anchor.getTime() - daysBack * DAY_MS;
+  const defs = [
+    { label: "Today", from: from(1) },
+    { label: "Yesterday", from: from(2) },
+    { label: "Last 7 Days", from: from(7) },
+    { label: "Last 30 Days", from: from(30) },
+    { label: "Older", from: -Infinity },
+  ];
+  return defs
+    .map((def, i) => ({
+      label: def.label,
+      entries: items
+        .filter((c) => c.active >= def.from && (i === 0 || c.active < defs[i - 1].from))
+        .sort((a, b) => b.active - a.active)
+        .map((c) => c.entry),
+    }))
+    .filter((bucket) => bucket.entries.length > 0);
+}
+
 /** SQ-style chat list for a workspace: optionally dissolves its groups, then
  *  splats all nesting so every chat renders as a leaf row. Exported for the
  *  mobile shell's folder-space list screens. */
@@ -399,6 +498,7 @@ export function flatChats(workspace: Workspace, dissolveProjects: boolean): Work
 interface SidebarProps {
   workspaces: Workspace[];
   homeVariant: HomeVariant;
+  sortMode: SortMode;
   selectedId: string | null;
   /** Freshly created entity whose row should open in inline-rename with its
    *  placeholder name selected, so it can be named immediately. */
@@ -430,6 +530,7 @@ interface SidebarProps {
 export function Sidebar({
   workspaces,
   homeVariant,
+  sortMode,
   selectedId,
   renameRequestId,
   onRenameRequestHandled,
@@ -545,6 +646,9 @@ export function Sidebar({
   // The two space-agent flavors share a layout; only the group folders'
   // interactivity differs.
   const spaceAgent = homeVariant === "space-agent" || homeVariant === "space-agent-readonly";
+  // Recency sort suppresses every hierarchy section and renders the flat
+  // time-bucketed list instead.
+  const byRecency = sortMode === "recency";
 
   // Dragging a multi-selected thread moves the whole selection; anything
   // else moves just the dragged row.
@@ -639,7 +743,49 @@ export function Sidebar({
             "linear-gradient(to bottom, transparent, #000 20px, #000 calc(100% - 20px), transparent)",
         }}
       >
-        {homeVariant === "sections" && home && (
+        {byRecency &&
+          (() => {
+            const buckets = recencyBuckets(workspaces);
+            return buckets.length > 0 ? (
+              buckets.map((bucket) => (
+                <Section key={bucket.label} label={bucket.label}>
+                  <div className="flex flex-col gap-px">
+                    {bucket.entries.map((entry) =>
+                      entry.kind === "thread" ? (
+                        <ThreadCell
+                          key={entry.thread.id}
+                          thread={entry.thread}
+                          depth={0}
+                          selectedId={selectedId}
+                          multi={multi}
+                          dnd={dnd}
+                          renamer={renamer}
+                          onSelect={onSelect}
+                          onToggleMulti={toggleMulti}
+                          onContextMenu={openMenu}
+                        />
+                      ) : (
+                        <AgentChatCell
+                          key={entry.id}
+                          entry={entry}
+                          selectedId={selectedId}
+                          renamer={renamer}
+                          onSelect={onSelect}
+                          onContextMenu={
+                            entry.entity === "project" ? openProjectMenu : openWorkspaceMenu
+                          }
+                        />
+                      ),
+                    )}
+                  </div>
+                </Section>
+              ))
+            ) : (
+              <EmptyRow depth={0} />
+            );
+          })()}
+
+        {!byRecency && homeVariant === "sections" && home && (
           <>
             <Section
               label="Home"
@@ -703,10 +849,11 @@ export function Sidebar({
           </>
         )}
 
-        {(homeVariant === "distinct" ||
-          homeVariant === "flat" ||
-          homeVariant === "flat-home-agent" ||
-          spaceAgent) && (
+        {!byRecency &&
+          (homeVariant === "distinct" ||
+            homeVariant === "flat" ||
+            homeVariant === "flat-home-agent" ||
+            spaceAgent) && (
           <Section
             label={
               homeVariant === "flat" || spaceAgent
@@ -870,7 +1017,7 @@ export function Sidebar({
           </Section>
         )}
 
-        {homeVariant === "sq" && (
+        {!byRecency && homeVariant === "sq" && (
           <Section label="Chats">
             <div className="flex flex-col gap-px">
               {/* No home-level chats — each space is a plain folder of its
@@ -896,7 +1043,7 @@ export function Sidebar({
           </Section>
         )}
 
-        {homeVariant === "projects-separate" && (
+        {!byRecency && homeVariant === "projects-separate" && (
           <>
             <Section
               label="Projects"
@@ -949,7 +1096,7 @@ export function Sidebar({
           </>
         )}
 
-        {homeVariant === "all-projects" && home && (
+        {!byRecency && homeVariant === "all-projects" && home && (
           <Section
             label="Projects"
             createLabel="New project"
@@ -999,7 +1146,7 @@ export function Sidebar({
           </Section>
         )}
 
-        {homeVariant === "projects-readonly" && (
+        {!byRecency && homeVariant === "projects-readonly" && (
           <Section label="Chats">
             <div className="flex flex-col gap-px">
               {/* No home-level chats or projects here — only the workspace
@@ -1596,6 +1743,46 @@ function ThreadCell({
         </div>
       )}
     </div>
+  );
+}
+
+/** Recency-list row for an agent thread — a container's main chat (project
+ *  or workspace). A leaf row like ThreadCell, but wearing the agent face so
+ *  it reads as a conversation with an agent rather than a plain chat. */
+function AgentChatCell({
+  entry,
+  selectedId,
+  renamer,
+  onSelect,
+  onContextMenu,
+}: {
+  entry: Extract<RecencyEntry, { kind: "agent" }>;
+  selectedId: string | null;
+  renamer: Renamer;
+  onSelect: (id: string) => void;
+  onContextMenu: (id: string, e: React.MouseEvent) => void;
+}) {
+  return (
+    <Cell
+      depth={0}
+      variant="thread"
+      selected={selectedId === entry.id}
+      onClick={() => onSelect(entry.id)}
+      onContextMenu={(e) => onContextMenu(entry.id, e)}
+    >
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+        <LeadingBadge shape="face" icon={entry.icon} label={entry.name} />
+      </span>
+      {renamer.id === entry.id ? (
+        <RenameInput
+          initial={entry.name}
+          onCommit={(name) => renamer.commit(entry.id, name)}
+          onCancel={renamer.cancel}
+        />
+      ) : (
+        <Label text={entry.name} />
+      )}
+    </Cell>
   );
 }
 

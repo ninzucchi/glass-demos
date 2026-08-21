@@ -1,12 +1,14 @@
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
+import clsx from "clsx";
 import { AnalogyChart } from "./components/AnalogyChart";
 import { ChatPanel } from "./components/ChatPanel";
 import { MobileShell, type IndexStyle } from "./components/MobileShell";
-import { AGENT_NOUN_VARIANTS, Sidebar, type HomeVariant } from "./components/Sidebar";
+import { AGENT_NOUN_VARIANTS, Sidebar, type HomeVariant, type SortMode } from "./components/Sidebar";
 import { Icon } from "./components/ui/Icon";
 import { SegmentedControl } from "./components/ui/SegmentedControl";
 import { SettingsSection } from "./components/ui/SettingsSection";
 import { flattenThreads, initialWorkspaces, resolvePath } from "./data";
+import { captureElement } from "./lib/screenshot";
 import type { IconName } from "./icons/iconNames";
 import type { Message, Project, Thread, ViewMode, Workspace, WorkspaceItem } from "./types";
 import { version } from "../package.json";
@@ -49,6 +51,38 @@ type DataState = "start" | "simple" | "complex";
 /** Desktop renders sidebar + chat side by side; mobile renders the same
  *  construction in a phone frame where nesting becomes push navigation. */
 type Device = "desktop" | "mobile";
+
+/** Top-level view tabs: "all" is the full comparison (every approach plus
+ *  the taxonomy chart); "selects" narrows to the shortlisted finalists and
+ *  drops the chart to focus on the sidebar itself. */
+type FocusMode = "all" | "selects";
+
+/** The shortlisted finalists shown in the Selects tab. */
+const SELECT_VARIANTS: HomeVariant[] = ["sections", "flat"];
+
+/** What the focused (chromeless) window locks its shape to: fluid
+ *  fit-to-viewport, or a fixed recording ratio. */
+type FocusRatio = "fill" | "16:9" | "16:10" | "4:3" | "1:1";
+
+const FOCUS_RATIO_OPTIONS: { value: FocusRatio; label: string }[] = [
+  { value: "fill", label: "Fill" },
+  { value: "16:9", label: "16:9" },
+  { value: "16:10", label: "16:10" },
+  { value: "4:3", label: "4:3" },
+  { value: "1:1", label: "1:1" },
+];
+
+/** Largest ratio-locked rect fitting the viewport inside the page's p-8
+ *  padding (the window is the only content in chromeless mode, so the
+ *  available box is just the viewport minus 2 × 32px). */
+const focusRatioStyle = (ratio: FocusRatio): React.CSSProperties | undefined => {
+  if (ratio === "fill") return undefined;
+  const [w, h] = ratio.split(":").map(Number);
+  return {
+    aspectRatio: `${w} / ${h}`,
+    width: `min(100vw - 64px, calc((100vh - 64px) * ${w / h}))`,
+  };
+};
 
 /** Keeps a workspace's first few chats and projects (projects trimmed to a
  *  couple of threads each) for the light "simple" seed. */
@@ -99,6 +133,41 @@ export default function App() {
 
   const [workspaces, setWorkspaces] = useState(initialWorkspaces);
   const [homeVariant, setHomeVariant] = useState<HomeVariant>("distinct");
+  const [focusMode, setFocusMode] = useState<FocusMode>("all");
+  const changeFocusMode = (mode: FocusMode) => {
+    setFocusMode(mode);
+    // Selects only offers the finalists; snap to one if needed.
+    if (mode === "selects" && !SELECT_VARIANTS.includes(homeVariant)) {
+      setHomeVariant(SELECT_VARIANTS[0]);
+    }
+  };
+  // Chromeless view for clean recordings: only the mock window renders (no
+  // tabs, settings panel, or chart). Esc or the hover corner button exits.
+  const [chromeless, setChromeless] = useState(false);
+  const [focusRatio, setFocusRatio] = useState<FocusRatio>("fill");
+  /** Downloads the focused viewport as a PNG (2x). The corner controls are
+   *  stripped from the clone so the shot is exactly the recording frame. */
+  const exportShot = () => {
+    const node = document.querySelector<HTMLElement>("[data-capture-root]");
+    if (!node) return;
+    const ratio = focusRatio === "fill" ? "" : `-${focusRatio.replace(":", "x")}`;
+    void captureElement(node, {
+      filename: `hierarchy-${homeVariant}${ratio}.png`,
+      // The page bg lives on <body>, outside the captured node.
+      background: getComputedStyle(document.body).backgroundColor,
+      prepare: (clone) => clone.querySelector("[data-export-hide]")?.remove(),
+    });
+  };
+  useEffect(() => {
+    if (!chromeless) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setChromeless(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chromeless]);
+  // Desktop-only: hierarchy sections vs one flat recency-bucketed chat list.
+  const [sortMode, setSortMode] = useState<SortMode>("entities");
   const [device, setDevice] = useState<Device>("desktop");
   // Mobile-only: how a top-level container exposes its child index (nav-bar
   // sheet vs footer chat/index swap).
@@ -569,7 +638,20 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-6 p-8">
+    <div data-capture-root className="flex h-full flex-col gap-6 p-8">
+      {/* Top tabs: the full comparison vs the shortlisted finalists. */}
+      {!chromeless && (
+        <div className="flex justify-center">
+          <SegmentedControl
+            value={focusMode}
+            onChange={changeFocusMode}
+            options={[
+              { value: "all", label: "All Approaches" },
+              { value: "selects", label: "Selects" },
+            ]}
+          />
+        </div>
+      )}
       {/* Window row: the settings panel sits in flow beside the mock window
           (never overlapping it), both centered on the same vertical axis. */}
       <div className="flex min-h-0 w-full flex-1 items-center justify-center gap-6">
@@ -577,6 +659,7 @@ export default function App() {
             never slides under the window, and static so switching can't jitter.
             Always as tall as the window beside it; on short viewports it
             scrolls internally instead of painting over the chart below. */}
+        {!chromeless && (
         <aside className="flex h-full min-h-0 shrink-0 flex-col rounded-window bg-chrome shadow-sm">
           <div className="scrollbar-overlay gutter-stable pr-gutter-5 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pb-2 pl-5 pt-5">
           {/* First so toggling the mobile-only settings below never reflows
@@ -609,24 +692,44 @@ export default function App() {
           // in the sidebar; the two reference layouts keep their codenames as
           // parentheticals. Numbered ids group near-identical concepts as
           // letter variants (1A/1B); SQ and Dev Proposal aren't alternatives,
-          // so they stay unnumbered.
-          options={[
-            { value: "sq", label: "Spaces, Chats (SQ)" },
-            {
-              value: "projects-separate",
-              label: "Projects, Spaces, Chats (Dev Proposal)",
-              dividerAfter: true,
-            },
-            { value: "distinct", label: "1A. Spaces, Agents, Threads ⭐" },
-            { value: "sections", label: "1B. Spaces, Agents, Threads (Home Section)" },
-            { value: "all-projects", label: "2. Projects, Chats" },
-            { value: "projects-readonly", label: "3. Workspaces, Read-Only Groups, Chats ⭐" },
-            { value: "space-agent-readonly", label: "4A. Agents, Read-Only Groups, Threads" },
-            { value: "space-agent", label: "4B. Agents, Chat-able Groups, Threads ⭐" },
-            { value: "flat", label: "5A. Chats, Agents, Threads ⭐" },
-            { value: "flat-home-agent", label: "5B. Chats, Agents, Threads (Home Agent)" },
-          ]}
+          // so they stay unnumbered. Selects narrows to the finalists.
+          options={
+            focusMode === "selects"
+              ? [
+                  { value: "sections", label: "1B. Spaces, Agents, Threads (Home Section)" },
+                  { value: "flat", label: "5A. Chats, Agents, Threads" },
+                ]
+              : [
+                  { value: "sq", label: "Spaces, Chats (SQ)" },
+                  {
+                    value: "projects-separate",
+                    label: "Projects, Spaces, Chats (Dev Proposal)",
+                    dividerAfter: true,
+                  },
+                  { value: "distinct", label: "1A. Spaces, Agents, Threads ⭐" },
+                  { value: "sections", label: "1B. Spaces, Agents, Threads (Home Section)" },
+                  { value: "all-projects", label: "2. Projects, Chats" },
+                  { value: "projects-readonly", label: "3. Workspaces, Read-Only Groups, Chats ⭐" },
+                  { value: "space-agent-readonly", label: "4A. Agents, Read-Only Groups, Threads" },
+                  { value: "space-agent", label: "4B. Agents, Chat-able Groups, Threads ⭐" },
+                  { value: "flat", label: "5A. Chats, Agents, Threads ⭐" },
+                  { value: "flat-home-agent", label: "5B. Chats, Agents, Threads (Home Agent)" },
+                ]
+          }
           />
+          {/* Desktop-only fork: keep the variant's entity hierarchy, or
+              replace it with a flat list bucketed by last activity. */}
+          {device === "desktop" && (
+            <SettingsSection
+              title="Sort"
+              value={sortMode}
+              onChange={setSortMode}
+              options={[
+                { value: "entities", label: "By Entity" },
+                { value: "recency", label: "By Recency" },
+              ]}
+            />
+          )}
           {/* Mobile-only fork: how a top-level container exposes its child
               index — nav-bar sheet vs the footer chat/index swap. */}
           {device === "mobile" && (
@@ -650,10 +753,31 @@ export default function App() {
               { value: "complex", label: "Complex" },
             ]}
           />
+          {/* Desktop-only (the phone frame is fixed-size): what shape the
+              window locks to in focus mode, for known recording dimensions. */}
+          {device === "desktop" && (
+            <div className="flex flex-col gap-1">
+              <span className="px-1.5 text-sm text-quaternary">Focus Ratio</span>
+              <SegmentedControl
+                value={focusRatio}
+                onChange={setFocusRatio}
+                options={FOCUS_RATIO_OPTIONS}
+              />
+            </div>
+          )}
           </div>
           {/* Fixed footer so Reset can't scroll out of view; always rendered
               (disabled when pristine) so the panel never jumps. */}
-          <div className="shrink-0 px-5 pb-5 pt-2">
+          <div className="flex shrink-0 flex-col gap-2 px-5 pb-5 pt-2">
+            <button
+              type="button"
+              onClick={() => setChromeless(true)}
+              title="Show only the window, for clean recordings (Esc exits)"
+              className="flex h-7 w-full items-center justify-center gap-1.5 rounded-full bg-elevated text-base text-secondary shadow-[0_0_0_1px_var(--border-tertiary)] transition-colors duration-fast hover:bg-quaternary-opaque hover:text-primary"
+            >
+              <Icon name="focus-window" size="sm" color="secondary" />
+              Focus
+            </button>
             <button
               type="button"
               onClick={resetToSeed}
@@ -665,12 +789,22 @@ export default function App() {
             </button>
           </div>
         </aside>
+        )}
         {device === "desktop" ? (
-          // The mock window fills all remaining space inside the page padding.
-          <div className="flex h-full w-full min-w-0 overflow-hidden rounded-window bg-sidebar shadow-window backdrop-blur-[12px]">
+          // The mock window fills all remaining space inside the page
+          // padding — unless focus mode locks it to a recording ratio, in
+          // which case it's the largest such rect that fits, centered.
+          <div
+            className={clsx(
+              "flex min-w-0 overflow-hidden rounded-window bg-sidebar shadow-window backdrop-blur-[12px]",
+              chromeless && focusRatio !== "fill" ? "max-h-full max-w-full" : "h-full w-full",
+            )}
+            style={chromeless ? focusRatioStyle(focusRatio) : undefined}
+          >
             <Sidebar
               workspaces={displayWorkspaces}
               homeVariant={homeVariant}
+              sortMode={sortMode}
               selectedId={selection?.id ?? null}
               renameRequestId={renameRequestId}
               onRenameRequestHandled={() => setRenameRequestId(null)}
@@ -700,8 +834,19 @@ export default function App() {
                     ? "circle"
                     : "chiclet"
                 }
-                // Agent-noun layouts draw no agent/group distinction.
-                projectBadge={AGENT_NOUN_VARIANTS.includes(homeVariant) ? "face" : "kind"}
+                // Group badges match the sidebar: faces in the agent-noun
+                // layouts, folders in space-agent, plain icons in
+                // all-projects, circles elsewhere (agents always wear faces).
+                projectBadge={
+                  AGENT_NOUN_VARIANTS.includes(homeVariant)
+                    ? "face"
+                    : homeVariant === "space-agent"
+                      ? "folder"
+                      : homeVariant === "all-projects"
+                        ? "icon"
+                        : "kind"
+                }
+                homeAsAgent={homeVariant === "flat-home-agent"}
                 drafts={drafts}
                 onDraftChange={setDraft}
                 onSelect={select}
@@ -737,8 +882,45 @@ export default function App() {
           </div>
         )}
       </div>
-      {/* Full-width chart row, inset only by the page padding. */}
-      <AnalogyChart variant={homeVariant} />
+      {/* Full-width chart row, inset only by the page padding. Selects drops
+          it — the window takes the reclaimed height. */}
+      {focusMode === "all" && !chromeless && <AnalogyChart variant={homeVariant} />}
+      {/* Chromeless corner controls: invisible until hovered so they never
+          show up in a recording; Esc exits without touching the mouse. */}
+      {chromeless && (
+        <div
+          data-export-hide
+          className="fixed right-4 top-4 z-50 flex items-center gap-2 opacity-0 transition-opacity duration-fast hover:opacity-100"
+        >
+          {device === "desktop" && (
+            <div className="rounded-full bg-chrome p-1 shadow-sm">
+              <SegmentedControl
+                value={focusRatio}
+                onChange={setFocusRatio}
+                options={FOCUS_RATIO_OPTIONS}
+              />
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={exportShot}
+            title="Download the viewport as a PNG"
+            className="flex h-8 items-center gap-1.5 rounded-full bg-chrome px-3 text-sm text-secondary shadow-sm transition-colors duration-fast hover:text-primary"
+          >
+            <Icon name="camera" size="sm" color="inherit" />
+            Export PNG
+          </button>
+          <button
+            type="button"
+            onClick={() => setChromeless(false)}
+            title="Exit focus (Esc)"
+            className="flex h-8 items-center gap-1.5 rounded-full bg-chrome px-3 text-sm text-secondary shadow-sm transition-colors duration-fast hover:text-primary"
+          >
+            <Icon name="corners-in" size="sm" color="inherit" />
+            Exit Focus
+          </button>
+        </div>
+      )}
     </div>
   );
 }
