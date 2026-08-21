@@ -541,6 +541,44 @@ function MobileListScreen({
   );
 }
 
+/** A simulated content surface: when a sent message implies one of these
+ *  mediums, the footer capsule grows a matching tab (an empty placeholder
+ *  screen — the point is the "tabs flex with the conversation" vibe). */
+interface ContentTabSpec {
+  kind: "image" | "code" | "doc";
+  icon: IconName;
+  label: string;
+  test: RegExp;
+}
+
+const CONTENT_TAB_SPECS: ContentTabSpec[] = [
+  {
+    kind: "image",
+    icon: "image",
+    label: "Image",
+    test: /\b(image|photo|picture|logo|render|draw|illustration|wallpaper)\b/i,
+  },
+  {
+    kind: "code",
+    icon: "code",
+    label: "Code",
+    test: /\b(code|function|script|component|refactor|bug|implement)\b/i,
+  },
+  {
+    kind: "doc",
+    icon: "file-text",
+    label: "Doc",
+    test: /\b(doc|document|draft|write|essay|notes|outline)\b/i,
+  },
+];
+
+/** Tabs the conversation has flexed open so far (user messages only —
+ *  agent replies shouldn't spawn surfaces). */
+const contentTabs = (messages: Message[]): ContentTabSpec[] =>
+  CONTENT_TAB_SPECS.filter((tab) =>
+    messages.some((m) => m.role === "user" && tab.test.test(m.text)),
+  );
+
 /** Pushed chat screen: mobile nav bar over the shared ChatView body. The
  *  nav's list button opens the container's children as a sheet; its plus
  *  creates a chat/thread inside the entity. */
@@ -562,9 +600,12 @@ function MobileChatScreen({
   footerIndex?: boolean;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  // Footer-index screens land on the chat; the capsule swaps to the index.
-  const [view, setView] = useState<"chat" | "index">("chat");
+  // Footer-index screens land on the chat; the capsule swaps to the index
+  // or a conversation-grown content surface.
+  const [view, setView] = useState<"chat" | "index" | ContentTabSpec["kind"]>("chat");
   const showIndex = footerIndex && view === "index" && !!chat.sheet;
+  const tabs = footerIndex ? contentTabs(chat.messages) : [];
+  const activeTab = tabs.find((tab) => tab.kind === view);
 
   // Reply in this chat spawns (or reopens) a thread anchored to the message;
   // the selection change pushes its screen.
@@ -608,6 +649,13 @@ function MobileChatScreen({
           {chat.sheet!.rows.map((row) => (
             <MobileRow key={row.id} row={row} onTap={() => onSelect(row.id)} />
           ))}
+        </div>
+      ) : activeTab ? (
+        // Empty placeholder surface — just the medium's identity, to sell
+        // the "conversation grows tabs" simulation.
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2">
+          <Icon name={activeTab.icon} size="lg" color="quaternary" />
+          <span className="text-base text-quaternary">{activeTab.label}</span>
         </div>
       ) : (
         <ChatView
@@ -665,6 +713,15 @@ function MobileChatScreen({
               active={view === "chat"}
               onClick={() => setView("chat")}
             />
+            {tabs.map((tab) => (
+              <FooterSegment
+                key={tab.kind}
+                icon={tab.icon}
+                label={tab.label}
+                active={view === tab.kind}
+                onClick={() => setView(tab.kind)}
+              />
+            ))}
           </div>
         </div>
       )}
