@@ -27,7 +27,6 @@ import {
 } from "@/types";
 import { centeredWindowGeo, type Geo } from "@/components/desktop/geometry";
 import { useWindowId } from "@/components/window/WindowContext";
-import { flagEnabled } from "@/store/useFeatureFlags";
 import * as tree from "@/store/layoutTree";
 import { docToText } from "@/lib/composerDoc";
 import { createSeed } from "@/data/seed";
@@ -99,7 +98,7 @@ interface WorkspaceActions {
    *  active agent (swapping the content pane to that agent's branch scope). */
   focusChatTile: (tileId: string) => void;
   /** Pointer-down in a content tile: remember it as the window's focused pane
-   *  so the group-shared sidebar rebinds to its active tab. */
+   *  so resting panes can dim their tab chrome. */
   focusContentTile: (tileId: string) => void;
   /** Drop a sidebar agent row onto a chat tile: merge as a tab (activating an
    *  existing tab of that agent in the tile instead of duplicating) or split. */
@@ -1239,9 +1238,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           mutateNodeLayout(tileId, (l) => tree.splitTile(l, tileId, sideToDirection(side))),
         closeTile: (tileId) => mutateNodeLayout(tileId, (l) => tree.closeTile(l, tileId)),
         toggleTileSidebar: (tileId, type) =>
-          mutateNodeLayout(tileId, (l) =>
-            tree.toggleTileSidebar(l, tileId, type, flagEnabled("sharedTabSidebars")),
-          ),
+          mutateNodeLayout(tileId, (l) => tree.toggleTileSidebar(l, tileId, type)),
         setSizes: (splitId, sizes) =>
           mutateNodeLayout(splitId, (l) => tree.setSizes(l, splitId, sizes)),
 
@@ -1667,7 +1664,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       };
     },
     {
-      name: "unification-demo-v4",
+      name: "unification-demo-v5",
       // No versioning/migrations: state still persists and reloads across
       // refreshes, but we don't carry backwards compatibility. To force a clean
       // reset, change `name` (or clear the localStorage entry).

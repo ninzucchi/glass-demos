@@ -1,7 +1,6 @@
 import { Fragment } from "react";
 import { Panel, PanelGroup } from "react-resizable-panels";
 import type { LayoutNode } from "@/types";
-import type { SharedSidebarBinding } from "@/store/layoutTree";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { Tile, type TileVariant } from "@/components/tile/Tile";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
@@ -15,9 +14,6 @@ interface PanelRendererProps {
   // True for the subtree occupying the window's top-left corner; the corner tile
   // hosts the collapsed-sidebar re-expand cluster.
   topLeft?: boolean;
-  // Shared-sidebar hosts by tile id (computed once at the panel root): a tile
-  // with an entry renders that sidebar; a tile without one renders none.
-  sidebarBindings?: Map<string, SharedSidebarBinding>;
 }
 
 export function PanelRenderer({
@@ -25,7 +21,6 @@ export function PanelRenderer({
   variant,
   topRight = false,
   topLeft = false,
-  sidebarBindings,
 }: PanelRendererProps) {
   const setSizes = useWorkspaceStore((s) => s.setSizes);
 
@@ -36,7 +31,6 @@ export function PanelRenderer({
         variant={variant}
         topRight={topRight}
         topLeft={topLeft}
-        sidebarBindings={sidebarBindings}
       />
     );
   }
@@ -72,7 +66,6 @@ export function PanelRenderer({
               variant={variant}
               topRight={topRight && i === cornerIndex}
               topLeft={topLeft && i === leftCornerIndex}
-              sidebarBindings={sidebarBindings}
             />
           </Panel>
         </Fragment>

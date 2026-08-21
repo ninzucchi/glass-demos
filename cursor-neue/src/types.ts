@@ -31,9 +31,7 @@ export interface TileNode {
   tabs: Tab[];
   activeTabId: string;
   /** Sidebar open/closed shared by tab type within this tile (tab bar). Tabs of
-   *  the same type share one value; absent entries fall back to the type default.
-   *  Toggles also sync this value across the tile's side-by-side group (tiles
-   *  connected through horizontal splits only — see `horizontalGroup`). */
+   *  the same type share one value; absent entries fall back to the type default. */
   sidebarOpenByType?: Partial<Record<TabType, boolean>>;
 }
 

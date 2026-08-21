@@ -1,5 +1,5 @@
 // Demo configuration knobs set in code (not via UI).
-import wallpaper0 from "@/assets/0.jpg";
+import wallpaper0 from "@/assets/bg.png";
 import wallpaper1 from "@/assets/1.jpg";
 
 // A desktop wallpaper choice: either a bundled image or a solid CSS color.

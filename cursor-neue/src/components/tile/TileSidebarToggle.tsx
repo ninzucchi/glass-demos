@@ -13,13 +13,11 @@ import { tileSidebarOpen } from "@/types";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { type SidebarPlacement, useAppearanceStore } from "@/store/useAppearanceStore";
 
-/** Toggles the tile's sidebar for the tab's type. State is shared by type within
- *  the tile — and, with the shared-tab-sidebars flag on, across its
- *  side-by-side (horizontal-split) group, so all same-type tabs in those
- *  columns reflect this toggle. Pinned at the tile's
- *  sidebar-side edge so its x position never changes between open/closed states;
- *  the glyph mirrors the global sidebar placement. Right-click exposes the
- *  global left/right placement controls. */
+/** Toggles the tile's sidebar for the tab's type. State is shared by type
+ *  within the tile. Pinned at the tile's sidebar-side edge so its x position
+ *  never changes between open/closed states; the glyph mirrors the global
+ *  sidebar placement. Right-click exposes the global left/right placement
+ *  controls. */
 export function TileSidebarToggle({ tile, tab }: { tile: TileNode; tab: Tab }) {
   const toggleTileSidebar = useWorkspaceStore((s) => s.toggleTileSidebar);
   const sidebarPlacement = useAppearanceStore((s) => s.sidebarPlacement);

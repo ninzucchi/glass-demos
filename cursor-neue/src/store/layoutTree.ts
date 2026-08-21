@@ -238,93 +238,6 @@ function mapTile(
   return { ...node, children: node.children.map((c) => mapTile(c, tileId, fn)) };
 }
 
-/** Map every tile in the tree; untouched subtrees keep their references. */
-function mapTiles(node: LayoutNode, fn: (tile: TileNode) => TileNode): LayoutNode {
-  if (isTile(node)) return fn(node);
-  const children = node.children.map((c) => mapTiles(c, fn));
-  return children.every((c, i) => c === node.children[i]) ? node : { ...node, children };
-}
-
-/** Tiles reachable from `node` through horizontal splits only, left-to-right
- *  (the panes sitting side-by-side at this level). Vertical subtrees are opaque. */
-function exposedTiles(node: LayoutNode): TileNode[] {
-  if (isTile(node)) return [node];
-  return node.direction === "horizontal" ? node.children.flatMap(exposedTiles) : [];
-}
-
-/** The vertical splits that cap horizontal-only descent from `node` — each of
- *  their children starts a fresh side-by-side group. */
-function verticalBoundaries(node: LayoutNode): SplitNode[] {
-  if (isTile(node)) return [];
-  if (node.direction === "vertical") return [node];
-  return node.children.flatMap(verticalBoundaries);
-}
-
-/** What a shared sidebar displays: the tile + tab it is bound to (file clicks
- *  etc. act on this tile), which may differ from the tile hosting it. */
-export interface SharedSidebarBinding {
-  tile: TileNode;
-  tab: Tab;
-}
-
-/** One sidebar per side-by-side group per type: within each horizontal group
- *  (ordered left-to-right), the tile nearest the sidebar edge with a given
- *  sidebar type HOSTS it (map key) — the sidebar when open, the sole toggle
- *  entry point when closed; same-type group-mates render neither. The hosted
- *  sidebar BINDS to the group's focused tile when that tile has the same type —
- *  so selecting a tab elsewhere in the row retargets the shared sidebar — else
- *  to the host's own active tab. `shows` reports the sidebar type a tile can
- *  host (its active tab's type, open or not), or null. */
-export function sharedSidebarBindings(
-  root: LayoutNode,
-  fromRight: boolean,
-  focusedTileId: string | null,
-  shows: (tile: TileNode) => TabType | null,
-): Map<string, SharedSidebarBinding> {
-  const bindings = new Map<string, SharedSidebarBinding>();
-  const bindingFor = (tile: TileNode): SharedSidebarBinding => ({
-    tile,
-    tab: tile.tabs.find((t) => t.id === tile.activeTabId) ?? tile.tabs[0],
-  });
-  const walkGroup = (region: LayoutNode) => {
-    const group = exposedTiles(region);
-    const focused = group.find((t) => t.id === focusedTileId);
-    const seen = new Set<TabType>();
-    for (const tile of fromRight ? [...group].reverse() : group) {
-      const type = shows(tile);
-      if (!type || seen.has(type)) continue;
-      seen.add(type);
-      bindings.set(tile.id, bindingFor(focused && shows(focused) === type ? focused : tile));
-    }
-    for (const v of verticalBoundaries(region)) v.children.forEach(walkGroup);
-  };
-  walkGroup(root);
-  return bindings;
-}
-
-/** A tile's side-by-side group: every tile whose tree path to it crosses only
- *  horizontal splits. A vertical split anywhere on the path breaks the group. */
-export function horizontalGroup(root: LayoutNode, tileId: string): Set<string> {
-  // `open` = the path from this node down to the tile is all-horizontal, so
-  // the group can still absorb siblings at horizontal ancestors above.
-  const walk = (node: LayoutNode): { ids: string[]; open: boolean } | null => {
-    if (isTile(node)) return node.id === tileId ? { ids: [node.id], open: true } : null;
-    for (let i = 0; i < node.children.length; i++) {
-      const hit = walk(node.children[i]);
-      if (!hit) continue;
-      if (node.direction === "vertical" || !hit.open) return { ids: hit.ids, open: false };
-      return {
-        ids: node.children.flatMap((c, j) =>
-          j === i ? hit.ids : exposedTiles(c).map((t) => t.id),
-        ),
-        open: true,
-      };
-    }
-    return null;
-  };
-  return new Set(walk(root)?.ids ?? [tileId]);
-}
-
 /** Remove the tile, collapsing any split that drops to a single child. Returns
  *  null only if the entire tree was removed (caller should substitute a default). */
 function removeNode(node: LayoutNode, tileId: string): LayoutNode | null {
@@ -379,25 +292,19 @@ export function updateTab(
   }));
 }
 
-/** Toggle a type's sidebar for a tile — with `syncGroup` (the shared-tab-
- *  sidebars flag), for its whole side-by-side group (see `horizontalGroup`):
- *  every column gets the toggled value, so panes that drifted apart snap back
- *  in sync. Vertical splits stay independent either way. */
+/** Toggle a type's sidebar for a single tile. */
 export function toggleTileSidebar(
   root: LayoutNode,
   tileId: string,
   type: TabType,
-  syncGroup: boolean,
 ): LayoutNode {
   const source = findTile(root, tileId);
   if (!source) return root;
   const open = !tileSidebarOpen(source, type);
-  const group = syncGroup ? horizontalGroup(root, tileId) : new Set([tileId]);
-  return mapTiles(root, (tile) =>
-    group.has(tile.id) && tileSidebarOpen(tile, type) !== open
-      ? { ...tile, sidebarOpenByType: { ...tile.sidebarOpenByType, [type]: open } }
-      : tile,
-  );
+  return mapTile(root, tileId, (tile) => ({
+    ...tile,
+    sidebarOpenByType: { ...tile.sidebarOpenByType, [type]: open },
+  }));
 }
 
 export function closeOtherTabs(root: LayoutNode, tileId: string, keepId: string): LayoutNode {

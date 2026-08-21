@@ -17,10 +17,7 @@ import { FilesHome } from "./FilesHome";
 import { isOutsideWindows, newWindowGeo } from "@/components/desktop/geometry";
 import { beginTabDrag } from "@/components/tile/tabDragInteraction";
 import { SidebarSectionHeader } from "@/components/sidebar/SidebarControls";
-import { allTabs, horizontalGroup } from "@/store/layoutTree";
-import { useFeatureFlags } from "@/store/useFeatureFlags";
 import {
-  useActiveContent,
   useActiveScopeId,
   useActiveWorkspaceName,
   useWorkspaceStore,
@@ -48,19 +45,7 @@ export function FilesSidebar({ tab, tileId }: { tab: Tab; tileId: string }) {
   const openFileInNewWindow = useWorkspaceStore((s) => s.openFileInNewWindow);
   const openFileAtRoot = useWorkspaceStore((s) => s.openFileAtRoot);
   const openFileInClosedContent = useWorkspaceStore((s) => s.openFileInClosedContent);
-  const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
-  const focusContentTile = useWorkspaceStore((s) => s.focusContentTile);
   const nodes = getFileTree(scopeId);
-  // Shared-sidebar only: one sidebar serves a whole side-by-side group, whose
-  // open files are otherwise split across per-pane tab strips. Listed from the
-  // bound tile's group (tree order), and only when there's more than one.
-  const sharedSidebars = useFeatureFlags((s) => s.flags.sharedTabSidebars);
-  const layout = useActiveContent().layout;
-  const openFiles = (() => {
-    if (!sharedSidebars) return [];
-    const group = horizontalGroup(layout, tileId);
-    return allTabs(layout).filter((e) => group.has(e.tile.id) && filesTabHasOpenFile(e.tab));
-  })();
   // Shared across rows: set while a drag is in flight so the click that fires on
   // release doesn't also open the file in place. Only one row drags at a time.
   const didDragRef = useRef(false);
@@ -228,39 +213,6 @@ export function FilesSidebar({ tab, tileId }: { tab: Tab; tileId: string }) {
         onToggle={() => toggle(projectName)}
       />
       {rootOpen && renderNodes(nodes, 1, "")}
-      {openFiles.length > 1 && (
-        <div className="flex flex-col gap-px pt-1.5">
-          <SidebarSectionHeader label="Open" />
-          {openFiles.map(({ tile, tab: open }) => {
-            const active = open.id === tab.id;
-            return (
-              <button
-                key={open.id}
-                type="button"
-                // Focus the owning pane too, so the shared sidebar rebinds to
-                // the file just selected instead of the previously focused one.
-                onClick={() => {
-                  setActiveTab(tile.id, open.id);
-                  focusContentTile(tile.id);
-                }}
-                className={clsx(
-                  ROW,
-                  active ? "bg-quaternary text-primary" : "text-secondary hover:bg-quaternary",
-                )}
-              >
-                <span className={LEADING}>
-                  <Icon
-                    name={fileIconFor(open.title)}
-                    size="base"
-                    color={active ? "secondary" : "tertiary"}
-                  />
-                </span>
-                <span className={LABEL}>{open.title}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 // means swapping its Content/Sidebar here; everything else is type-driven.
 import type { ComponentType } from "react";
 import type { IconName } from "@/components/ui/Icon";
-import type { Tab, TabType, TileNode } from "@/types";
+import type { Tab, TabType } from "@/types";
 import { filesTabHasOpenFile } from "@/types";
 import { FilesContent, FilesSidebar } from "@/components/tabs/tabTypes/FilesTab";
 import { BrowserContent, BrowserSidebar } from "@/components/tabs/tabTypes/BrowserTab";
@@ -21,16 +21,6 @@ export interface TabTypeDef {
   hasSidebar: boolean;
   Content: ComponentType<{ tab: Tab; tileId: string }>;
   Sidebar: ComponentType<{ tab: Tab; tileId: string }>;
-}
-
-/** The sidebar type a tile can host: its active tab's type when that type has
- *  a sidebar, else null. Deliberately ignores open/closed so a closed shared
- *  sidebar still has exactly one host — and so one toggle entry point — per
- *  group (see `sharedSidebarBindings`). */
-export function tileSidebarType(tile: TileNode): TabType | null {
-  const tab = tile.tabs.find((t) => t.id === tile.activeTabId) ?? tile.tabs[0];
-  if (!tab) return null;
-  return TAB_REGISTRY[tab.type].hasSidebar ? tab.type : null;
 }
 
 /** Tab chrome icon: specific open files use file-type icons; generic tabs use the registry default. */

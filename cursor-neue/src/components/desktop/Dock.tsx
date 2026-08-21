@@ -8,7 +8,7 @@ import { MAIN_WINDOW_ID, useWorkspaceStore } from "@/store/useWorkspaceStore";
 // Design System "Dock" (node 21190:92765): a translucent rounded bar of 44px
 // app tiles with a hairline border + inset top highlight. Tiles, top to bottom:
 // the Cursor app (focus/relaunch the main window) and the appearance gear
-// (theme, sidebar placement, and reset-demo). Living on the left keeps the
+// (theme and reset-demo). Living on the left keeps the
 // vertical axis clear, so windows (and the centered screenshot) sit at true
 // center instead of being biased up around it.
 // Surfaces use luminous stops (not neutral) so the glass bar stays light-on-dark

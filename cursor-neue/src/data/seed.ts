@@ -178,9 +178,10 @@ export function createSeed(): WorkspaceData {
       layout: makeTile([makeTab("files", { title: "Composer.swift", folder: "Sources/Views" })]),
     },
     // acme-desktop seeds a stacked layout: one open file (sidebar shown) on top
-    // with a terminal split into a row beneath it.
+    // with a terminal split into a row beneath it. Content starts closed so
+    // first load is chat-only; opening the pane restores this layout.
     "ws:acme-desktop@main": {
-      open: true,
+      open: false,
       layout: makeSplit(
         "vertical",
         [
