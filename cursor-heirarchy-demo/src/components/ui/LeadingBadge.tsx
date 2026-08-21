@@ -24,19 +24,36 @@ const SHEEN_GRADIENT =
   "linear-gradient(to bottom, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0))";
 
 /** 20px leading identity badge: rounded-square chiclet for spaces, circle for
- *  groups/projects, or an agent "face" — a colored circle with two upright
- *  eyes (color hashed from the label, so each agent keeps its own). */
+ *  groups/projects, an agent "face" — a colored circle with two upright eyes
+ *  (color hashed from the label, so each agent keeps its own) — or the plain
+ *  un-circled glyphs some layouts use: "folder" and "icon" (the entity's icon,
+ *  else its initial letter). */
 export function LeadingBadge({
   shape,
   icon,
   label,
   className,
 }: {
-  shape: "chiclet" | "circle" | "face";
+  shape: "chiclet" | "circle" | "face" | "folder" | "icon";
   icon?: IconName;
   label: string;
   className?: string;
 }) {
+  if (shape === "folder" || shape === "icon") {
+    return (
+      <span className={clsx("flex h-5 w-5 shrink-0 items-center justify-center", className)}>
+        {shape === "folder" ? (
+          <Icon name="folder" size="base" color="secondary" />
+        ) : icon ? (
+          <Icon name={icon} size="base" color="secondary" />
+        ) : (
+          <span className="text-sm font-medium leading-none text-secondary">
+            {label.charAt(0).toUpperCase()}
+          </span>
+        )}
+      </span>
+    );
+  }
   if (shape === "face") {
     return (
       <span

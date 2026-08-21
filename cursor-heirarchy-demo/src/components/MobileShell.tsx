@@ -39,7 +39,7 @@ const CIRCLE_SPACES: HomeVariant[] = [
 ];
 
 interface BadgeSpec {
-  shape: "chiclet" | "circle" | "face";
+  shape: "chiclet" | "circle" | "face" | "folder" | "icon";
   icon?: IconName;
 }
 
@@ -47,7 +47,7 @@ interface BadgeSpec {
 interface Row {
   id: string;
   title: string;
-  leading: BadgeSpec | { shape: "dot" } | { shape: "folder" };
+  leading: BadgeSpec | { shape: "dot" };
   /** Containers get a trailing chevron. */
   container?: boolean;
 }
@@ -77,19 +77,26 @@ type Screen =
 const isReadonlyGroup = (variant: HomeVariant, p: Project) =>
   READONLY_GROUPS.includes(variant) && p.kind === "group";
 
-/** Face for agents (and for every project in the agent-noun layouts),
- *  plain circle for ad-hoc groups elsewhere — mirrors the desktop badges. */
-const projectShape = (variant: HomeVariant, p: Project): BadgeSpec["shape"] =>
-  AGENT_NOUN_VARIANTS.includes(variant) || p.kind !== "group" ? "face" : "circle";
+/** A project's identity badge, mirroring the desktop sidebar's per-variant
+ *  treatment so list rows and chat headers always agree: agents (and every
+ *  project in the agent-noun layouts) wear the face; groups wear a folder in
+ *  the read-only and space-agent layouts, a plain icon in all-projects, and
+ *  the circle elsewhere. */
+const projectBadge = (variant: HomeVariant, p: Project): BadgeSpec => {
+  if (AGENT_NOUN_VARIANTS.includes(variant) || p.kind !== "group") {
+    return { shape: "face", icon: p.icon };
+  }
+  if (isReadonlyGroup(variant, p) || variant === "space-agent") return { shape: "folder" };
+  if (variant === "all-projects") return { shape: "icon", icon: p.icon };
+  return { shape: "circle", icon: p.icon };
+};
 
 const threadRow = (t: Thread): Row => ({ id: t.id, title: t.title, leading: { shape: "dot" } });
 
 const projectRow = (variant: HomeVariant, p: Project): Row => ({
   id: p.id,
   title: p.name,
-  leading: isReadonlyGroup(variant, p)
-    ? { shape: "folder" }
-    : { shape: projectShape(variant, p), icon: p.icon },
+  leading: projectBadge(variant, p),
   container: true,
 });
 
@@ -230,10 +237,15 @@ function workspaceChat(variant: HomeVariant, w: Workspace): ChatData {
   return {
     id: w.id,
     title: w.name,
-    badge: {
-      shape: CIRCLE_SPACES.includes(variant) ? "circle" : "chiclet",
-      icon: w.icon,
-    },
+    // Home-as-agent renders as a face row in the home list; its chat header
+    // must wear the same face, not the variant's space circle.
+    badge:
+      variant === "flat-home-agent" && w.id === HOME_ID
+        ? { shape: "face" }
+        : {
+            shape: CIRCLE_SPACES.includes(variant) ? "circle" : "chiclet",
+            icon: w.icon,
+          },
     messages: w.messages,
     threads,
     sheet: sheetRows.length > 0 ? { title: w.name, rows: sheetRows } : undefined,
@@ -247,7 +259,7 @@ function projectChat(variant: HomeVariant, p: Project, w: Workspace): ChatData {
     id: p.id,
     title: p.name,
     subtitle: w.id === HOME_ID ? undefined : w.name,
-    badge: { shape: projectShape(variant, p), icon: p.icon },
+    badge: projectBadge(variant, p),
     messages: p.messages,
     threads: p.threads,
     groupCreatedAt: p.createdAt,
@@ -753,10 +765,6 @@ function MobileRow({ row, onTap }: { row: Row; onTap: () => void }) {
       {row.leading.shape === "dot" ? (
         <span className="flex h-5 w-5 shrink-0 items-center justify-center">
           <span className="h-[7px] w-[7px] rounded-full bg-tertiary" />
-        </span>
-      ) : row.leading.shape === "folder" ? (
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-          <Icon name="folder" size="base" color="secondary" />
         </span>
       ) : (
         <LeadingBadge shape={row.leading.shape} icon={row.leading.icon} label={row.title} />

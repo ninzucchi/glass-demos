@@ -35,9 +35,14 @@ interface ChatPanelProps {
   /** Badge shape for spaces in that dropdown (circle when the sidebar
    *  layout renders spaces as circles). */
   spaceBadgeShape: "chiclet" | "circle";
-  /** "face" when the layout draws no agent/group distinction — every
-   *  project's header badge wears the agent face (matches the sidebar). */
-  projectBadge?: "kind" | "face";
+  /** How a group-kind project's header badge renders, matching the sidebar's
+   *  treatment for the active layout: "kind" = circle (agents always wear the
+   *  face), "face" = no agent/group distinction, "folder"/"icon" = the plain
+   *  glyph layouts (space-agent, all-projects). */
+  projectBadge?: "kind" | "face" | "folder" | "icon";
+  /** flat-home-agent: Home reads as an agent, so its main chat wears the same
+   *  face badge as its rows (workspace chats are otherwise unbadged). */
+  homeAsAgent?: boolean;
   /** Unsent composer text per chat id (owned by App so parent timelines can
    *  render "1 Draft" pills). */
   drafts: Record<string, string>;
@@ -78,6 +83,7 @@ export function ChatPanel({
   workspaces,
   spaceBadgeShape,
   projectBadge = "kind",
+  homeAsAgent = false,
   drafts,
   onDraftChange,
   onSelect,
@@ -107,6 +113,7 @@ export function ChatPanel({
         workspaces={workspaces}
         spaceBadgeShape={spaceBadgeShape}
         projectBadge={projectBadge}
+        homeAsAgent={homeAsAgent}
         drafts={drafts}
         onDraftChange={onDraftChange}
         isNarrow={isNarrow}
@@ -126,6 +133,7 @@ function ChatPanelContent({
   workspaces,
   spaceBadgeShape,
   projectBadge,
+  homeAsAgent,
   drafts,
   onDraftChange,
   isNarrow,
@@ -268,9 +276,15 @@ function ChatPanelContent({
             ? {
                 icon: parent.badgeIcon,
                 shape:
-                  projectBadge === "face" || project.kind !== "group" ? "face" : "circle",
+                  projectBadge === "face" || project.kind !== "group"
+                    ? "face"
+                    : projectBadge === "kind"
+                      ? "circle"
+                      : projectBadge,
               }
-            : undefined
+            : !parentThread && !project && homeAsAgent && workspace.id === HOME_ID
+              ? { shape: "face" }
+              : undefined
         }
         className="min-w-0 flex-1"
         isNew={parent.messages.length === 0 && parent.threads.length === 0}
@@ -353,7 +367,7 @@ export function ChatView({
   /** Muted name inline after the title (parent context). */
   subtitle?: string;
   /** Identity badge before the title (project/agent chats). */
-  badge?: { icon?: IconName; shape?: "circle" | "face" };
+  badge?: { icon?: IconName; shape?: "circle" | "face" | "folder" | "icon" };
   className?: string;
   /** Mobile screens render their own navigation bar above, so the desktop
    *  header row (back chevron + title) is skipped. */

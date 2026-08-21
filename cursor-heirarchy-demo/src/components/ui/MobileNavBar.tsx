@@ -36,7 +36,7 @@ export function MobileNavBar({
   title?: string;
   /** Muted context line under the title (parent chat's name). */
   subtitle?: string;
-  badge?: { shape: "chiclet" | "circle" | "face"; icon?: IconName };
+  badge?: { shape: "chiclet" | "circle" | "face" | "folder" | "icon"; icon?: IconName };
 }) {
   return (
     <div className="relative z-10 flex shrink-0 items-start justify-between gap-2 px-3 pb-2 pt-3">
