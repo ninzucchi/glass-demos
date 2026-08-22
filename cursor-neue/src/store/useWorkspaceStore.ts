@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type {
   Agent,
+  AgentGroupBy,
   ComposerBlock,
   ContentScopeState,
   DropZone,
@@ -12,18 +13,20 @@ import type {
   TabType,
   TileNode,
   Workspace,
-  WorkspaceOption,
-  WorkspaceScope,
 } from "@/types";
 import {
   canDropInPane,
   contentScopeId,
+  DEFAULT_WORKSPACE_ID,
+  isAgentPinned,
+  isDraftAgent,
+  isProject,
   PINNED_TAB_ORDER,
   pinnedTabsFor,
   sideToDirection,
+  sidebarCollapsed,
   TAB_LABEL,
   workspaceIdOfScope,
-  workspaceOptions,
 } from "@/types";
 import { centeredWindowGeo, type Geo } from "@/components/desktop/geometry";
 import { useWindowId } from "@/components/window/WindowContext";
@@ -53,13 +56,11 @@ export interface WindowState {
   activeAgentId: string;
   sidebarCollapsed: boolean;
   chatCollapsed: boolean;
-  /** Which workspace the sidebar is filtered to; null = all. Per-window so a
-   *  torn-off / drag-spawned window can scope independently. */
-  workspaceScope: WorkspaceScope;
-  /** Collapsed sidebar workspace groups, by id (absent = expanded). Per-window
-   *  so toggling a workspace folder in one window never reorders another's
-   *  sidebar. */
-  collapsedWorkspaces: Record<string, boolean>;
+  /** Per-window collapse for workspace folders, project folders, and section
+   *  headers. Absent key = expanded (or the workspace's own `collapsed` default). */
+  collapsedSidebar: Record<string, boolean>;
+  /** Sidebar agent grouping for this window. Defaults to workspace folders. */
+  agentGroupBy: AgentGroupBy;
   /** Content per scope ("ws:<id>@<branch>" | "agent:<id>"), independent of other windows. */
   contentByScope: Record<string, ContentScopeState>;
   /** The agents (chat) pane's layout tree: chat tabs referencing agents via
@@ -70,6 +71,8 @@ export interface WindowState {
   focusedContentTileId?: string;
   /** Desktop position/size; null until first measured (the main window centers). */
   geo: Geo | null;
+  /** Bumped by the green traffic light so the shell snaps the sidebar to max. */
+  sidebarFitNonce?: number;
 }
 
 export interface WorkspaceData {
@@ -78,6 +81,13 @@ export interface WorkspaceData {
   workspaceOrder: string[];
   agents: Record<string, Agent>;
   agentOrder: string[];
+  /** Sidebar Projects section, in display order. Each id is an agent with
+   *  `kind: "project"` — a real chat, plus a folder for children (`projectId`). */
+  projectOrder: string[];
+  /** Sidebar Pinned section, in display order. Those ids stay in `agents` and
+   *  `agentOrder` (real workspace chats) and are omitted from Chats. Shared
+   *  across windows, same as `agentOrder`. */
+  pinnedAgents: string[];
   /** Per-workspace pinned tab types. Absent key = the default set (see
    *  `pinnedTabsFor`); a key exists only once the user edits that workspace. */
   pinnedTabs: Record<string, TabType[]>;
@@ -89,8 +99,12 @@ export interface WorkspaceData {
 interface WorkspaceActions {
   // Shell view state — scoped to a window.
   setActiveAgent: (windowId: string, id: string) => void;
-  /** Create a new agent in the active agent's workspace, then select + reveal it. */
-  createAgent: (windowId: string) => void;
+  /** Create a draft agent. Default home is Anysphere (`DEFAULT_WORKSPACE_ID`).
+   *  Pass `workspaceId` / `projectId` to land in a folder or project. */
+  createAgent: (
+    windowId: string,
+    target?: { workspaceId?: string | null; projectId?: string | null },
+  ) => void;
   /** Create a new agent (inheriting the tile's context) as a NEW tab in a chat
    *  tile — the chat tab bar's "+" action. */
   addAgentTab: (tileId: string) => void;
@@ -111,6 +125,8 @@ interface WorkspaceActions {
   /** Archive (remove) an agent, reassigning the active agent of any window that
    *  was showing it. */
   archiveAgent: (id: string) => void;
+  /** Lift a workspace agent into the sidebar Pinned list, or return it to Chats. */
+  togglePinnedAgent: (id: string) => void;
   /** Create a thread agent from a text selection in `parentAgentId`'s chat and
    *  open it next to `tileId`. */
   createThread: (
@@ -138,11 +154,11 @@ interface WorkspaceActions {
   setMaximized: (windowId: string, maximized: boolean) => void;
   toggleContentOpen: (windowId: string) => void;
   setContentOpen: (windowId: string, open: boolean) => void;
-  /** Filter this window's sidebar to a workspace (null = all). */
-  setWorkspaceScope: (windowId: string, scope: WorkspaceScope) => void;
 
-  /** Collapse/expand a sidebar workspace group within a single window. */
-  toggleWorkspaceCollapsed: (windowId: string, id: string) => void;
+  /** Collapse/expand a sidebar folder or section within a single window. */
+  toggleSidebarCollapsed: (windowId: string, id: string) => void;
+  /** Switch the sidebar between workspace folders and a recency list. */
+  setAgentGroupBy: (windowId: string, groupBy: AgentGroupBy) => void;
 
   // Content layout — the owning window + scope is resolved from the node id.
   addTab: (tileId: string, type: TabType, overrides?: Partial<Tab>) => void;
@@ -227,6 +243,8 @@ interface WorkspaceActions {
    *  footer switcher applies), with normal chrome. */
   openWorkspaceInNewWindow: (workspaceId: string, geo: Geo) => void;
   setWindowGeo: (id: string, geo: Geo) => void;
+  /** Size the window like first load and open the sidebar at its max width. */
+  fitWindow: (windowId: string) => void;
   focusWindow: (id: string) => void;
   closeWindow: (id: string) => void;
   /** Recreate the main window after every window was closed (the reset state). */
@@ -246,7 +264,7 @@ export type WorkspaceStore = WorkspaceData & EphemeralState & WorkspaceActions;
 
 const defaultScope = (): ContentScopeState => ({
   layout: tree.makeDefaultLayout(),
-  open: true,
+  open: false,
   cleared: false,
 });
 
@@ -299,13 +317,14 @@ const withPinnedLeading = tree.ensurePinnedTabs;
 
 /** A fresh content scope for a workspace agent: the default layout with the
  *  workspace's pinned tabs seeded in (so the pinned set always exists as real
- *  tabs in the tab group, matching the island). */
+ *  tabs in the tab group, matching the island). Starts closed — opening the
+ *  pane is an explicit action (`openContentScope`, a drop, etc.). */
 const seededScope = (
   pinnedTabs: Record<string, TabType[]>,
   scopeId: string,
 ): ContentScopeState => ({
   layout: withPinnedLeading(pinnedTabs, scopeId, tree.makeDefaultLayout()),
-  open: true,
+  open: false,
   cleared: false,
 });
 
@@ -364,6 +383,16 @@ const layoutAt = (state: WorkspaceData, loc: NodeLocation): LayoutNode => {
   const win = state.windows[loc.windowId];
   if (loc.pane === "chat") return win.chatLayout;
   return (win.contentByScope[loc.scopeId ?? ""] ?? defaultScope()).layout;
+};
+
+/** Opening a chat marks it read: running/attention (accent dot) → idle. */
+const withAgentOpened = (
+  agents: Record<string, Agent>,
+  id: string,
+): Record<string, Agent> => {
+  const agent = agents[id];
+  if (!agent || agent.status === "idle") return agents;
+  return { ...agents, [id]: { ...agent, status: "idle" } };
 };
 
 /** Point a window at `agent`: set `activeAgentId` and lazily seed its content
@@ -446,17 +475,8 @@ const focusedChatTile = (win: WindowState): TileNode => {
   return find(win.chatLayout) ?? tree.firstTile(win.chatLayout);
 };
 
-/** Fresh "New Agent" with no prompt yet — reuse instead of stacking empties.
- *  Deliberately NOT a type predicate: a false result still allows an Agent
- *  (a non-blank one), and `agent is Agent` would narrow that branch away. */
-const isBlankAgent = (
-  agent: Agent | undefined,
-  drafts: Record<string, string>,
-): boolean =>
-  !!agent &&
-  !agent.thread &&
-  agent.messages.length === 0 &&
-  (drafts[agent.id] ?? "").trim() === "";
+/** Fresh "New Agent" with no prompt yet — reuse instead of stacking empties. */
+const isBlankAgent = (agent: Agent | undefined): boolean => isDraftAgent(agent);
 
 /** Apply a reduced layout to one of a window's scopes. A null layout means the
  *  scope emptied. Auto-closing on empty is reserved for spawned windows (so a
@@ -564,10 +584,9 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           activeAgentId: srcWin.activeAgentId,
           sidebarCollapsed: true,
           chatCollapsed: true,
-          // Inherit the source window's scope so a torn-off window keeps the same filter.
-          workspaceScope: srcWin.workspaceScope,
           // Inherit collapse view too, but as a fresh copy so later toggles diverge.
-          collapsedWorkspaces: { ...srcWin.collapsedWorkspaces },
+          collapsedSidebar: { ...srcWin.collapsedSidebar },
+          agentGroupBy: srcWin.agentGroupBy,
           contentByScope: { [scopeId]: { layout, open: true } },
           chatLayout: defaultChatLayout(state.agents[srcWin.activeAgentId]),
           geo,
@@ -601,8 +620,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           activeAgentId: agent?.id ?? "",
           sidebarCollapsed: true,
           chatCollapsed: false,
-          workspaceScope: srcWin.workspaceScope,
-          collapsedWorkspaces: { ...srcWin.collapsedWorkspaces },
+          collapsedSidebar: { ...srcWin.collapsedSidebar },
+          agentGroupBy: srcWin.agentGroupBy,
           contentByScope: { [scopeId]: seededScope(state.pinnedTabs, scopeId) },
           chatLayout,
           geo,
@@ -615,6 +634,16 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           windows: { ...state.windows, [srcWindowId]: srcNext, [winId]: newWin },
           windowOrder: [...state.windowOrder, winId],
         });
+      };
+
+      /** Drop New Agent rows that no window is looking at and that never sent. */
+      const discardOrphanedDrafts = () => {
+        const state = get();
+        const live = new Set(Object.values(state.windows).map((w) => w.activeAgentId));
+        const orphaned = state.agentOrder.filter(
+          (id) => isDraftAgent(state.agents[id]) && !live.has(id),
+        );
+        for (const id of orphaned) get().archiveAgent(id);
       };
 
       return {
@@ -643,38 +672,49 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             });
           }
           set({
+            agents: withAgentOpened(state.agents, id),
             windows: {
               ...state.windows,
               [windowId]: withActiveAgent({ ...win, chatLayout }, agent),
             },
           });
+          discardOrphanedDrafts();
         },
 
-        createAgent: (windowId) => {
+        createAgent: (windowId, target) => {
           const state = get();
           const win = state.windows[windowId];
           if (!win) return;
-          // Already on a blank new agent (no messages, empty prompt) — just
-          // reveal it; don't orphan another empty row in the sidebar.
+          const project =
+            target?.projectId ? state.agents[target.projectId] : undefined;
+          const projectId = project && isProject(project) ? project.id : null;
+          const workspaceId =
+            target?.workspaceId !== undefined
+              ? target.workspaceId
+              : (project?.workspaceId ?? DEFAULT_WORKSPACE_ID);
+          const branch = project?.branch ?? "main";
+          // Already on a matching draft — reveal it; don't stack another empty row.
           const active = state.agents[win.activeAgentId];
-          if (isBlankAgent(active, state.drafts)) {
+          if (
+            isBlankAgent(active) &&
+            active.workspaceId === workspaceId &&
+            (active.projectId ?? null) === projectId
+          ) {
             if (win.chatCollapsed) patchWindow(windowId, { chatCollapsed: false });
             return;
           }
-          // Inherit the active agent's workspace + branch so the new agent lands
-          // in the same group and shares its content scope (standalone -> standalone).
-          const workspaceId = active?.workspaceId ?? null;
-          const branch = active?.branch ?? "main";
           const id = tree.uid("a");
           const title = "New Agent";
           const newAgent: Agent = {
             id,
             workspaceId,
+            projectId,
             branch,
             title,
             status: "idle",
             updatedAt: Date.now(),
             messages: [],
+            draft: true,
           };
           const scopeId = contentScopeId(newAgent);
           // Like sidebar selection, show the new agent in the focused tile's
@@ -686,8 +726,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           });
           set({
             agents: { ...state.agents, [id]: newAgent },
-            // Prepend so the row stays within the group's first VISIBLE rows
-            // (WorkspaceGroup slices the list) rather than hiding behind "See more".
+            // Prepend so the row stays within the group's first visible rows
+            // (WorkspaceGroup slices to 3) rather than hiding behind "See more".
             agentOrder: [id, ...state.agentOrder],
             windows: {
               ...state.windows,
@@ -696,13 +736,12 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
                 activeAgentId: id,
                 chatCollapsed: false,
                 chatLayout,
-                // Filtered sidebar -> focus the new agent's workspace (or All for a
-                // standalone agent, which only lists when scope is null). All stays All.
-                workspaceScope: win.workspaceScope === null ? null : workspaceId,
-                // Reveal its group (no-op for a standalone agent).
-                collapsedWorkspaces: workspaceId
-                  ? { ...win.collapsedWorkspaces, [workspaceId]: false }
-                  : win.collapsedWorkspaces,
+                // Reveal its group.
+                collapsedSidebar: {
+                  ...win.collapsedSidebar,
+                  ...(workspaceId ? { [workspaceId]: false } : {}),
+                  ...(projectId ? { [projectId]: false } : {}),
+                },
                 // Respect the workspace's existing side pane; lazily seed only if
                 // this window hasn't shown the scope yet (mirrors setActiveAgent).
                 contentByScope: win.contentByScope[scopeId]
@@ -711,6 +750,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
               },
             },
           });
+          discardOrphanedDrafts();
         },
 
         addAgentTab: (tileId) => {
@@ -727,17 +767,23 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             (context?.agentId ? state.agents[context.agentId] : undefined) ??
             state.agents[win.activeAgentId];
           // Active tab is already a blank new agent — don't stack another empty tab.
-          if (isBlankAgent(base, state.drafts)) return;
+          if (isBlankAgent(base)) return;
           const id = tree.uid("a");
           const title = "New Agent";
           const newAgent: Agent = {
             id,
-            workspaceId: base?.workspaceId ?? null,
+            workspaceId: base?.workspaceId ?? state.workspaceOrder[0] ?? null,
+            projectId: base
+              ? isProject(base)
+                ? base.id
+                : (base.projectId ?? null)
+              : null,
             branch: base?.branch ?? "main",
             title,
             status: "idle",
             updatedAt: Date.now(),
             messages: [],
+            draft: true,
           };
           const chatLayout = tree.addTab(win.chatLayout, tileId, "chat", { agentId: id, title });
           set({
@@ -767,7 +813,11 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const tab = tile?.tabs.find((t) => t.id === tile.activeTabId);
           const agent = tab?.agentId ? state.agents[tab.agentId] : undefined;
           if (!agent || win.activeAgentId === agent.id) return;
-          set({ windows: { ...state.windows, [loc.windowId]: withActiveAgent(win, agent) } });
+          set({
+            agents: withAgentOpened(state.agents, agent.id),
+            windows: { ...state.windows, [loc.windowId]: withActiveAgent(win, agent) },
+          });
+          discardOrphanedDrafts();
         },
 
         openAgentInTile: (agentId, tileId, zone) => {
@@ -785,11 +835,13 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             ? tree.setActiveTab(win.chatLayout, tileId, existing.id)
             : tree.insertTabIntoTile(win.chatLayout, tileId, chatTab(agent), zone);
           set({
+            agents: withAgentOpened(state.agents, agentId),
             windows: {
               ...state.windows,
               [loc.windowId]: withActiveAgent({ ...win, chatLayout }, agent),
             },
           });
+          discardOrphanedDrafts();
         },
 
         openAgentAtChatRoot: (agentId, windowId, side) => {
@@ -799,11 +851,13 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           if (!win || !agent) return;
           const chatLayout = tree.insertTabAtRoot(win.chatLayout, chatTab(agent), side);
           set({
+            agents: withAgentOpened(state.agents, agentId),
             windows: {
               ...state.windows,
               [windowId]: withActiveAgent({ ...win, chatLayout, chatCollapsed: false }, agent),
             },
           });
+          discardOrphanedDrafts();
         },
 
         openAgentInNewWindow: (agentId, geo) => {
@@ -817,15 +871,14 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             activeAgentId: agentId,
             sidebarCollapsed: false,
             chatCollapsed: false,
-            // Filter the new window's sidebar to the agent's workspace (all
-            // workspaces for a standalone agent), like the workspace-row drag.
-            workspaceScope: agent.workspaceId,
-            collapsedWorkspaces: {},
+            collapsedSidebar: {},
+            agentGroupBy: "workspace",
             contentByScope: { [scopeId]: seededScope(state.pinnedTabs, scopeId) },
             chatLayout: defaultChatLayout(agent),
             geo,
           };
           set({
+            agents: withAgentOpened(state.agents, agentId),
             windows: { ...state.windows, [winId]: newWin },
             windowOrder: [...state.windowOrder, winId],
           });
@@ -841,7 +894,10 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const agentOrder = state.agentOrder.filter((a) => !removedIds.has(a));
           const agents: Record<string, Agent> = {};
           for (const [aid, a] of Object.entries(state.agents)) {
-            if (!removedIds.has(aid)) agents[aid] = a;
+            if (removedIds.has(aid)) continue;
+            // Archiving a project returns its children to Chats.
+            agents[aid] =
+              a.projectId && removedIds.has(a.projectId) ? { ...a, projectId: null } : a;
           }
           const drafts = Object.fromEntries(
             Object.entries(state.drafts).filter(([aid]) => !removedIds.has(aid)),
@@ -877,7 +933,36 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             };
             windows[winId] = fallback ? withActiveAgent(reseeded, fallback) : reseeded;
           }
-          set({ agents, agentOrder, windows, drafts, composerDoc });
+          set({
+            agents,
+            agentOrder,
+            projectOrder: state.projectOrder.filter((pid) => !removedIds.has(pid)),
+            pinnedAgents: state.pinnedAgents.filter((aid) => !removedIds.has(aid)),
+            windows,
+            drafts,
+            composerDoc,
+          });
+        },
+
+        togglePinnedAgent: (id) => {
+          const state = get();
+          const agent = state.agents[id];
+          // Pins are a sidebar list of an existing chat — not a new entity.
+          // Projects stay in Projects (pin would hide their children). Threads
+          // have no sidebar row. Unpin returns a child to its project, else Chats.
+          if (
+            !agent ||
+            agent.thread ||
+            isProject(agent) ||
+            isDraftAgent(agent) ||
+            !agent.workspaceId
+          )
+            return;
+          if (!state.agentOrder.includes(id)) return;
+          const pinnedAgents = isAgentPinned(state.pinnedAgents, id)
+            ? state.pinnedAgents.filter((aid) => aid !== id)
+            : [id, ...state.pinnedAgents];
+          set({ pinnedAgents });
         },
 
         createThread: (tileId, parentAgentId, messageIndex, excerpt, disposition) => {
@@ -893,6 +978,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             // Inherit the parent's context so the content pane's scope doesn't
             // swap when the thread takes focus.
             workspaceId: parent.workspaceId,
+            projectId: isProject(parent) ? parent.id : (parent.projectId ?? null),
             branch: parent.branch,
             title,
             status: "idle",
@@ -915,6 +1001,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
               [loc.windowId]: withActiveAgent({ ...win, chatLayout }, threadAgent),
             },
           });
+          discardOrphanedDrafts();
         },
 
         openThread: (tileId, threadAgentId, disposition) => {
@@ -928,11 +1015,13 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             ? tree.setActiveTab(win.chatLayout, existing.tile.id, existing.tab.id)
             : tree.insertTabIntoTile(win.chatLayout, tileId, chatTab(agent), disposition);
           set({
+            agents: withAgentOpened(state.agents, threadAgentId),
             windows: {
               ...state.windows,
               [loc.windowId]: withActiveAgent({ ...win, chatLayout }, agent),
             },
           });
+          discardOrphanedDrafts();
         },
 
         sendMessage: (agentId, text) => {
@@ -948,6 +1037,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
               ...state.agents,
               [agentId]: {
                 ...agent,
+                draft: false,
                 messages: [...agent.messages, { role: "user", text: trimmed }],
                 updatedAt: Date.now(),
               },
@@ -1095,15 +1185,22 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           });
         },
 
-        setWorkspaceScope: (windowId, scope) => patchWindow(windowId, { workspaceScope: scope }),
-
-        toggleWorkspaceCollapsed: (windowId, id) => {
-          const win = get().windows[windowId];
+        toggleSidebarCollapsed: (windowId, id) => {
+          const state = get();
+          const win = state.windows[windowId];
           if (!win) return;
-          const current = win.collapsedWorkspaces ?? {};
+          const current = win.collapsedSidebar ?? {};
+          const fallback = state.workspaces[id]?.collapsed ?? false;
           patchWindow(windowId, {
-            collapsedWorkspaces: { ...current, [id]: !current[id] },
+            collapsedSidebar: {
+              ...current,
+              [id]: !sidebarCollapsed(id, current, fallback),
+            },
           });
+        },
+        setAgentGroupBy: (windowId, groupBy) => {
+          if (!get().windows[windowId]) return;
+          patchWindow(windowId, { agentGroupBy: groupBy });
         },
 
         addTab: (tileId, type, overrides) =>
@@ -1121,11 +1218,13 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             const agent = tab?.agentId ? state.agents[tab.agentId] : undefined;
             const base = { ...win, chatLayout };
             set({
+              agents: agent ? withAgentOpened(state.agents, agent.id) : state.agents,
               windows: {
                 ...state.windows,
                 [loc.windowId]: agent ? withActiveAgent(base, agent) : base,
               },
             });
+            discardOrphanedDrafts();
             return;
           }
           mutateNodeLayout(tileId, (l) => tree.setActiveTab(l, tileId, tabId));
@@ -1598,8 +1697,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             activeAgentId: agentId ?? "",
             sidebarCollapsed: false,
             chatCollapsed: false,
-            workspaceScope: workspaceId,
-            collapsedWorkspaces: {},
+            collapsedSidebar: {},
+            agentGroupBy: "workspace",
             contentByScope: { [scopeId]: seededScope(state.pinnedTabs, scopeId) },
             chatLayout: defaultChatLayout(agent),
             geo,
@@ -1613,6 +1712,18 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const win = get().windows[id];
           if (win) patchWindow(id, { geo });
         },
+        fitWindow: (windowId) => {
+          const win = get().windows[windowId];
+          if (!win) return;
+          const geo = centeredWindowGeo() ?? win.geo;
+          if (!geo) return;
+          patchWindow(windowId, {
+            geo,
+            sidebarCollapsed: false,
+            chatCollapsed: false,
+            sidebarFitNonce: (win.sidebarFitNonce ?? 0) + 1,
+          });
+        },
         focusWindow: (id) => {
           const { windows, windowOrder } = get();
           if (!windows[id]) return;
@@ -1623,6 +1734,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const state = get();
           if (!state.windows[id]) return;
           set(commitWindow(state, id, null));
+          discardOrphanedDrafts();
         },
         restoreMainWindow: () => {
           const state = get();
@@ -1635,8 +1747,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             activeAgentId: agentId,
             sidebarCollapsed: false,
             chatCollapsed: false,
-            workspaceScope: null,
-            collapsedWorkspaces: {},
+            collapsedSidebar: {},
+            agentGroupBy: "workspace",
             contentByScope: { [scopeId]: seededScope(state.pinnedTabs, scopeId) },
             chatLayout: defaultChatLayout(agent),
             geo: null,
@@ -1664,7 +1776,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       };
     },
     {
-      name: "unification-demo-v5",
+      name: "unification-demo-v16",
       // No versioning/migrations: state still persists and reloads across
       // refreshes, but we don't carry backwards compatibility. To force a clean
       // reset, change `name` (or clear the localStorage entry).
@@ -1673,6 +1785,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       // rather than crashing the chat pane's renderer.
       merge: (persisted, current) => {
         const merged = { ...current, ...(persisted as Partial<WorkspaceData>) };
+        merged.pinnedAgents ??= [];
+        merged.projectOrder ??= [];
         const windows = { ...merged.windows };
         for (const [id, win] of Object.entries(windows)) {
           if (!win.chatLayout) {
@@ -1691,6 +1805,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           workspaceOrder: s.workspaceOrder,
           agents: s.agents,
           agentOrder: s.agentOrder,
+          projectOrder: s.projectOrder,
+          pinnedAgents: s.pinnedAgents,
           pinnedTabs: s.pinnedTabs,
           // Only the main window persists (detached are ephemeral); if it was
           // closed, persist no windows so reload shows the reset state.
@@ -1757,24 +1873,4 @@ export function useMaximizeContent(): { maximized: boolean; toggle: () => void }
   const setMaximized = useWorkspaceStore((s) => s.setMaximized);
   const maximized = !!win && win.sidebarCollapsed && win.chatCollapsed;
   return { maximized, toggle: () => setMaximized(windowId, !maximized) };
-}
-
-/** Headless workspace-switcher logic for the current window: the scope, the
- *  canonical option list, the selected option, and a setter. UI variants (the
- *  footer popover, a future command palette, etc.) consume this and differ only
- *  in presentation. Mirrors `useMaximizeContent`: window-scoped, no JSX. */
-export function useWorkspaceSwitcher(): {
-  scope: WorkspaceScope;
-  options: WorkspaceOption[];
-  selectedOption: WorkspaceOption;
-  select: (scope: WorkspaceScope) => void;
-} {
-  const windowId = useWindowId();
-  const scope = useWorkspaceStore((s) => s.windows[windowId]?.workspaceScope ?? null);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const workspaceOrder = useWorkspaceStore((s) => s.workspaceOrder);
-  const setWorkspaceScope = useWorkspaceStore((s) => s.setWorkspaceScope);
-  const options = workspaceOptions(workspaces, workspaceOrder);
-  const selectedOption = options.find((o) => o.id === scope) ?? options[0];
-  return { scope, options, selectedOption, select: (next) => setWorkspaceScope(windowId, next) };
 }

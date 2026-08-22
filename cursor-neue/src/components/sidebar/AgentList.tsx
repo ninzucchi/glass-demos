@@ -4,9 +4,8 @@ import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { AgentCell } from "@/components/sidebar/AgentCell";
 
 /** A flat list of agent rows wired to the current window's active selection.
- *  Shared leaf for every sidebar grouping (workspace folders, recency sections,
- *  standalone agents) so the active-agent wiring lives in exactly one place. */
-export function AgentList({ agents }: { agents: Agent[] }) {
+ *  Shared leaf for workspace folders so the active-agent wiring lives in one place. */
+export function AgentList({ agents, nested }: { agents: Agent[]; nested?: boolean }) {
   const windowId = useWindowId();
   const activeAgentId = useWindow()?.activeAgentId;
   const setActiveAgent = useWorkspaceStore((s) => s.setActiveAgent);
@@ -18,6 +17,7 @@ export function AgentList({ agents }: { agents: Agent[] }) {
           agent={a}
           selected={a.id === activeAgentId}
           onSelect={() => setActiveAgent(windowId, a.id)}
+          nested={nested}
         />
       ))}
     </>

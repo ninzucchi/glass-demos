@@ -17,28 +17,28 @@ export interface BrowserMockProps {
   gradientTop: string;
 }
 
-// Marketing (acme-marketing) and the Air microsite (acme-microsite) share this
-// exact layout; only the copy + hero wash differ.
-export const ACME_MARKETING: BrowserMockProps = {
-  title: "Acme Neue",
+// Everysphere and Baby Glass share this exact layout; only the copy + hero
+// wash differ.
+export const EVERYSPHERE: BrowserMockProps = {
+  title: "Everysphere",
   subtitle: "Touch the future.",
   gradientTop: "var(--bg-neutral)",
 };
-export const ACME_AIR: BrowserMockProps = {
-  title: "Acme Air",
+export const BABY_GLASS: BrowserMockProps = {
+  title: "Baby Glass",
   subtitle: "Wake up and build something.",
   gradientTop: "var(--bg-accent)",
 };
-// The "ettore/new-landing-page" branch of acme-marketing: same Acme 3.0 layout,
-// but the hero wash starts from the primary surface instead of the brand color.
-export const ACME_MARKETING_NEW_LANDING: BrowserMockProps = {
-  title: "Acme 3.0",
+// The "ettore/new-landing-page" branch of everysphere: same layout, but the
+// hero wash starts from the primary surface instead of the brand color.
+export const EVERYSPHERE_REDESIGN: BrowserMockProps = {
+  title: "Everysphere",
   subtitle: "A matter of taste.",
   gradientTop: "var(--bg-brand)",
 };
 
-/** Static "Acme" landing page rendered inside an empty Browser tab. Sells the
- *  idea that the user is viewing/editing a web page: a brand hero (copy + CTA)
+/** Static landing page rendered inside an empty Browser tab. Sells the idea
+ *  that the user is viewing/editing a web page: a brand hero (copy + CTA)
  *  above a window-framed screenshot card (traffic-light toolbar + body). */
 export function BrowserMock({ title, subtitle, gradientTop }: BrowserMockProps) {
   return (

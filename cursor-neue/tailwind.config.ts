@@ -163,6 +163,7 @@ export default {
       },
       transitionTimingFunction: {
         DEFAULT: "var(--ease-default)",
+        "out-quart": "var(--ease-out-quart)",
       },
       transitionDuration: {
         fast: "var(--duration-fast)",

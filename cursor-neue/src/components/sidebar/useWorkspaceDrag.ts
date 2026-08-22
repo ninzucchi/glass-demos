@@ -8,8 +8,8 @@ import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 // workspace open/closed. Mirrors TabHandle's threshold.
 const DRAG_THRESHOLD = 4;
 
-/** Drag a workspace sidebar row onto the desktop to spawn a new window filtered to
- *  that workspace: threshold to start, chip follows the cursor, release outside
+/** Drag a workspace sidebar row onto the desktop to spawn a new window for that
+ *  workspace: threshold to start, chip follows the cursor, release outside
  *  every window spawns, Escape cancels. `wasDragged()` lets the row swallow the
  *  click-to-collapse that fires right after a drag. */
 export function useDragWorkspaceOut(workspaceId: string, label: string): {

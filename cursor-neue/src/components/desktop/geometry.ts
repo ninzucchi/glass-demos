@@ -15,6 +15,10 @@ export const MIN_H = 480;
 export const DEFAULT_W = 1280;
 export const DEFAULT_H = 832;
 
+/** Gap from a window to the desktop edge. Also the gap from a window to the
+ *  left dock — same distance, measured from the dock's outer edge. */
+export const EDGE_GAP = 16;
+
 /** Fixed output size for the "Center" screenshot (MacBook 14" logical frame). */
 export const CENTER_SHOT_W = 1512;
 export const CENTER_SHOT_H = 982;
@@ -40,8 +44,9 @@ export function newWindowGeo(pointer?: { x: number; y: number }): Geo {
   const bw = desk?.width ?? window.innerWidth;
   const bh = desk?.height ?? window.innerHeight;
 
-  const w = Math.max(MIN_W, Math.min(DEFAULT_W, bw - 32));
-  const h = Math.max(MIN_H, Math.min(DEFAULT_H, bh - 32));
+  const safe = safeDesktopBounds(bw, bh);
+  const w = Math.max(MIN_W, Math.min(DEFAULT_W, safe.right - safe.left));
+  const h = Math.max(MIN_H, Math.min(DEFAULT_H, safe.bottom - safe.top));
 
   let x: number;
   let y: number;
@@ -60,13 +65,41 @@ export function newWindowGeo(pointer?: { x: number; y: number }): Geo {
   return {
     w,
     h,
-    x: Math.max(0, Math.min(x, bw - w)),
-    y: Math.max(0, Math.min(y, bh - h)),
+    x: clamp(x, safe.left, safe.right - w),
+    y: clamp(y, safe.top, safe.bottom - h),
   };
 }
 
+/** Distance from the desktop's left edge to the dock bar's right edge. */
+function dockExtent(): number {
+  const desk = desktopRect();
+  const dock = document.querySelector("[data-dock]") as HTMLElement | null;
+  if (!desk || !dock) return 0;
+  return Math.max(0, dock.getBoundingClientRect().right - desk.left);
+}
+
+/** Largest rect that keeps EDGE_GAP to the screen and to the left dock. */
+function safeDesktopBounds(deskW: number, deskH: number): {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+} {
+  return {
+    left: dockExtent() + EDGE_GAP,
+    top: EDGE_GAP,
+    right: deskW - EDGE_GAP,
+    bottom: deskH - EDGE_GAP,
+  };
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(n, max));
+}
+
 /** Centered position for a w×h window on a deskW×deskH desktop. True center on
- *  both axes: the dock sits on the left edge, clear of the centered window. */
+ *  both axes. Callers that place a live window then clamp into `safeDesktopBounds`
+ *  so the left dock keeps the same gap as the screen edge. */
 export function centerOnDesktop(
   deskW: number,
   deskH: number,
@@ -81,13 +114,21 @@ export function centerOnDesktop(
 
 /** Centered DEFAULT_W×DEFAULT_H window. Shared by the initial main-window
  *  placement, Reset demo, and the Center screenshot snap. Returns null before
- *  the desktop is measured. */
+ *  the desktop is measured. Width/x keep EDGE_GAP past the dock so the window
+ *  never sits tighter to the dock than to the other screen edges. */
 export function centeredWindowGeo(): Geo | null {
   const desk = desktopRect();
   if (!desk) return null;
-  const w = Math.max(MIN_W, Math.min(DEFAULT_W, desk.width - 32));
-  const h = Math.max(MIN_H, Math.min(DEFAULT_H, desk.height - 32));
-  return { w, h, ...centerOnDesktop(desk.width, desk.height, w, h) };
+  const safe = safeDesktopBounds(desk.width, desk.height);
+  const w = Math.max(MIN_W, Math.min(DEFAULT_W, safe.right - safe.left));
+  const h = Math.max(MIN_H, Math.min(DEFAULT_H, safe.bottom - safe.top));
+  const center = centerOnDesktop(desk.width, desk.height, w, h);
+  return {
+    w,
+    h,
+    x: clamp(center.x, safe.left, safe.right - w),
+    y: clamp(center.y, safe.top, safe.bottom - h),
+  };
 }
 
 /** Topmost element at (x, y), skipping the transparent drag scrim that overlays

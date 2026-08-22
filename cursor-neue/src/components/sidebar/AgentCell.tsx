@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
-import type { Agent } from "@/types";
+import { isAgentPinned, type Agent } from "@/types";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useTabDragStore } from "@/store/tabDrag";
 import { SidebarCell } from "@/components/sidebar/SidebarCell";
@@ -20,15 +20,18 @@ interface AgentCellProps {
   agent: Agent;
   selected: boolean;
   onSelect: () => void;
+  nested?: boolean;
 }
 
-/** An agent row in the sidebar. Right-click opens an Archive action that removes
- *  the agent from the store. Dragging the row opens the agent wherever it lands:
+/** An agent row in the sidebar. Right-click pins or unpins (sidebar list only)
+ *  and archives. Dragging the row opens the agent wherever it lands:
  *  a chat tile (merge/split), the chat panel's outer edge (full-span pane), or a
  *  new window when released over the desktop — a CREATE drag like a Files row,
  *  pane-fenced to chat targets by the shared placement policy. */
-export function AgentCell({ agent, selected, onSelect }: AgentCellProps) {
+export function AgentCell({ agent, selected, onSelect, nested }: AgentCellProps) {
   const archiveAgent = useWorkspaceStore((s) => s.archiveAgent);
+  const togglePinnedAgent = useWorkspaceStore((s) => s.togglePinnedAgent);
+  const pinned = useWorkspaceStore((s) => isAgentPinned(s.pinnedAgents, agent.id));
   const openAgentInTile = useWorkspaceStore((s) => s.openAgentInTile);
   const openAgentAtChatRoot = useWorkspaceStore((s) => s.openAgentAtChatRoot);
   const openAgentInNewWindow = useWorkspaceStore((s) => s.openAgentInNewWindow);
@@ -70,6 +73,7 @@ export function AgentCell({ agent, selected, onSelect }: AgentCellProps) {
             label={agent.title}
             leading={{ kind: "agent", status: agent.status }}
             selected={selected}
+            nested={nested}
             onPointerDown={onPointerDown}
             onClick={() => {
               if (didDragRef.current) {
@@ -83,6 +87,10 @@ export function AgentCell({ agent, selected, onSelect }: AgentCellProps) {
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuSection>
+          <ContextMenuItem onSelect={() => togglePinnedAgent(agent.id)}>
+            <Icon name={pinned ? "pin-slash" : "pin"} size="base" color="tertiary" />
+            {pinned ? "Unpin" : "Pin"}
+          </ContextMenuItem>
           <ContextMenuItem onSelect={() => archiveAgent(agent.id)}>
             <Icon name="archive" size="base" color="tertiary" />
             Archive

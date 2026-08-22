@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { WindowFrame } from "@/components/desktop/WindowFrame";
+import { DebugBar } from "@/components/desktop/DebugBar";
 import { Dock } from "@/components/desktop/Dock";
 import { Window } from "@/components/window/Window";
 import { WindowProvider } from "@/components/window/WindowContext";
@@ -160,6 +161,7 @@ export function Desktop() {
         {/* Always-on launcher; its Cursor tile relaunches the main window after
             every window has been closed. */}
         <Dock />
+        <DebugBar />
       </div>
 
       <ContextMenuContent>

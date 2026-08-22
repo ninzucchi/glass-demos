@@ -1,59 +1,164 @@
+import type { ReactNode } from "react";
 import clsx from "clsx";
 import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
 import { ChatToggle } from "@/components/chat/ChatToggle";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSection,
+  DropdownMenuTrigger,
+} from "@/components/ui/menu";
 import { useSidebarChromeCollapsed, useWindowId } from "@/components/window/WindowContext";
 import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 const TRAFFIC = ["#ff5f57", "#febc2e", "#28c840"];
 
-/** Muted section label (per Figma SectionHeader): min-h 24, px-6/py-4, ui/sm tertiary. */
-export function SidebarSectionHeader({ label }: { label: string }) {
+/** Funnel next to the Chats header. Picks workspace folders vs a recency list. */
+export function AgentGroupFilter() {
+  const windowId = useWindowId();
+  const groupBy = useWindow()?.agentGroupBy ?? "workspace";
+  const setAgentGroupBy = useWorkspaceStore((s) => s.setAgentGroupBy);
+
+  const onGroupBy = (value: string) => {
+    if (value === "workspace" || value === "updated") {
+      setAgentGroupBy(windowId, value);
+    }
+  };
+
   return (
-    <div className="flex min-h-[24px] items-center px-1.5 py-1">
-      <span className="truncate text-sm text-tertiary mix-blend-plus-darker">{label}</span>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Group agents"
+          className="flex size-4 shrink-0 items-center justify-center text-[color:var(--icon-tertiary)] hover:text-[color:var(--icon-secondary)] data-[state=open]:text-[color:var(--icon-secondary)]"
+        >
+          <Icon name="funnel-simple" size="base" color="inherit" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuSection>
+          <DropdownMenuLabel>Group by</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={groupBy} onValueChange={onGroupBy}>
+            <DropdownMenuRadioItem value="workspace">Workspace</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="updated">Updated</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuSection>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Chats header trailing: group-by filter plus a cosmetic new-folder control. */
+export function ChatsSectionControls() {
+  return (
+    <div className="flex items-center gap-4">
+      <AgentGroupFilter />
+      <button
+        type="button"
+        aria-label="New folder"
+        className="flex size-4 shrink-0 items-center justify-center text-[color:var(--icon-tertiary)] hover:text-[color:var(--icon-secondary)]"
+      >
+        <Icon name="folder-plus" size="base" color="inherit" />
+      </button>
     </div>
   );
 }
 
-/** macOS-style traffic lights. Cosmetic by default; when `onClose` is given (a
- *  detached window), the red light becomes a functional close button — the dot
- *  always shows (identical to the main window), revealing an × glyph on hover. */
-export function TrafficLights({ onClose }: { onClose?: () => void } = {}) {
+/** Muted section label (per Figma SectionHeader): min-h 24, px-6/py-4, ui/sm tertiary.
+ *  `trailing` sits on the far edge (justify-between) — used for the group-by filter.
+ *  Pass `onToggle` to make the label a disclosure (chevron rotates like folders). */
+export function SidebarSectionHeader({
+  label,
+  trailing,
+  collapsed,
+  onToggle,
+}: {
+  label: string;
+  trailing?: ReactNode;
+  collapsed?: boolean;
+  onToggle?: () => void;
+}) {
+  const title = (
+    <span className="truncate text-sm text-tertiary mix-blend-plus-darker">{label}</span>
+  );
   return (
-    <div className="group/lights flex shrink-0 items-center gap-2">
-      {TRAFFIC.map((c, i) =>
-        i === 0 && onClose ? (
-          <button
-            key={c}
-            type="button"
-            aria-label="Close window"
-            onClick={onClose}
-            className="flex h-3.5 w-3.5 items-center justify-center rounded-full text-luminous"
-            style={{ background: c }}
-          >
-            <Icon
-              name="x-filled"
-              size="2xs"
-              color="inherit"
-              className="opacity-0 group-hover/lights:opacity-100"
-            />
-          </button>
-        ) : (
-          <span key={c} className="h-3.5 w-3.5 rounded-full" style={{ background: c }} />
-        ),
+    <div className="group/section flex min-h-[24px] items-center justify-between gap-1.5 px-1.5 py-1">
+      {onToggle ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+        >
+          {title}
+          <Icon
+            name="chevron-right"
+            size="sm"
+            color="tertiary"
+            className={clsx(
+              "shrink-0 opacity-0 transition-transform duration-slow ease-out-quart group-hover/section:opacity-100",
+              !collapsed && "rotate-90",
+            )}
+          />
+        </button>
+      ) : (
+        title
       )}
+      {trailing}
     </div>
   );
 }
 
-/** Traffic lights wired to the current window: the red light closes the window.
+/** macOS-style traffic lights. Cosmetic by default. `onClose` makes the red
+ *  light close the window. `onZoom` makes the green light fit the window. */
+export function TrafficLights({
+  onClose,
+  onZoom,
+}: {
+  onClose?: () => void;
+  onZoom?: () => void;
+} = {}) {
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      {TRAFFIC.map((c, i) => {
+        const onClick = i === 0 ? onClose : i === 2 ? onZoom : undefined;
+        const label = i === 0 ? "Close window" : i === 2 ? "Fit window" : undefined;
+        if (onClick) {
+          return (
+            <button
+              key={c}
+              type="button"
+              aria-label={label}
+              onClick={onClick}
+              className="h-3.5 w-3.5 rounded-full"
+              style={{ background: c }}
+            />
+          );
+        }
+        return <span key={c} className="h-3.5 w-3.5 rounded-full" style={{ background: c }} />;
+      })}
+    </div>
+  );
+}
+
+/** Traffic lights wired to the current window: red closes, green fits.
  *  Used wherever the lights appear (sidebar header and the collapsed-sidebar
- *  re-expand cluster) so close behavior never drifts between placements. */
+ *  re-expand cluster) so close/fit behavior never drifts between placements. */
 export function WindowTrafficLights() {
   const windowId = useWindowId();
   const closeWindow = useWorkspaceStore((s) => s.closeWindow);
-  return <TrafficLights onClose={() => closeWindow(windowId)} />;
+  const fitWindow = useWorkspaceStore((s) => s.fitWindow);
+  return (
+    <TrafficLights
+      onClose={() => closeWindow(windowId)}
+      onZoom={() => fitWindow(windowId)}
+    />
+  );
 }
 
 /** Collapse/expand the main sidebar. Lives in the sidebar header when expanded,

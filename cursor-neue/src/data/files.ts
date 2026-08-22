@@ -19,7 +19,7 @@ const file = (name: string): FileTreeNode => ({ kind: "file", name });
 // One small tree per workspace, keyed by workspace id. Kept intentionally tiny
 // (a dozen-ish nodes) so navigation is legible, not exhaustive.
 export const FILE_TREES: Record<string, FileTreeNode[]> = {
-  "acme-marketing": [
+  everysphere: [
     folder("app", [
       file("layout.tsx"),
       file("page.tsx"),
@@ -31,32 +31,31 @@ export const FILE_TREES: Record<string, FileTreeNode[]> = {
     file("package.json"),
     file("tailwind.config.ts"),
   ],
-  "acme-microsite": [
+  "baby-glass": [
     folder("src", [
       file("main.ts"),
       file("hero.ts"),
       folder("styles", [file("app.css"), file("reset.css")]),
     ]),
-    folder("assets", [file("cloud.svg")]),
+    folder("assets", [file("glass.svg")]),
     file("index.html"),
     file("vite.config.ts"),
   ],
-  "acme-ios": [
+  "cursor-icons": [
+    folder("icons", [
+      folder("sidebar", [file("agent.svg"), file("folder.svg"), file("search.svg")]),
+      folder("status", [file("running.svg"), file("attention.svg")]),
+    ]),
+    folder("src", [file("registry.ts"), file("iconNames.ts")]),
+    file("package.json"),
+  ],
+  "cursor-ios": [
     folder("Sources", [
       folder("Views", [file("ContentView.swift"), file("Composer.swift")]),
       folder("Models", [file("Session.swift")]),
     ]),
     folder("Resources", [file("Assets.xcassets"), file("Info.plist")]),
     file("Package.swift"),
-  ],
-  "acme-desktop": [
-    folder("src", [
-      folder("main", [file("main.ts"), file("ipc.ts")]),
-      folder("renderer", [file("App.tsx"), file("index.css")]),
-    ]),
-    folder("resources", [file("tray.png")]),
-    file("package.json"),
-    file("electron.vite.config.ts"),
   ],
   "figma-plugin": [
     folder("src", [file("code.ts"), file("ui.tsx"), file("messages.ts")]),
@@ -66,7 +65,7 @@ export const FILE_TREES: Record<string, FileTreeNode[]> = {
   ],
 };
 
-// Small fallback so agent-scoped (standalone) tabs still render a tree.
+// Small fallback so an unknown workspace still renders a tree.
 const FALLBACK_TREE: FileTreeNode[] = [
   folder("Docs", [file("notes.md"), file("todo.md")]),
   file("scratch.ts"),

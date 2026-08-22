@@ -2,41 +2,52 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { DISCLOSURE_GROUP, FolderDisclosureIcon } from "@/components/ui/FolderDisclosureIcon";
-import type { AgentStatus } from "@/types";
+import { PROJECT_COLOR_STROKE, type AgentStatus, type ProjectColor } from "@/types";
 
 export type SidebarLeading =
   | { kind: "workspace"; collapsed: boolean }
+  | { kind: "project"; collapsed: boolean; icon: IconName; color: ProjectColor }
   | { kind: "agent"; status: AgentStatus }
   | { kind: "action"; icon: IconName };
 
-// Read/unread model only (no orange): idle = read (quaternary), otherwise unread (accent).
+// Live agent.status: idle = read (quaternary), running/attention = unread (accent).
 const isUnread = (status: AgentStatus) => status !== "idle";
 
 function Leading({ leading }: { leading: SidebarLeading }) {
-  // Workspace rows show a folder at rest and the disclosure chevron on hover,
-  // via the shared FolderDisclosureIcon (the parent button carries DISCLOSURE_GROUP).
-  if (leading.kind === "workspace") {
-    return <FolderDisclosureIcon open={!leading.collapsed} />;
+  switch (leading.kind) {
+    case "workspace":
+      return <FolderDisclosureIcon open={!leading.collapsed} />;
+    case "project":
+      return (
+        <FolderDisclosureIcon
+          open={!leading.collapsed}
+          hitTarget
+          icon={leading.icon}
+          iconColor={PROJECT_COLOR_STROKE[leading.color]}
+        />
+      );
+    case "action":
+      return (
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+          <Icon name={leading.icon} size="base" color="secondary" />
+        </span>
+      );
+    case "agent": {
+      const unread = isUnread(leading.status);
+      return (
+        <span className="flex w-5 shrink-0 items-center justify-center">
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ background: unread ? "var(--icon-accent)" : "var(--icon-quaternary)" }}
+          />
+        </span>
+      );
+    }
+    default: {
+      const _exhaustive: never = leading;
+      return _exhaustive;
+    }
   }
-  // Action rows share the same 14px icon box; only the glyph differs.
-  if (leading.kind === "action") {
-    return (
-      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-        <Icon name={leading.icon} size="base" color="secondary" />
-      </span>
-    );
-  }
-  // Agent status dot, centered in a fixed 20px box (shrink-0 so the gap to the
-  // label stays constant as the sidebar resizes).
-  const unread = isUnread(leading.status);
-  return (
-    <span className="flex w-5 shrink-0 items-center justify-center">
-      <span
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ background: unread ? "var(--icon-accent)" : "var(--icon-quaternary)" }}
-      />
-    </span>
-  );
 }
 
 interface SidebarCellProps {
@@ -44,27 +55,59 @@ interface SidebarCellProps {
   leading?: SidebarLeading;
   selected?: boolean;
   muted?: boolean;
+  /** Folder children: 6px indent so the child leading sits in the parent
+   *  icon→label gutter. */
+  nested?: boolean;
   onClick?: () => void;
+  /** Project folder chevron: expand/collapse without opening the project chat. */
+  onLeadingClick?: () => void;
+  /** Hover plus on a workspace or project row: create an agent in that group. */
+  onAddClick?: () => void;
   /** Lets callers start a pointer drag from the row (e.g. drag a recent file
    *  into a tab) without owning the button markup. */
   onPointerDown?: (e: ReactPointerEvent<HTMLButtonElement>) => void;
 }
 
-export function SidebarCell({ label, leading, selected, muted, onClick, onPointerDown }: SidebarCellProps) {
-  // Agent + muted rows: a 20px leading box sits flush to the label so the label
-  // aligns with workspace/action labels (icon 14 + gap 6 = 20). Workspace/action
-  // rows: 14px icon + 6px gap.
+export function SidebarCell({
+  label,
+  leading,
+  selected,
+  muted,
+  nested,
+  onClick,
+  onLeadingClick,
+  onAddClick,
+  onPointerDown,
+}: SidebarCellProps) {
+  // Every row: 20px leading slot, then 6px to the label. Nested rows add a
+  // 6px spacer (see `nested`).
   const agentLike = leading?.kind === "agent" || (muted && !leading);
   return (
     <button
       type="button"
-      onClick={onClick}
-      onPointerDown={onPointerDown}
+      onClick={(e) => {
+        if (onLeadingClick && (e.target as HTMLElement).closest("[data-disclosure]")) {
+          onLeadingClick();
+          return;
+        }
+        if (onAddClick && (e.target as HTMLElement).closest("[data-add]")) {
+          onAddClick();
+          return;
+        }
+        onClick?.();
+      }}
+      onPointerDown={(e) => {
+        if ((e.target as HTMLElement).closest("[data-add]")) {
+          e.stopPropagation();
+          return;
+        }
+        onPointerDown?.(e);
+      }}
       className={clsx(
         DISCLOSURE_GROUP,
-        "flex w-full items-center px-1.5 text-left",
+        "flex w-full items-center gap-1.5 px-1.5 text-left",
         // Agent cells use rounded-lg (8px); Default (action/workspace) cells rounded-md (6px).
-        agentLike ? "h-[30px] rounded-lg" : "h-7 gap-1.5 rounded-md",
+        agentLike ? "h-[30px] rounded-lg" : "h-7 rounded-md",
         muted
           ? "text-tertiary hover:bg-quaternary"
           : selected
@@ -72,12 +115,13 @@ export function SidebarCell({ label, leading, selected, muted, onClick, onPointe
             : "text-secondary hover:bg-quaternary",
       )}
     >
+      {nested && <span className="w-1.5 shrink-0" aria-hidden />}
       {leading ? <Leading leading={leading} /> : <span className="w-5 shrink-0" />}
       {/* Overflowing labels fade out via a right-edge gradient mask instead of an
           ellipsis. flex-1 fills the cell so short labels show fully (the fade
           falls on empty space) and only long labels fade. */}
       <span
-        className="min-w-0 flex-1 overflow-hidden whitespace-nowrap pl-0.5 text-base mix-blend-plus-darker"
+        className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-base mix-blend-plus-darker"
         style={{
           maskImage: "linear-gradient(to right, #000, #000 calc(100% - 16px), transparent)",
           WebkitMaskImage: "linear-gradient(to right, #000, #000 calc(100% - 16px), transparent)",
@@ -85,6 +129,14 @@ export function SidebarCell({ label, leading, selected, muted, onClick, onPointe
       >
         {label}
       </span>
+      {onAddClick && (
+        <span
+          data-add=""
+          className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center opacity-0 group-hover/disclosure:opacity-100 before:absolute before:-inset-y-1.5 before:-left-3 before:-right-2 before:content-['']"
+        >
+          <Icon name="plus" size="base" color="secondary" />
+        </span>
+      )}
     </button>
   );
 }

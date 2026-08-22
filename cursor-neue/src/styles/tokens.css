@@ -13,6 +13,8 @@
      (Tailwind's transitionTimingFunction + CSS keyframes); never inline a curve
      so all motion stays uniform. Standard `ease` (cubic-bezier(0.25,0.1,0.25,1)). */
   --ease-default: cubic-bezier(0.25, 0.1, 0.25, 1);
+  /* easeOutQuart — folder chevron, height, and fade. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
 
   /* Motion durations (enum). Reference via var() or the Tailwind
      duration-fast/base/slow utilities; don't hardcode ms. */

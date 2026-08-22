@@ -1,3 +1,5 @@
+import type { IconName } from "@/icons/iconNames";
+
 // Core domain types for the prototype.
 
 // "chat" is a tab type too (same Tile/Tab engine) but it is only used by the
@@ -59,6 +61,8 @@ export const sideToDirection = (side: SplitSide): SplitDirection =>
 export type DropZone = SplitSide | "tab";
 
 // Sidebar entities. Content is shared per "scope" (today: workspace, else the agent itself).
+// Live sidebar-dot state: idle = default/read (quaternary); running and
+// attention = unread (accent). Opening the chat writes idle.
 export type AgentStatus = "idle" | "running" | "attention";
 
 // A single chat turn. `tool` is an agent-only status line (e.g. "Worked 12s")
@@ -80,28 +84,140 @@ export interface ThreadRef {
   excerpt: string;
 }
 
+/** A project is an agent that can also nest other agents. Same chat, content
+ *  scope, and metadata as a regular agent; the sidebar lists it under Projects. */
+export type AgentKind = "agent" | "project";
+
+/** Cursor color-family tokens used as a project icon stroke. */
+export type ProjectColor = "blue" | "purple";
+
+export const PROJECT_COLOR_STROKE: Record<ProjectColor, string> = {
+  blue: "var(--blue)",
+  purple: "var(--purple)",
+};
+
 export interface Agent {
   id: string;
+  /** Absent = `"agent"`. `"project"` is a first-class chat that can own children. */
+  kind?: AgentKind;
   workspaceId: string | null;
+  /** Parent project. Set only on regular agents; those rows leave Chats and
+   *  nest under the project in the Projects section. */
+  projectId?: string | null;
   /** Git branch this chat is on. Scopes the Content panel within a workspace:
    *  same workspace + same branch share a panel; different branches don't.
    *  Ignored for standalone (workspace-less) agents. */
   branch: string;
   title: string;
+  /** Live sidebar status. Opening the chat writes `idle`. */
   status: AgentStatus;
-  /** Epoch ms of last activity. Drives the single-workspace sidebar's recency
-   *  grouping (see `groupAgentsByRecency`). */
+  /** Epoch ms of the last chat message. Drives the sidebar's Updated grouping. */
   updatedAt: number;
   /** Simulated conversation shown in the chat panel (shared across windows). */
   messages: ChatMessage[];
   /** Present only on thread agents (see ThreadRef). */
   thread?: ThreadRef;
+  /** Unsent New Agent. Stays in the sidebar until the first message; leaving
+   *  the chat without sending discards it. */
+  draft?: boolean;
+  /** Project-only: sidebar glyph. Stroke uses `color`; hover still shows the chevron. */
+  icon?: IconName;
+  /** Project-only: Cursor color-family token for the icon stroke. */
+  color?: ProjectColor;
 }
+
+/** Sidebar New Agent / Cmd+N land here when no folder or project is specified. */
+export const DEFAULT_WORKSPACE_ID = "everysphere";
+
+export const agentKind = (a: Agent): AgentKind => a.kind ?? "agent";
+export const isProject = (a: Agent): boolean => agentKind(a) === "project";
+
+/** Regular sidebar chat: not a project, not a thread, not inside a project. */
+export const isChatsAgent = (a: Agent): boolean =>
+  !a.thread && !isProject(a) && !a.projectId;
+
+/** New Agent that has not sent a message. Distinct from composer `drafts`
+ *  (unsent text on any chat). */
+export const isDraftAgent = (a: Agent | undefined): boolean =>
+  !!a && !!a.draft && !a.thread && !isProject(a);
+
+/** Agents nested under a project, in `agentOrder`. */
+export const agentsInProject = (
+  agents: Record<string, Agent>,
+  agentOrder: string[],
+  projectId: string,
+): Agent[] =>
+  agentOrder
+    .map((id) => agents[id])
+    .filter((a): a is Agent => !!a && a.projectId === projectId && !a.thread && !isProject(a));
+
+/** Projects in `projectOrder` that belong to `workspaceId`. */
+export const projectsInWorkspace = (
+  agents: Record<string, Agent>,
+  projectOrder: string[],
+  workspaceId: string,
+): Agent[] =>
+  projectOrder
+    .map((id) => agents[id])
+    .filter((a): a is Agent => !!a && isProject(a) && a.workspaceId === workspaceId);
+
+/** Latest child activity. Falls back to the project's own time when empty. */
+export const projectRecency = (
+  project: Agent,
+  agents: Record<string, Agent>,
+  agentOrder: string[],
+): number => {
+  const children = agentsInProject(agents, agentOrder, project.id);
+  if (children.length === 0) return project.updatedAt;
+  return children.reduce((max, a) => Math.max(max, a.updatedAt), 0);
+};
+
+/** True when `id` is in the sidebar Pinned list. Pin is membership in
+ *  `WorkspaceData.pinnedAgents`, not a field on the agent — the chat still
+ *  belongs to its workspace. */
+export const isAgentPinned = (pinnedAgents: string[], id: string): boolean =>
+  pinnedAgents.includes(id);
+
+/** Live agents in pin order. Drops stale ids and thread agents. */
+export const pinnedAgentsFor = (
+  agents: Record<string, Agent>,
+  pinnedAgents: string[],
+): Agent[] =>
+  pinnedAgents.map((id) => agents[id]).filter((a): a is Agent => !!a && !a.thread);
+
+/** How the sidebar lists agents. Workspace keeps folder groups; Updated is a
+ *  single list ordered by each agent's last-message time. */
+export type AgentGroupBy = "workspace" | "updated";
+
+/** Keys in `WindowState.collapsedSidebar` for section headers. Workspace and
+ *  project folders use their own ids. */
+export const SIDEBAR_SECTION = {
+  chats: "sec:chats",
+  pinned: "sec:pinned",
+  projects: "sec:projects",
+  group: "sec:group",
+} as const;
 
 export interface Workspace {
   id: string;
   name: string;
+  /** Initial sidebar folder state. A window may override this in
+   *  `collapsedSidebar`; absent override = this default. */
+  collapsed?: boolean;
 }
+
+/** Window override, else `fallback` (workspace.collapsed, or false). */
+export const sidebarCollapsed = (
+  id: string,
+  overrides?: Record<string, boolean>,
+  fallback = false,
+): boolean => overrides?.[id] ?? fallback;
+
+/** Resolved workspace folder collapse: window override, else the workspace default. */
+export const workspaceFolderCollapsed = (
+  workspace: Workspace,
+  overrides?: Record<string, boolean>,
+): boolean => sidebarCollapsed(workspace.id, overrides, workspace.collapsed ?? false);
 
 // Single seam for "what Content does this agent see?". A future Group concept
 // (heterogeneous, cross-workspace) would just take precedence in this resolver.
@@ -121,90 +237,13 @@ export const branchOfScope = (scopeId: ContentScopeId): string | null =>
 
 export interface ContentScopeState {
   layout: LayoutNode;
+  /** Whether the content pane is showing. Fresh scopes start closed; opening
+   *  is an explicit action (toggle, pinned-island click, drop, etc.). */
   open: boolean;
   /** True after the last content tab was closed. Hides the island; opening the
    *  content panel reseeds the workspace's main default tabs. */
   cleared?: boolean;
 }
-
-// Which workspace a window's sidebar is filtered to; `null` = all workspaces. The
-// helpers below are React-free so every switcher variant and the sidebar filter
-// resolve identically.
-export type WorkspaceScope = string | null;
-
-export interface WorkspaceOption {
-  id: WorkspaceScope;
-  label: string;
-}
-
-// Canonical option list: "All Workspaces" first, then workspaces in order.
-export const workspaceOptions = (
-  workspaces: Record<string, Workspace>,
-  order: string[],
-): WorkspaceOption[] => [
-  { id: null, label: "All Workspaces" },
-  ...order.map((id) => ({ id, label: workspaces[id]?.name ?? id })),
-];
-
-// An unknown/stale scope gracefully falls back to all, never an empty sidebar.
-export const visibleWorkspaceIds = (scope: WorkspaceScope, order: string[]): string[] =>
-  scope && order.includes(scope) ? [scope] : order;
-
-// Recency buckets for the single-workspace sidebar view. Order here is the
-// render order; labels are user-facing.
-export type RecencyBucketId = "today" | "yesterday" | "last7" | "older";
-export interface RecencyBucket {
-  id: RecencyBucketId;
-  label: string;
-  agents: Agent[];
-}
-
-const RECENCY_LABELS: Record<RecencyBucketId, string> = {
-  today: "Today",
-  yesterday: "Yesterday",
-  last7: "Last 7 Days",
-  older: "Older",
-};
-
-const DAY_MS = 86_400_000;
-
-// Which bucket a timestamp falls into, measured against local-midnight
-// boundaries. Missing/invalid timestamps sort into "older" so a bad value never
-// produces a NaN comparison or jumps to the top.
-const recencyBucketOf = (updatedAt: number, startOfToday: number): RecencyBucketId => {
-  if (!Number.isFinite(updatedAt)) return "older";
-  if (updatedAt >= startOfToday) return "today";
-  if (updatedAt >= startOfToday - DAY_MS) return "yesterday";
-  if (updatedAt >= startOfToday - 7 * DAY_MS) return "last7";
-  return "older";
-};
-
-/** Group agents into recency buckets (Today / Yesterday / Last 7 Days / Older),
- *  newest first within each bucket. Empty buckets are omitted so callers can map
- *  straight to section headers. React-free so the sidebar and any future surface
- *  bucket identically. */
-export const groupAgentsByRecency = (agents: Agent[], now: number = Date.now()): RecencyBucket[] => {
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  const startOfToday = start.getTime();
-
-  const byBucket: Record<RecencyBucketId, Agent[]> = { today: [], yesterday: [], last7: [], older: [] };
-  for (const agent of agents) byBucket[recencyBucketOf(agent.updatedAt, startOfToday)].push(agent);
-
-  const order: RecencyBucketId[] = ["today", "yesterday", "last7", "older"];
-  return order
-    .filter((id) => byBucket[id].length > 0)
-    .map((id) => ({
-      id,
-      label: RECENCY_LABELS[id],
-      agents: byBucket[id].sort((a, b) => b.updatedAt - a.updatedAt),
-    }));
-};
-
-export const workspaceScopeLabel = (
-  scope: WorkspaceScope,
-  workspaces: Record<string, Workspace>,
-): string => (scope ? workspaces[scope]?.name ?? "All Workspaces" : "All Workspaces");
 
 // Shared tab metadata (kept here, free of React, so both the pure layout
 // transforms and the component registry can reference it).

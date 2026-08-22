@@ -26,7 +26,10 @@ export function Dock() {
     // Container ignores pointer events so the gaps around the bar stay
     // click-through to windows behind it; the bar itself opts back in.
     <div className="pointer-events-none absolute inset-y-0 left-1.5 z-[200] flex items-center">
-      <div className="pointer-events-auto flex flex-col items-center gap-2 rounded-[24px] border border-[color:var(--bg-luminous-secondary)] bg-luminous-secondary p-4 backdrop-blur-[8px]">
+      <div
+        data-dock=""
+        className="pointer-events-auto flex flex-col items-center gap-2 rounded-[24px] border border-[color:var(--bg-luminous-secondary)] bg-luminous-secondary p-4 backdrop-blur-[8px]"
+      >
         {/* Relative wrapper keeps the running-app dot anchored to the dock bar
             while the button lifts on hover (the dot must not inherit that
             transform). */}

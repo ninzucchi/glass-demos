@@ -77,6 +77,14 @@ export function Window() {
     else if (!collapsed && panel.isCollapsed()) panel.expand();
   }, [collapsed]);
 
+  // Green traffic light: after the store opens the sidebar, snap it to max %.
+  useLayoutEffect(() => {
+    if (!win?.sidebarFitNonce) return;
+    const panel = sidebarRef.current;
+    if (!panel || panel.isCollapsed()) return;
+    panel.resize(SIDEBAR_MAX_PCT);
+  }, [win?.sidebarFitNonce]);
+
   // Bridge for the chat (agent) divider's over-drag: it lives in MainContainer
   // but, once the chat has closed, a continued leftward drag should also close
   // the sidebar in the same gesture. We own the sidebar's imperative handle and
@@ -183,7 +191,7 @@ export function Window() {
               ref={sidebarRef}
               collapsible
               collapsedSize={0}
-              defaultSize={19}
+              defaultSize={SIDEBAR_MAX_PCT}
               minSize={minSize}
               maxSize={SIDEBAR_MAX_PCT}
               onCollapse={() => {
