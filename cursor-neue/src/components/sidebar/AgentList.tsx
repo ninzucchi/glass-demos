@@ -5,7 +5,15 @@ import { AgentCell } from "@/components/sidebar/AgentCell";
 
 /** A flat list of agent rows wired to the current window's active selection.
  *  Shared leaf for workspace folders so the active-agent wiring lives in one place. */
-export function AgentList({ agents, nested }: { agents: Agent[]; nested?: boolean }) {
+export function AgentList({
+  agents,
+  nested,
+  nestLevel,
+}: {
+  agents: Agent[];
+  nested?: boolean;
+  nestLevel?: number;
+}) {
   const windowId = useWindowId();
   const activeAgentId = useWindow()?.activeAgentId;
   const setActiveAgent = useWorkspaceStore((s) => s.setActiveAgent);
@@ -18,6 +26,7 @@ export function AgentList({ agents, nested }: { agents: Agent[]; nested?: boolea
           selected={a.id === activeAgentId}
           onSelect={() => setActiveAgent(windowId, a.id)}
           nested={nested}
+          nestLevel={nestLevel}
         />
       ))}
     </>

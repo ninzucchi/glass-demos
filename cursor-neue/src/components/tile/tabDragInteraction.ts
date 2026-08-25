@@ -9,9 +9,10 @@
 
 import type { PointerEvent as ReactPointerEvent, MutableRefObject } from "react";
 import type { DropZone, LayoutNode, PaneKind, SplitSide } from "@/types";
-import { canDropInPane } from "@/types";
+import { canDropInPane, isAgentPinned, isProject } from "@/types";
 import { useTabDragStore, type TabDragSource, type TabDropTarget } from "@/store/tabDrag";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
+import { isFlatLike, useFeatureFlags } from "@/store/useFeatureFlags";
 import * as tree from "@/store/layoutTree";
 import { isOutsideWindows, topElementAt } from "@/components/desktop/geometry";
 import { lockDragSelection } from "@/lib/dragGuard";
@@ -72,6 +73,65 @@ function rootEdgeSide(el: HTMLElement, x: number, y: number): SplitSide | null {
   const nearBottom = dBottom >= 0 && dBottom <= ROOT_EDGE_PX;
   if (!nearRight && !nearBottom) return null;
   return nearRight && nearBottom ? (dRight <= dBottom ? "right" : "down") : nearRight ? "right" : "down";
+}
+
+type SidebarSectionKind = "pinned" | "chats" | "projects";
+
+/** Section that owns this hit. A project folder is not a destination for
+ *  another project — walk out to Pinned / Projects / Chats instead. */
+function enclosingSection(dropEl: HTMLElement, kind: string): SidebarSectionKind | null {
+  if (kind === "pinned" || kind === "chats" || kind === "projects") return kind;
+  if (kind !== "project") return null;
+  const parent = dropEl.parentElement?.closest("[data-sidebar-drop]");
+  const parentKind = parent?.getAttribute("data-sidebar-drop");
+  if (parentKind === "pinned" || parentKind === "chats" || parentKind === "projects") {
+    return parentKind;
+  }
+  return null;
+}
+
+function sidebarDropTarget(
+  dropEl: HTMLElement,
+  kind: string,
+  agentId: string,
+): TabDropTarget | null {
+  const { agents, pinnedAgents } = useWorkspaceStore.getState();
+  const agent = agents[agentId];
+  if (!agent || agent.thread) return null;
+
+  if (isProject(agent)) {
+    const dest = enclosingSection(dropEl, kind);
+    const pinned = isAgentPinned(pinnedAgents, agent.id);
+    const flat = isFlatLike(useFeatureFlags.getState().sidebarProjects);
+    if (dest === "pinned" && !pinned) return { scope: "sidebar-section", section: "pinned" };
+    // Today: unpin onto Projects. Flat: projects live in Chats.
+    if (dest === "projects" && pinned) return { scope: "sidebar-section", section: "projects" };
+    if (dest === "chats" && pinned && flat) return { scope: "sidebar-section", section: "chats" };
+    return null;
+  }
+
+  if (kind === "project") {
+    const projectId = dropEl.getAttribute("data-sidebar-project-id");
+    const home =
+      !!projectId &&
+      agent.projectId === projectId &&
+      !isAgentPinned(pinnedAgents, agent.id);
+    if (projectId && !home) return { scope: "sidebar-project", projectId };
+    return null;
+  }
+  if (kind === "pinned") {
+    if (!isAgentPinned(pinnedAgents, agent.id)) {
+      return { scope: "sidebar-section", section: "pinned" };
+    }
+    return null;
+  }
+  if (kind === "chats") {
+    if (isAgentPinned(pinnedAgents, agent.id) || !!agent.projectId) {
+      return { scope: "sidebar-section", section: "chats" };
+    }
+    return null;
+  }
+  return null;
 }
 
 // Resolve where a drop at (x, y) would land. Every candidate is gated by the
@@ -157,6 +217,18 @@ function targetAtPoint(x: number, y: number, source: TabDragSource): TabDropTarg
       };
     }
   }
+  // Sidebar agent-row CREATE drag. Innermost `[data-sidebar-drop]` wins so a
+  // project (or Pinned) nested inside Chats stays distinct. The source's current
+  // home is not a destination (no highlight, no drop).
+  if (source.agentId && !source.tabId) {
+    const dropEl = el.closest("[data-sidebar-drop]") as HTMLElement | null;
+    const kind = dropEl?.getAttribute("data-sidebar-drop");
+    if (dropEl && kind) {
+      const sidebar = sidebarDropTarget(dropEl, kind, source.agentId);
+      if (sidebar) return sidebar;
+    }
+  }
+
   return null;
 }
 
@@ -284,10 +356,13 @@ export function beginTabDrag(e: ReactPointerEvent<HTMLElement>, config: TabDragC
   };
 
   const onUp = () => {
-    const { source, target, pointer } = useTabDragStore.getState();
-    if (started && source) config.onDrop(source, target, pointer);
-    cleanup();
-    end();
+    try {
+      const { source, target, pointer } = useTabDragStore.getState();
+      if (started && source) config.onDrop(source, target, pointer);
+    } finally {
+      cleanup();
+      end();
+    }
   };
 
   const onKey = (ev: KeyboardEvent) => {

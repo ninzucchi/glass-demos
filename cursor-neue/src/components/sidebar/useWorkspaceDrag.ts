@@ -3,21 +3,23 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { isOutsideWindows, newWindowGeo } from "@/components/desktop/geometry";
 import { useWorkspaceDragStore } from "@/store/workspaceDrag";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
 
 // Movement (px) before a press becomes a drag, so plain clicks still toggle the
 // workspace open/closed. Mirrors TabHandle's threshold.
 const DRAG_THRESHOLD = 4;
 
-/** Drag a workspace sidebar row onto the desktop to spawn a new window for that
- *  workspace: threshold to start, chip follows the cursor, release outside
- *  every window spawns, Escape cancels. `wasDragged()` lets the row swallow the
- *  click-to-collapse that fires right after a drag. */
+/** Drag a workspace sidebar row: reorder in the list (others make space), or
+ *  release outside every window to spawn a filtered window. Escape cancels.
+ *  `wasDragged()` lets the row swallow the click-to-collapse after a drag. */
 export function useDragWorkspaceOut(workspaceId: string, label: string): {
   onPointerDown: (e: ReactPointerEvent<HTMLElement>) => void;
   dragging: boolean;
   wasDragged: () => boolean;
 } {
   const openWorkspaceInNewWindow = useWorkspaceStore((s) => s.openWorkspaceInNewWindow);
+  const moveWorkspace = useWorkspaceStore((s) => s.moveWorkspace);
+  const moveSidebarFolder = useWorkspaceStore((s) => s.moveSidebarFolder);
   const dragging = useWorkspaceDragStore((s) => s.source?.workspaceId === workspaceId);
   // Suppress the click-to-collapse that fires right after a drag ends.
   const didDragRef = useRef(false);
@@ -51,11 +53,25 @@ export function useDragWorkspaceOut(workspaceId: string, label: string): {
     };
 
     const onUp = (ev: PointerEvent) => {
-      if (started && isOutsideWindows(ev.clientX, ev.clientY)) {
-        openWorkspaceInNewWindow(workspaceId, newWindowGeo({ x: ev.clientX, y: ev.clientY }));
+      try {
+        if (started) {
+          if (isOutsideWindows(ev.clientX, ev.clientY)) {
+            openWorkspaceInNewWindow(workspaceId, newWindowGeo({ x: ev.clientX, y: ev.clientY }));
+          } else {
+            const over = useWorkspaceDragStore.getState().overIndex;
+            if (over != null) {
+              if (useFeatureFlags.getState().sidebarProjects === "flat") {
+                moveSidebarFolder(workspaceId, over);
+              } else {
+                moveWorkspace(workspaceId, over);
+              }
+            }
+          }
+        }
+      } finally {
+        cleanup();
+        end();
       }
-      cleanup();
-      end();
     };
 
     const onKey = (ev: KeyboardEvent) => {

@@ -16,16 +16,22 @@ import type {
 } from "@/types";
 import {
   canDropInPane,
+  agentInWorkspace,
   contentScopeId,
   DEFAULT_WORKSPACE_ID,
+  isUnionWorkspaceId,
   isAgentPinned,
   isDraftAgent,
   isProject,
+  normalizeWorkspaceIds,
   PINNED_TAB_ORDER,
   pinnedTabsFor,
+  primaryWorkspaceId,
+  projectWorkspaceIds,
   sideToDirection,
   sidebarCollapsed,
   TAB_LABEL,
+  unionWorkspaceMemberIds,
   workspaceIdOfScope,
 } from "@/types";
 import { centeredWindowGeo, type Geo } from "@/components/desktop/geometry";
@@ -33,6 +39,7 @@ import { useWindowId } from "@/components/window/WindowContext";
 import * as tree from "@/store/layoutTree";
 import { docToText } from "@/lib/composerDoc";
 import { createSeed } from "@/data/seed";
+import { defaultFlatFolderOrder } from "@/components/sidebar/chatsRows";
 
 export const MAIN_WINDOW_ID = "main";
 
@@ -84,9 +91,13 @@ export interface WorkspaceData {
   /** Sidebar Projects section, in display order. Each id is an agent with
    *  `kind: "project"` — a real chat, plus a folder for children (`projectId`). */
   projectOrder: string[];
-  /** Sidebar Pinned section, in display order. Those ids stay in `agents` and
-   *  `agentOrder` (real workspace chats) and are omitted from Chats. Shared
-   *  across windows, same as `agentOrder`. */
+  /** Flat + workspace grouping: one interleaved list of workspace and project
+   *  ids. Today mode ignores this and uses `workspaceOrder` / `projectOrder`. */
+  flatFolderOrder: string[];
+  /** Sidebar Pinned section, in display order. Agent ids or project ids.
+   *  Those records stay in `agents` / `agentOrder` and leave Chats (or
+   *  Projects). A pinned project keeps its children nested. Shared across
+   *  windows, same as `agentOrder`. */
   pinnedAgents: string[];
   /** Per-workspace pinned tab types. Absent key = the default set (see
    *  `pinnedTabsFor`); a key exists only once the user edits that workspace. */
@@ -103,7 +114,11 @@ interface WorkspaceActions {
    *  Pass `workspaceId` / `projectId` to land in a folder or project. */
   createAgent: (
     windowId: string,
-    target?: { workspaceId?: string | null; projectId?: string | null },
+    target?: {
+      workspaceId?: string | null;
+      workspaceIds?: string[];
+      projectId?: string | null;
+    },
   ) => void;
   /** Create a new agent (inheriting the tile's context) as a NEW tab in a chat
    *  tile — the chat tab bar's "+" action. */
@@ -125,8 +140,12 @@ interface WorkspaceActions {
   /** Archive (remove) an agent, reassigning the active agent of any window that
    *  was showing it. */
   archiveAgent: (id: string) => void;
-  /** Lift a workspace agent into the sidebar Pinned list, or return it to Chats. */
+  /** Lift a workspace agent or project into the sidebar Pinned list.
+   *  Unpin returns an agent to its project or Chats, and a project to Projects. */
   togglePinnedAgent: (id: string) => void;
+  /** Re-parent an agent under a project, or `null` to return it to Chats.
+   *  A project drop also unpins so the row appears under that folder. */
+  moveAgentToProject: (windowId: string, id: string, projectId: string | null) => void;
   /** Create a thread agent from a text selection in `parentAgentId`'s chat and
    *  open it next to `tileId`. */
   createThread: (
@@ -157,6 +176,12 @@ interface WorkspaceActions {
 
   /** Collapse/expand a sidebar folder or section within a single window. */
   toggleSidebarCollapsed: (windowId: string, id: string) => void;
+  /** Move a workspace folder to `toIndex` in the shared sidebar order. */
+  moveWorkspace: (id: string, toIndex: number) => void;
+  /** Move a project to `toIndex` among visible (unpinned) projects. */
+  moveProject: (id: string, toIndex: number) => void;
+  /** Move a workspace or project in the Flat mixed folder list. */
+  moveSidebarFolder: (id: string, toIndex: number) => void;
   /** Switch the sidebar between workspace folders and a recency list. */
   setAgentGroupBy: (windowId: string, groupBy: AgentGroupBy) => void;
 
@@ -688,16 +713,26 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const project =
             target?.projectId ? state.agents[target.projectId] : undefined;
           const projectId = project && isProject(project) ? project.id : null;
-          const workspaceId =
-            target?.workspaceId !== undefined
-              ? target.workspaceId
-              : (project?.workspaceId ?? DEFAULT_WORKSPACE_ID);
+          const requested =
+            target?.workspaceIds ??
+            (target?.workspaceId !== undefined ? [target.workspaceId] : undefined);
+          const expanded = requested?.flatMap((id) =>
+            id && isUnionWorkspaceId(id) ? unionWorkspaceMemberIds(id) : id ? [id] : [],
+          );
+          const workspaceIds = normalizeWorkspaceIds(
+            expanded ??
+              (project
+                ? (projectWorkspaceIds(project.id, state.agents, state.agentOrder)[0] ??
+                  primaryWorkspaceId(project))
+                : DEFAULT_WORKSPACE_ID),
+          );
+          const workspaceId = workspaceIds[0];
           const branch = project?.branch ?? "main";
           // Already on a matching draft — reveal it; don't stack another empty row.
           const active = state.agents[win.activeAgentId];
           if (
             isBlankAgent(active) &&
-            active.workspaceId === workspaceId &&
+            primaryWorkspaceId(active) === workspaceId &&
             (active.projectId ?? null) === projectId
           ) {
             if (win.chatCollapsed) patchWindow(windowId, { chatCollapsed: false });
@@ -707,7 +742,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const title = "New Agent";
           const newAgent: Agent = {
             id,
-            workspaceId,
+            workspaceIds,
             projectId,
             branch,
             title,
@@ -772,7 +807,9 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const title = "New Agent";
           const newAgent: Agent = {
             id,
-            workspaceId: base?.workspaceId ?? state.workspaceOrder[0] ?? null,
+            workspaceIds: normalizeWorkspaceIds(
+              base?.workspaceIds ?? state.workspaceOrder[0] ?? DEFAULT_WORKSPACE_ID,
+            ),
             projectId: base
               ? isProject(base)
                 ? base.id
@@ -922,7 +959,10 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
               continue;
             }
             const fallbackId =
-              agentOrder.find((aid) => agents[aid]?.workspaceId === target.workspaceId) ??
+              agentOrder.find((aid) => {
+                const a = agents[aid];
+                return !!a && agentInWorkspace(a, primaryWorkspaceId(target));
+              }) ??
               agentOrder[0] ??
               "";
             const fallback = agents[fallbackId];
@@ -937,6 +977,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             agents,
             agentOrder,
             projectOrder: state.projectOrder.filter((pid) => !removedIds.has(pid)),
+            flatFolderOrder: state.flatFolderOrder.filter((id) => !removedIds.has(id)),
             pinnedAgents: state.pinnedAgents.filter((aid) => !removedIds.has(aid)),
             windows,
             drafts,
@@ -947,22 +988,68 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         togglePinnedAgent: (id) => {
           const state = get();
           const agent = state.agents[id];
-          // Pins are a sidebar list of an existing chat — not a new entity.
-          // Projects stay in Projects (pin would hide their children). Threads
-          // have no sidebar row. Unpin returns a child to its project, else Chats.
-          if (
-            !agent ||
-            agent.thread ||
-            isProject(agent) ||
-            isDraftAgent(agent) ||
-            !agent.workspaceId
-          )
-            return;
+          // Pins are a sidebar list of an existing chat or project — not a new
+          // entity. Threads have no sidebar row. A pinned project keeps its
+          // children nested and drops their individual pins. Unpin returns a
+          // child to its project, else Chats; a project returns to Projects.
+          if (!agent || agent.thread || isDraftAgent(agent)) return;
           if (!state.agentOrder.includes(id)) return;
-          const pinnedAgents = isAgentPinned(state.pinnedAgents, id)
-            ? state.pinnedAgents.filter((aid) => aid !== id)
-            : [id, ...state.pinnedAgents];
+          if (isAgentPinned(state.pinnedAgents, id)) {
+            set({ pinnedAgents: state.pinnedAgents.filter((aid) => aid !== id) });
+            return;
+          }
+          let pinnedAgents = [id, ...state.pinnedAgents.filter((aid) => aid !== id)];
+          if (isProject(agent)) {
+            pinnedAgents = pinnedAgents.filter((aid) => state.agents[aid]?.projectId !== id);
+          }
           set({ pinnedAgents });
+        },
+
+        moveAgentToProject: (windowId, id, projectId) => {
+          const state = get();
+          const agent = state.agents[id];
+          if (!agent || agent.thread || isProject(agent) || !state.agentOrder.includes(id))
+            return;
+          if (projectId === null) {
+            if (!agent.projectId) return;
+            set({
+              agents: { ...state.agents, [id]: { ...agent, projectId: null } },
+            });
+            return;
+          }
+          const project = state.agents[projectId];
+          if (!project || !isProject(project)) return;
+          const already = (agent.projectId ?? null) === projectId;
+          if (already && !isAgentPinned(state.pinnedAgents, id)) return;
+          const next: Agent = {
+            ...agent,
+            projectId,
+          };
+          const win = state.windows[windowId];
+          const expandIds = projectWorkspaceIds(projectId, { ...state.agents, [id]: next }, [
+            id,
+            ...state.agentOrder,
+          ]);
+          set({
+            agents: { ...state.agents, [id]: next },
+            agentOrder: [id, ...state.agentOrder.filter((aid) => aid !== id)],
+            pinnedAgents: state.pinnedAgents.filter((aid) => aid !== id),
+            ...(win
+              ? {
+                  windows: {
+                    ...state.windows,
+                    [windowId]: {
+                      ...win,
+                      collapsedSidebar: {
+                        ...win.collapsedSidebar,
+                        ...Object.fromEntries(expandIds.map((wid) => [wid, false])),
+                        [projectId]: false,
+                      },
+                    },
+                  },
+                }
+              : {}),
+          });
         },
 
         createThread: (tileId, parentAgentId, messageIndex, excerpt, disposition) => {
@@ -977,7 +1064,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             id,
             // Inherit the parent's context so the content pane's scope doesn't
             // swap when the thread takes focus.
-            workspaceId: parent.workspaceId,
+            workspaceIds: parent.workspaceIds,
             projectId: isProject(parent) ? parent.id : (parent.projectId ?? null),
             branch: parent.branch,
             title,
@@ -1196,6 +1283,80 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
               ...current,
               [id]: !sidebarCollapsed(id, current, fallback),
             },
+          });
+        },
+        moveWorkspace: (id, toIndex) => {
+          const order = get().workspaceOrder;
+          const from = order.indexOf(id);
+          if (from < 0) return;
+          const to = Math.max(0, Math.min(toIndex, order.length - 1));
+          if (from === to) return;
+          const next = order.slice();
+          const [item] = next.splice(from, 1);
+          next.splice(to, 0, item);
+          set({ workspaceOrder: next });
+        },
+        moveProject: (id, toIndex) => {
+          const state = get();
+          const agent = state.agents[id];
+          if (!agent || !isProject(agent)) return;
+          const visible = state.projectOrder.filter((pid) => {
+            const a = state.agents[pid];
+            return !!a && isProject(a) && !isAgentPinned(state.pinnedAgents, pid);
+          });
+          const from = visible.indexOf(id);
+          let nextVisible: string[];
+          if (from === -1) {
+            nextVisible = visible.slice();
+            nextVisible.splice(Math.max(0, Math.min(toIndex, nextVisible.length)), 0, id);
+          } else {
+            const to = Math.max(0, Math.min(toIndex, visible.length - 1));
+            if (from === to) return;
+            nextVisible = visible.slice();
+            const [item] = nextVisible.splice(from, 1);
+            nextVisible.splice(to, 0, item);
+          }
+          const rest = state.projectOrder.filter((pid) => !nextVisible.includes(pid));
+          set({ projectOrder: [...nextVisible, ...rest] });
+        },
+        moveSidebarFolder: (id, toIndex) => {
+          const state = get();
+          const isFolder =
+            !!state.workspaces[id] || (!!state.agents[id] && isProject(state.agents[id]));
+          if (!isFolder) return;
+          const visible = state.flatFolderOrder.filter((fid) => {
+            if (state.workspaces[fid]) return true;
+            const a = state.agents[fid];
+            return !!a && isProject(a) && !isAgentPinned(state.pinnedAgents, fid);
+          });
+          const from = visible.indexOf(id);
+          let nextVisible: string[];
+          if (from === -1) {
+            nextVisible = visible.slice();
+            nextVisible.splice(Math.max(0, Math.min(toIndex, nextVisible.length)), 0, id);
+          } else {
+            const to = Math.max(0, Math.min(toIndex, visible.length - 1));
+            if (from === to) return;
+            nextVisible = visible.slice();
+            const [item] = nextVisible.splice(from, 1);
+            nextVisible.splice(to, 0, item);
+          }
+          const rest = state.flatFolderOrder.filter((fid) => !nextVisible.includes(fid));
+          const flatFolderOrder = [...nextVisible, ...rest];
+          const workspaceOrder = nextVisible.filter((fid) => !!state.workspaces[fid]);
+          const movedProjects = nextVisible.filter((fid) => {
+            const agent = state.agents[fid];
+            return !!agent && isProject(agent);
+          });
+          const projectOrder = [
+            ...movedProjects,
+            ...state.projectOrder.filter((pid) => !movedProjects.includes(pid)),
+          ];
+          set({
+            flatFolderOrder,
+            workspaceOrder:
+              workspaceOrder.length > 0 ? workspaceOrder : state.workspaceOrder,
+            projectOrder,
           });
         },
         setAgentGroupBy: (windowId, groupBy) => {
@@ -1687,7 +1848,10 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           // Active agent = first agent in the workspace; fall back to any agent so
           // the window always has a valid content scope.
           const agentId =
-            state.agentOrder.find((id) => state.agents[id]?.workspaceId === workspaceId) ??
+            state.agentOrder.find((id) => {
+              const a = state.agents[id];
+              return !!a && agentInWorkspace(a, workspaceId);
+            }) ??
             state.agentOrder[0];
           const agent = agentId ? state.agents[agentId] : undefined;
           const scopeId = agent ? contentScopeId(agent) : "agent:none";
@@ -1776,7 +1940,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       };
     },
     {
-      name: "unification-demo-v16",
+      name: "unification-demo-v18",
       // No versioning/migrations: state still persists and reloads across
       // refreshes, but we don't carry backwards compatibility. To force a clean
       // reset, change `name` (or clear the localStorage entry).
@@ -1787,6 +1951,24 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         const merged = { ...current, ...(persisted as Partial<WorkspaceData>) };
         merged.pinnedAgents ??= [];
         merged.projectOrder ??= [];
+        if (merged.agents) {
+          const nextAgents: Record<string, Agent> = {};
+          for (const [id, agent] of Object.entries(merged.agents)) {
+            const legacy = agent as Agent & { workspaceId?: string | null };
+            nextAgents[id] = {
+              ...agent,
+              workspaceIds: normalizeWorkspaceIds(legacy.workspaceIds ?? legacy.workspaceId),
+            };
+          }
+          merged.agents = nextAgents;
+        }
+        merged.flatFolderOrder ??= defaultFlatFolderOrder(
+          merged.workspaceOrder,
+          merged.projectOrder,
+          merged.workspaces,
+          merged.agents,
+          merged.agentOrder,
+        );
         const windows = { ...merged.windows };
         for (const [id, win] of Object.entries(windows)) {
           if (!win.chatLayout) {
@@ -1806,6 +1988,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           agents: s.agents,
           agentOrder: s.agentOrder,
           projectOrder: s.projectOrder,
+          flatFolderOrder: s.flatFolderOrder,
           pinnedAgents: s.pinnedAgents,
           pinnedTabs: s.pinnedTabs,
           // Only the main window persists (detached are ephemeral); if it was
@@ -1835,16 +2018,14 @@ export const useActiveAgent = (): Agent | undefined => {
   });
 };
 
-// Name of the window's active scope's workspace; falls back to the agent title
-// for a standalone (workspace-less) agent. Used as the root crumb for Files tabs.
+// Name of the window's active scope's workspace. Used as the root crumb for Files tabs.
 export const useActiveWorkspaceName = (): string => {
   const windowId = useWindowId();
   return useWorkspaceStore((s) => {
     const win = s.windows[windowId];
     const agent = win ? s.agents[win.activeAgentId] : undefined;
     if (!agent) return TAB_LABEL.files;
-    if (agent.workspaceId) return s.workspaces[agent.workspaceId]?.name ?? TAB_LABEL.files;
-    return agent.title;
+    return s.workspaces[primaryWorkspaceId(agent)]?.name ?? TAB_LABEL.files;
   });
 };
 

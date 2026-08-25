@@ -1,5 +1,6 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import {
+  isAgentPinned,
   isProject,
   pinnedAgentsFor,
   SIDEBAR_SECTION,
@@ -9,14 +10,21 @@ import {
 } from "@/types";
 import { useWindowId } from "@/components/window/WindowContext";
 import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
-import { useFeatureFlags } from "@/store/useFeatureFlags";
+import { useTabDragStore } from "@/store/tabDrag";
+import { isFlatLike, useFeatureFlags } from "@/store/useFeatureFlags";
 import { useUiStore } from "@/store/useUiStore";
 import { AgentList } from "@/components/sidebar/AgentList";
+import { useSidebarFlip } from "@/components/sidebar/sidebarFlip";
 import { chatsRows, type ChatsRow } from "@/components/sidebar/chatsRows";
 import { ProjectGroup } from "@/components/sidebar/ProjectGroup";
 import { SidebarCell } from "@/components/sidebar/SidebarCell";
 import { SidebarCollapse } from "@/components/sidebar/SidebarCollapse";
+import { SidebarDropOutline } from "@/components/sidebar/SidebarDropOutline";
 import { WorkspaceGroup } from "@/components/sidebar/WorkspaceGroup";
+import { ProjectSortList } from "@/components/sidebar/ProjectSortList";
+import { FolderSortList } from "@/components/sidebar/FolderSortList";
+import { WorkspaceSortList } from "@/components/sidebar/WorkspaceSortList";
+import { ScrollArea } from "@/components/ui/ScrollArea";
 import {
   ChatsSectionControls,
   SidebarNavControls,
@@ -51,27 +59,39 @@ function SidebarSection({
   id,
   label,
   trailing,
+  dropKind,
   children,
 }: {
   id: string;
   label: string;
   trailing?: ReactNode;
+  /** Agent-row drop: pin on Pinned, unpin on Chats. Project-row drop: pin on
+   *  Pinned, unpin on Projects. */
+  dropKind?: "pinned" | "chats" | "projects";
   children: ReactNode;
 }) {
+  const hostRef = useRef<HTMLDivElement>(null);
   const windowId = useWindowId();
   const collapsed = sidebarCollapsed(id, useWindow()?.collapsedSidebar);
   const toggleSidebarCollapsed = useWorkspaceStore((s) => s.toggleSidebarCollapsed);
+  const dropActive = useTabDragStore(
+    (s) =>
+      !!dropKind && s.target?.scope === "sidebar-section" && s.target.section === dropKind,
+  );
   return (
-    <div className="flex flex-col gap-1">
-      <SidebarSectionHeader
-        label={label}
-        trailing={trailing}
-        collapsed={collapsed}
-        onToggle={() => toggleSidebarCollapsed(windowId, id)}
-      />
-      <SidebarCollapse open={!collapsed} padded={false}>
-        <div className="flex flex-col gap-1">{children}</div>
-      </SidebarCollapse>
+    <div ref={hostRef} className="relative" data-sidebar-drop={dropKind}>
+      <div className="flex flex-col gap-1">
+        <SidebarSectionHeader
+          label={label}
+          trailing={trailing}
+          collapsed={collapsed}
+          onToggle={() => toggleSidebarCollapsed(windowId, id)}
+        />
+        <SidebarCollapse open={!collapsed} padded={false}>
+          <div className="flex flex-col gap-px">{children}</div>
+        </SidebarCollapse>
+      </div>
+      {dropKind && <SidebarDropOutline hostRef={hostRef} active={dropActive} />}
     </div>
   );
 }
@@ -79,20 +99,26 @@ function SidebarSection({
 function ProjectsSection() {
   const agents = useWorkspaceStore((s) => s.agents);
   const projectOrder = useWorkspaceStore((s) => s.projectOrder);
+  const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
   const projects = useMemo(
     () =>
-      projectOrder.map((pid) => agents[pid]).filter((a): a is Agent => !!a && isProject(a)),
-    [agents, projectOrder],
+      projectOrder
+        .map((pid) => agents[pid])
+        .filter(
+          (a): a is Agent => !!a && isProject(a) && !isAgentPinned(pinnedAgents, a.id),
+        ),
+    [agents, pinnedAgents, projectOrder],
   );
+  const draggingProject = useTabDragStore((s) => {
+    const id = s.source?.agentId;
+    if (!id || s.source?.tabId) return false;
+    const agent = useWorkspaceStore.getState().agents[id];
+    return !!agent && isProject(agent);
+  });
+  if (projects.length === 0 && !draggingProject) return null;
   return (
-    <SidebarSection id={SIDEBAR_SECTION.projects} label="Projects">
-      {projects.map((project, i) => (
-        <ProjectGroup
-          key={project.id}
-          project={project}
-          padded={i < projects.length - 1}
-        />
-      ))}
+    <SidebarSection id={SIDEBAR_SECTION.projects} label="Projects" dropKind="projects">
+      <ProjectSortList projects={projects} />
     </SidebarSection>
   );
 }
@@ -105,8 +131,18 @@ function PinnedSection() {
     [agents, pinnedAgents],
   );
   return (
-    <SidebarSection id={SIDEBAR_SECTION.pinned} label="Pinned">
-      <AgentList agents={pinned} />
+    <SidebarSection id={SIDEBAR_SECTION.pinned} label="Pinned" dropKind="pinned">
+      {pinned.map((item, i) =>
+        isProject(item) ? (
+          <ProjectGroup
+            key={item.id}
+            project={item}
+            padded={i < pinned.length - 1}
+          />
+        ) : (
+          <AgentList key={item.id} agents={[item]} />
+        ),
+      )}
     </SidebarSection>
   );
 }
@@ -114,7 +150,9 @@ function PinnedSection() {
 function ChatsRowView({ row }: { row: ChatsRow }) {
   switch (row.kind) {
     case "workspace":
-      return <WorkspaceGroup workspace={row.workspace} padded={row.padded} />;
+      return (
+        <WorkspaceGroup workspace={row.workspace} padded={row.padded} projects={row.projects} />
+      );
     case "project":
       return <ProjectGroup project={row.project} padded={row.padded} />;
     case "agent":
@@ -126,27 +164,51 @@ function ChatsRowView({ row }: { row: ChatsRow }) {
   }
 }
 
-function SidebarBody({ groupBy, flat }: { groupBy: AgentGroupBy; flat: boolean }) {
+function SidebarBody({
+  groupBy,
+  flat,
+  nestProjects,
+}: {
+  groupBy: AgentGroupBy;
+  flat: boolean;
+  nestProjects?: boolean;
+}) {
   const workspaceOrder = useWorkspaceStore((s) => s.workspaceOrder);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const agents = useWorkspaceStore((s) => s.agents);
   const agentOrder = useWorkspaceStore((s) => s.agentOrder);
   const projectOrder = useWorkspaceStore((s) => s.projectOrder);
+  const flatFolderOrder = useWorkspaceStore((s) => s.flatFolderOrder);
   const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
   const rows = useMemo(
     () =>
       chatsRows({
         groupBy,
         flat,
+        nestProjects,
         workspaceOrder,
         workspaces,
         agents,
         agentOrder,
         projectOrder,
         pinnedAgents,
+        flatFolderOrder,
       }),
-    [agentOrder, agents, flat, groupBy, pinnedAgents, projectOrder, workspaceOrder, workspaces],
+    [
+      agentOrder,
+      agents,
+      flat,
+      flatFolderOrder,
+      groupBy,
+      nestProjects,
+      pinnedAgents,
+      projectOrder,
+      workspaceOrder,
+      workspaces,
+    ],
   );
+  if (flat && groupBy === "workspace") return <FolderSortList rows={rows} />;
+  if (groupBy === "workspace") return <WorkspaceSortList rows={rows} />;
   return rows.map((row) => <ChatsRowView key={row.id} row={row} />);
 }
 
@@ -155,12 +217,19 @@ export function Sidebar() {
   const groupBy = useWindow()?.agentGroupBy ?? "workspace";
   const createAgent = useWorkspaceStore((s) => s.createAgent);
   const openCustomize = useUiStore((s) => s.openCustomize);
-  const flat = useFeatureFlags((s) => s.sidebarProjects) === "flat";
+  const mode = useFeatureFlags((s) => s.sidebarProjects);
+  const flat = isFlatLike(mode);
+  const nestProjects = mode === "flatNested";
+  const rootRef = useRef<HTMLElement>(null);
+  useSidebarFlip(rootRef, `${mode}:${groupBy}`);
 
   return (
-    <aside className="flex h-full w-full select-none flex-col bg-sidebar backdrop-blur-[12px]">
+    <aside
+      ref={rootRef}
+      className="flex h-full w-full select-none flex-col bg-sidebar backdrop-blur-[12px]"
+    >
       <SidebarHeader />
-      <div className="flex flex-col gap-px px-2 pt-1">
+      <div className="flex shrink-0 flex-col gap-px px-2 pt-1">
         <SidebarCell label="Search" leading={{ kind: "action", icon: "magnifying-glass" }} />
         <SidebarCell
           label="New Agent"
@@ -175,26 +244,35 @@ export function Sidebar() {
         />
       </div>
 
-      <div
-        className="no-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-2 pt-3"
-        style={{
-          // Scroll still works; the thumb is hidden so rows stay symmetric.
-          maskImage:
-            "linear-gradient(to bottom, transparent, #000 20px, #000 calc(100% - 20px), transparent)",
-          WebkitMaskImage:
-            "linear-gradient(to bottom, transparent, #000 20px, #000 calc(100% - 20px), transparent)",
-        }}
-      >
+      <ScrollArea className="min-h-0 flex-1" contentClassName="gap-3 px-2 pb-5 pt-3">
         {!flat && <ProjectsSection />}
-        <SidebarSection id={SIDEBAR_SECTION.chats} label="Chats" trailing={<ChatsSectionControls />}>
-          <div className="flex flex-col gap-3">
+        {flat ? (
+          <>
             <PinnedSection />
-            <SidebarSection id={SIDEBAR_SECTION.group} label={chatsSectionLabel(groupBy)}>
-              <SidebarBody groupBy={groupBy} flat={flat} />
+            <SidebarSection
+              id={SIDEBAR_SECTION.group}
+              label="Chats"
+              trailing={<ChatsSectionControls />}
+              dropKind="chats"
+            >
+              <SidebarBody groupBy={groupBy} flat nestProjects={nestProjects} />
             </SidebarSection>
-          </div>
-        </SidebarSection>
-      </div>
+          </>
+        ) : (
+          <SidebarSection id={SIDEBAR_SECTION.chats} label="Chats" trailing={<ChatsSectionControls />}>
+            <div className="flex flex-col gap-3">
+              <PinnedSection />
+              <SidebarSection
+                id={SIDEBAR_SECTION.group}
+                label={chatsSectionLabel(groupBy)}
+                dropKind="chats"
+              >
+                <SidebarBody groupBy={groupBy} flat={false} />
+              </SidebarSection>
+            </div>
+          </SidebarSection>
+        )}
+      </ScrollArea>
     </aside>
   );
 }
