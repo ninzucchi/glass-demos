@@ -1,51 +1,12 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useWorkspaceDragStore } from "@/store/workspaceDrag";
-import { AgentList } from "@/components/sidebar/AgentList";
-import { ProjectGroup } from "@/components/sidebar/ProjectGroup";
 import { WorkspaceGroup } from "@/components/sidebar/WorkspaceGroup";
 import type { ChatsRow } from "@/components/sidebar/chatsRows";
 import { sortBlockShifts, sortInsertionIndex, type SortMetrics } from "@/components/sidebar/sidebarSort";
 
-interface WorkspaceBlock {
-  id: string;
-  rows: ChatsRow[];
-}
-
-/** Workspace row plus any Flat projects that follow it in the chats list. */
-function workspaceBlocks(rows: ChatsRow[]): WorkspaceBlock[] {
-  const blocks: WorkspaceBlock[] = [];
-  for (const row of rows) {
-    if (row.kind === "workspace") {
-      blocks.push({ id: row.id, rows: [row] });
-      continue;
-    }
-    const last = blocks[blocks.length - 1];
-    if (row.kind === "project" && last) last.rows.push(row);
-  }
-  return blocks;
-}
-
-function ChatsRowView({ row }: { row: ChatsRow }) {
-  switch (row.kind) {
-    case "workspace":
-      return (
-        <WorkspaceGroup workspace={row.workspace} padded={row.padded} projects={row.projects} />
-      );
-    case "project":
-      return <ProjectGroup project={row.project} padded={row.padded} />;
-    case "agent":
-      return <AgentList agents={[row.agent]} />;
-    default: {
-      const _exhaustive: never = row;
-      return _exhaustive;
-    }
-  }
-}
-
 /** Workspace-grouped chats list. While a workspace is dragged, blocks translate
  *  so neighbors make a gap at the insertion slot (sortable-list motion). */
 export function WorkspaceSortList({ rows }: { rows: ChatsRow[] }) {
-  const blocks = useMemo(() => workspaceBlocks(rows), [rows]);
   const listRef = useRef<HTMLDivElement>(null);
   const metricsRef = useRef<SortMetrics | null>(null);
   const source = useWorkspaceDragStore((s) => s.source);
@@ -113,20 +74,18 @@ export function WorkspaceSortList({ rows }: { rows: ChatsRow[] }) {
 
   return (
     <div ref={listRef} data-workspace-list="" className="relative flex flex-col gap-1">
-      {blocks.map((block) => (
+      {rows.map((row) => (
         <div
-          key={block.id}
-          data-workspace-block={block.id}
+          key={row.id}
+          data-workspace-block={row.id}
           className={
             dragging
               ? "flex flex-col gap-1 transition-transform duration-slow ease-out-quart"
               : "flex flex-col gap-1"
           }
-          style={{ transform: `translateY(${shifts[block.id] ?? 0}px)` }}
+          style={{ transform: `translateY(${shifts[row.id] ?? 0}px)` }}
         >
-          {block.rows.map((row) => (
-            <ChatsRowView key={row.id} row={row} />
-          ))}
+          <WorkspaceGroup workspace={row.workspace} padded={row.padded} />
         </div>
       ))}
     </div>

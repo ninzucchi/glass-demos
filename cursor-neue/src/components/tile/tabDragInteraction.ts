@@ -12,7 +12,6 @@ import type { DropZone, LayoutNode, PaneKind, SplitSide } from "@/types";
 import { canDropInPane, isAgentPinned, isProject } from "@/types";
 import { useTabDragStore, type TabDragSource, type TabDropTarget } from "@/store/tabDrag";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
-import { isFlatLike, useFeatureFlags } from "@/store/useFeatureFlags";
 import * as tree from "@/store/layoutTree";
 import { isOutsideWindows, topElementAt } from "@/components/desktop/geometry";
 import { lockDragSelection } from "@/lib/dragGuard";
@@ -102,11 +101,8 @@ function sidebarDropTarget(
   if (isProject(agent)) {
     const dest = enclosingSection(dropEl, kind);
     const pinned = isAgentPinned(pinnedAgents, agent.id);
-    const flat = isFlatLike(useFeatureFlags.getState().sidebarProjects);
     if (dest === "pinned" && !pinned) return { scope: "sidebar-section", section: "pinned" };
-    // Today: unpin onto Projects. Flat: projects live in Chats.
     if (dest === "projects" && pinned) return { scope: "sidebar-section", section: "projects" };
-    if (dest === "chats" && pinned && flat) return { scope: "sidebar-section", section: "chats" };
     return null;
   }
 

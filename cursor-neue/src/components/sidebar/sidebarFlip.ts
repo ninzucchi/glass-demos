@@ -139,7 +139,6 @@ export function useSidebarFlip(
       s.workspaceOrder.join("\0"),
       s.projectOrder.join("\0"),
       s.agentOrder.join("\0"),
-      s.flatFolderOrder.join("\0"),
       s.pinnedAgents.join("\0"),
       s.agentOrder.map((id) => `${id}:${s.agents[id]?.projectId ?? ""}`).join("\0"),
     ].join("|"),

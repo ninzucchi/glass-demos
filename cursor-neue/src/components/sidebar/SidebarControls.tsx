@@ -17,7 +17,7 @@ import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 const TRAFFIC = ["#ff5f57", "#febc2e", "#28c840"];
 
-/** Funnel next to the Chats header. Picks workspace folders vs a recency list. */
+/** Funnel next to the agent-list header. Picks workspace folders vs recency. */
 export function AgentGroupFilter() {
   const windowId = useWindowId();
   const groupBy = useWindow()?.agentGroupBy ?? "workspace";
@@ -53,8 +53,9 @@ export function AgentGroupFilter() {
   );
 }
 
-/** Chats header trailing: group-by filter plus a cosmetic new-folder control. */
-export function ChatsSectionControls() {
+/** Group-by filter plus a cosmetic new-folder control. Sits on Chats (Today)
+ *  or on Workspaces / Recents (Merged). */
+export function AgentGroupControls() {
   return (
     <div className="flex items-center gap-4">
       <AgentGroupFilter />

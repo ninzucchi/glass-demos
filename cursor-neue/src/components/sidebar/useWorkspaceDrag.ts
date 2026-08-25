@@ -3,7 +3,6 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { isOutsideWindows, newWindowGeo } from "@/components/desktop/geometry";
 import { useWorkspaceDragStore } from "@/store/workspaceDrag";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
-import { useFeatureFlags } from "@/store/useFeatureFlags";
 
 // Movement (px) before a press becomes a drag, so plain clicks still toggle the
 // workspace open/closed. Mirrors TabHandle's threshold.
@@ -19,7 +18,6 @@ export function useDragWorkspaceOut(workspaceId: string, label: string): {
 } {
   const openWorkspaceInNewWindow = useWorkspaceStore((s) => s.openWorkspaceInNewWindow);
   const moveWorkspace = useWorkspaceStore((s) => s.moveWorkspace);
-  const moveSidebarFolder = useWorkspaceStore((s) => s.moveSidebarFolder);
   const dragging = useWorkspaceDragStore((s) => s.source?.workspaceId === workspaceId);
   // Suppress the click-to-collapse that fires right after a drag ends.
   const didDragRef = useRef(false);
@@ -59,13 +57,7 @@ export function useDragWorkspaceOut(workspaceId: string, label: string): {
             openWorkspaceInNewWindow(workspaceId, newWindowGeo({ x: ev.clientX, y: ev.clientY }));
           } else {
             const over = useWorkspaceDragStore.getState().overIndex;
-            if (over != null) {
-              if (useFeatureFlags.getState().sidebarProjects === "flat") {
-                moveSidebarFolder(workspaceId, over);
-              } else {
-                moveWorkspace(workspaceId, over);
-              }
-            }
+            if (over != null) moveWorkspace(workspaceId, over);
           }
         }
       } finally {

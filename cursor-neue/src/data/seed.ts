@@ -254,15 +254,6 @@ export function createSeed(): WorkspaceData {
     agents,
     agentOrder,
     projectOrder: ["p-landing", "p-ios"],
-    flatFolderOrder: [
-      "everysphere",
-      "p-landing",
-      "baby-glass",
-      "cursor-icons",
-      "cursor-ios",
-      "p-ios",
-      "figma-plugin",
-    ],
     // Same agent records as Chats — pin is a sidebar list, not a new kind.
     pinnedAgents: ["a-icn-1", "a-ios-3"],
     // No overrides: every workspace starts on the default pinned set.

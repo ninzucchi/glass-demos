@@ -19,22 +19,16 @@ export type FeatureFlag = string;
  * Add a mode to the array — do not add a second flag for the next option.
  *
  * Seams:
- *  - Sidebar: Projects section vs project folders inside Chats (`Sidebar.tsx`)
- *  - FlatNested: Flat chrome, but workspace grouping nests projects in folders
+ *  - Sidebar chrome: Today nests Pinned under Chats; Merged lifts Pinned and
+ *    drops the Chats header (`Sidebar.tsx`)
  */
-export const SIDEBAR_PROJECTS_MODES = ["off", "split", "flat", "flatNested"] as const;
+export const SIDEBAR_PROJECTS_MODES = ["off", "merged"] as const;
 export type SidebarProjectsMode = (typeof SIDEBAR_PROJECTS_MODES)[number];
 
 export const SIDEBAR_PROJECTS_LABEL: Record<SidebarProjectsMode, string> = {
   off: "Today",
-  split: "Split",
-  flat: "Flat",
-  flatNested: "Flat Nested",
+  merged: "Merged",
 };
-
-/** Flat and FlatNested share chrome: no Projects section, Pinned is top-level. */
-export const isFlatLike = (mode: SidebarProjectsMode): boolean =>
-  mode === "flat" || mode === "flatNested";
 
 interface FeatureFlagState {
   flags: Record<FeatureFlag, boolean>;

@@ -19,7 +19,6 @@ import {
   agentInWorkspace,
   contentScopeId,
   DEFAULT_WORKSPACE_ID,
-  isUnionWorkspaceId,
   isAgentPinned,
   isDraftAgent,
   isProject,
@@ -31,7 +30,6 @@ import {
   sideToDirection,
   sidebarCollapsed,
   TAB_LABEL,
-  unionWorkspaceMemberIds,
   workspaceIdOfScope,
 } from "@/types";
 import { centeredWindowGeo, type Geo } from "@/components/desktop/geometry";
@@ -39,7 +37,6 @@ import { useWindowId } from "@/components/window/WindowContext";
 import * as tree from "@/store/layoutTree";
 import { docToText } from "@/lib/composerDoc";
 import { createSeed } from "@/data/seed";
-import { defaultFlatFolderOrder } from "@/components/sidebar/chatsRows";
 
 export const MAIN_WINDOW_ID = "main";
 
@@ -91,9 +88,6 @@ export interface WorkspaceData {
   /** Sidebar Projects section, in display order. Each id is an agent with
    *  `kind: "project"` — a real chat, plus a folder for children (`projectId`). */
   projectOrder: string[];
-  /** Flat + workspace grouping: one interleaved list of workspace and project
-   *  ids. Today mode ignores this and uses `workspaceOrder` / `projectOrder`. */
-  flatFolderOrder: string[];
   /** Sidebar Pinned section, in display order. Agent ids or project ids.
    *  Those records stay in `agents` / `agentOrder` and leave Chats (or
    *  Projects). A pinned project keeps its children nested. Shared across
@@ -180,8 +174,6 @@ interface WorkspaceActions {
   moveWorkspace: (id: string, toIndex: number) => void;
   /** Move a project to `toIndex` among visible (unpinned) projects. */
   moveProject: (id: string, toIndex: number) => void;
-  /** Move a workspace or project in the Flat mixed folder list. */
-  moveSidebarFolder: (id: string, toIndex: number) => void;
   /** Switch the sidebar between workspace folders and a recency list. */
   setAgentGroupBy: (windowId: string, groupBy: AgentGroupBy) => void;
 
@@ -716,11 +708,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const requested =
             target?.workspaceIds ??
             (target?.workspaceId !== undefined ? [target.workspaceId] : undefined);
-          const expanded = requested?.flatMap((id) =>
-            id && isUnionWorkspaceId(id) ? unionWorkspaceMemberIds(id) : id ? [id] : [],
-          );
           const workspaceIds = normalizeWorkspaceIds(
-            expanded ??
+            requested ??
               (project
                 ? (projectWorkspaceIds(project.id, state.agents, state.agentOrder)[0] ??
                   primaryWorkspaceId(project))
@@ -977,7 +966,6 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             agents,
             agentOrder,
             projectOrder: state.projectOrder.filter((pid) => !removedIds.has(pid)),
-            flatFolderOrder: state.flatFolderOrder.filter((id) => !removedIds.has(id)),
             pinnedAgents: state.pinnedAgents.filter((aid) => !removedIds.has(aid)),
             windows,
             drafts,
@@ -1318,46 +1306,6 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           }
           const rest = state.projectOrder.filter((pid) => !nextVisible.includes(pid));
           set({ projectOrder: [...nextVisible, ...rest] });
-        },
-        moveSidebarFolder: (id, toIndex) => {
-          const state = get();
-          const isFolder =
-            !!state.workspaces[id] || (!!state.agents[id] && isProject(state.agents[id]));
-          if (!isFolder) return;
-          const visible = state.flatFolderOrder.filter((fid) => {
-            if (state.workspaces[fid]) return true;
-            const a = state.agents[fid];
-            return !!a && isProject(a) && !isAgentPinned(state.pinnedAgents, fid);
-          });
-          const from = visible.indexOf(id);
-          let nextVisible: string[];
-          if (from === -1) {
-            nextVisible = visible.slice();
-            nextVisible.splice(Math.max(0, Math.min(toIndex, nextVisible.length)), 0, id);
-          } else {
-            const to = Math.max(0, Math.min(toIndex, visible.length - 1));
-            if (from === to) return;
-            nextVisible = visible.slice();
-            const [item] = nextVisible.splice(from, 1);
-            nextVisible.splice(to, 0, item);
-          }
-          const rest = state.flatFolderOrder.filter((fid) => !nextVisible.includes(fid));
-          const flatFolderOrder = [...nextVisible, ...rest];
-          const workspaceOrder = nextVisible.filter((fid) => !!state.workspaces[fid]);
-          const movedProjects = nextVisible.filter((fid) => {
-            const agent = state.agents[fid];
-            return !!agent && isProject(agent);
-          });
-          const projectOrder = [
-            ...movedProjects,
-            ...state.projectOrder.filter((pid) => !movedProjects.includes(pid)),
-          ];
-          set({
-            flatFolderOrder,
-            workspaceOrder:
-              workspaceOrder.length > 0 ? workspaceOrder : state.workspaceOrder,
-            projectOrder,
-          });
         },
         setAgentGroupBy: (windowId, groupBy) => {
           if (!get().windows[windowId]) return;
@@ -1962,13 +1910,6 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           }
           merged.agents = nextAgents;
         }
-        merged.flatFolderOrder ??= defaultFlatFolderOrder(
-          merged.workspaceOrder,
-          merged.projectOrder,
-          merged.workspaces,
-          merged.agents,
-          merged.agentOrder,
-        );
         const windows = { ...merged.windows };
         for (const [id, win] of Object.entries(windows)) {
           if (!win.chatLayout) {
@@ -1988,7 +1929,6 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           agents: s.agents,
           agentOrder: s.agentOrder,
           projectOrder: s.projectOrder,
-          flatFolderOrder: s.flatFolderOrder,
           pinnedAgents: s.pinnedAgents,
           pinnedTabs: s.pinnedTabs,
           // Only the main window persists (detached are ephemeral); if it was

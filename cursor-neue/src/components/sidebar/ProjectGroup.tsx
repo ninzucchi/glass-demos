@@ -12,7 +12,6 @@ import {
 import { useWindowId } from "@/components/window/WindowContext";
 import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useTabDragStore } from "@/store/tabDrag";
-import { isFlatLike, useFeatureFlags } from "@/store/useFeatureFlags";
 import { beginTabDrag } from "@/components/tile/tabDragInteraction";
 import { isOutsideWindows, newWindowGeo } from "@/components/desktop/geometry";
 import { AgentList } from "@/components/sidebar/AgentList";
@@ -59,7 +58,6 @@ export function ProjectGroup({
   const createAgent = useWorkspaceStore((s) => s.createAgent);
   const togglePinnedAgent = useWorkspaceStore((s) => s.togglePinnedAgent);
   const moveProject = useWorkspaceStore((s) => s.moveProject);
-  const moveSidebarFolder = useWorkspaceStore((s) => s.moveSidebarFolder);
   const toggleSidebarCollapsed = useWorkspaceStore((s) => s.toggleSidebarCollapsed);
   const openAgentInTile = useWorkspaceStore((s) => s.openAgentInTile);
   const openAgentAtChatRoot = useWorkspaceStore((s) => s.openAgentAtChatRoot);
@@ -92,26 +90,15 @@ export function ProjectGroup({
             project.id,
           );
           if (target.section === "pinned" && !pinnedNow) togglePinnedAgent(project.id);
-          else if (
-            (target.section === "projects" || target.section === "chats") &&
-            pinnedNow
-          ) {
+          else if (target.section === "projects" && pinnedNow) {
             togglePinnedAgent(project.id);
             const listIndex = useTabDragStore.getState().listIndex;
-            if (listIndex != null && useFeatureFlags.getState().sidebarProjects === "flat") {
-              moveSidebarFolder(project.id, listIndex);
-            } else if (listIndex != null && !isFlatLike(useFeatureFlags.getState().sidebarProjects)) {
-              moveProject(project.id, listIndex);
-            }
+            if (listIndex != null) moveProject(project.id, listIndex);
           }
           return;
         }
         const listIndex = useTabDragStore.getState().listIndex;
-        if (listIndex != null && useFeatureFlags.getState().sidebarProjects === "flat") {
-          moveSidebarFolder(project.id, listIndex);
-          return;
-        }
-        if (listIndex != null && !isFlatLike(useFeatureFlags.getState().sidebarProjects)) {
+        if (listIndex != null) {
           moveProject(project.id, listIndex);
           return;
         }

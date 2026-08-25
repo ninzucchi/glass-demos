@@ -11,22 +11,26 @@ import {
 import { useWindowId } from "@/components/window/WindowContext";
 import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useTabDragStore } from "@/store/tabDrag";
-import { isFlatLike, useFeatureFlags } from "@/store/useFeatureFlags";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useUiStore } from "@/store/useUiStore";
 import { AgentList } from "@/components/sidebar/AgentList";
 import { useSidebarFlip } from "@/components/sidebar/sidebarFlip";
-import { chatsRows, type ChatsRow } from "@/components/sidebar/chatsRows";
+import {
+  chatsRows,
+  recentsBuckets,
+  recentsSectionId,
+  RECENTS_BUCKET_LABEL,
+} from "@/components/sidebar/chatsRows";
 import { ProjectGroup } from "@/components/sidebar/ProjectGroup";
 import { SidebarCell } from "@/components/sidebar/SidebarCell";
 import { SidebarCollapse } from "@/components/sidebar/SidebarCollapse";
 import { SidebarDropOutline } from "@/components/sidebar/SidebarDropOutline";
 import { WorkspaceGroup } from "@/components/sidebar/WorkspaceGroup";
 import { ProjectSortList } from "@/components/sidebar/ProjectSortList";
-import { FolderSortList } from "@/components/sidebar/FolderSortList";
 import { WorkspaceSortList } from "@/components/sidebar/WorkspaceSortList";
 import { ScrollArea } from "@/components/ui/ScrollArea";
 import {
-  ChatsSectionControls,
+  AgentGroupControls,
   SidebarNavControls,
   SidebarSectionHeader,
   WindowTrafficLights,
@@ -40,19 +44,6 @@ function SidebarHeader() {
       <SidebarNavControls />
     </div>
   );
-}
-
-function chatsSectionLabel(groupBy: AgentGroupBy): string {
-  switch (groupBy) {
-    case "workspace":
-      return "Workspaces";
-    case "updated":
-      return "Recents";
-    default: {
-      const _exhaustive: never = groupBy;
-      return _exhaustive;
-    }
-  }
 }
 
 function SidebarSection({
@@ -147,69 +138,70 @@ function PinnedSection() {
   );
 }
 
-function ChatsRowView({ row }: { row: ChatsRow }) {
-  switch (row.kind) {
+function RecentsSections({ trailing }: { trailing?: ReactNode }) {
+  const agents = useWorkspaceStore((s) => s.agents);
+  const agentOrder = useWorkspaceStore((s) => s.agentOrder);
+  const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
+  const buckets = useMemo(
+    () => recentsBuckets(agents, agentOrder, pinnedAgents),
+    [agentOrder, agents, pinnedAgents],
+  );
+  const shown =
+    buckets.length > 0 ? buckets : trailing ? [{ id: "today" as const, agents: [] }] : [];
+  if (shown.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-3">
+      {shown.map((bucket, i) => (
+        <SidebarSection
+          key={bucket.id}
+          id={recentsSectionId(bucket.id)}
+          label={RECENTS_BUCKET_LABEL[bucket.id]}
+          trailing={i === 0 ? trailing : undefined}
+          dropKind="chats"
+        >
+          <AgentList agents={bucket.agents} />
+        </SidebarSection>
+      ))}
+    </div>
+  );
+}
+
+function WorkspaceChats() {
+  const workspaceOrder = useWorkspaceStore((s) => s.workspaceOrder);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const rows = useMemo(
+    () => chatsRows({ workspaceOrder, workspaces }),
+    [workspaceOrder, workspaces],
+  );
+  return <WorkspaceSortList rows={rows} />;
+}
+
+function GroupSection({
+  groupBy,
+  trailing,
+}: {
+  groupBy: AgentGroupBy;
+  trailing?: ReactNode;
+}) {
+  switch (groupBy) {
     case "workspace":
       return (
-        <WorkspaceGroup workspace={row.workspace} padded={row.padded} projects={row.projects} />
+        <SidebarSection
+          id={SIDEBAR_SECTION.group}
+          label="Workspaces"
+          trailing={trailing}
+          dropKind="chats"
+        >
+          <WorkspaceChats />
+        </SidebarSection>
       );
-    case "project":
-      return <ProjectGroup project={row.project} padded={row.padded} />;
-    case "agent":
-      return <AgentList agents={[row.agent]} />;
+    case "updated":
+      return <RecentsSections trailing={trailing} />;
     default: {
-      const _exhaustive: never = row;
+      const _exhaustive: never = groupBy;
       return _exhaustive;
     }
   }
-}
-
-function SidebarBody({
-  groupBy,
-  flat,
-  nestProjects,
-}: {
-  groupBy: AgentGroupBy;
-  flat: boolean;
-  nestProjects?: boolean;
-}) {
-  const workspaceOrder = useWorkspaceStore((s) => s.workspaceOrder);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const agents = useWorkspaceStore((s) => s.agents);
-  const agentOrder = useWorkspaceStore((s) => s.agentOrder);
-  const projectOrder = useWorkspaceStore((s) => s.projectOrder);
-  const flatFolderOrder = useWorkspaceStore((s) => s.flatFolderOrder);
-  const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
-  const rows = useMemo(
-    () =>
-      chatsRows({
-        groupBy,
-        flat,
-        nestProjects,
-        workspaceOrder,
-        workspaces,
-        agents,
-        agentOrder,
-        projectOrder,
-        pinnedAgents,
-        flatFolderOrder,
-      }),
-    [
-      agentOrder,
-      agents,
-      flat,
-      flatFolderOrder,
-      groupBy,
-      nestProjects,
-      pinnedAgents,
-      projectOrder,
-      workspaceOrder,
-      workspaces,
-    ],
-  );
-  if (flat && groupBy === "workspace") return <FolderSortList rows={rows} />;
-  if (groupBy === "workspace") return <WorkspaceSortList rows={rows} />;
-  return rows.map((row) => <ChatsRowView key={row.id} row={row} />);
 }
 
 export function Sidebar() {
@@ -218,10 +210,13 @@ export function Sidebar() {
   const createAgent = useWorkspaceStore((s) => s.createAgent);
   const openCustomize = useUiStore((s) => s.openCustomize);
   const mode = useFeatureFlags((s) => s.sidebarProjects);
-  const flat = isFlatLike(mode);
-  const nestProjects = mode === "flatNested";
+  const merged = mode === "merged";
   const rootRef = useRef<HTMLElement>(null);
   useSidebarFlip(rootRef, `${mode}:${groupBy}`);
+  const groupControls = <AgentGroupControls />;
+  const group = (
+    <GroupSection groupBy={groupBy} trailing={merged ? groupControls : undefined} />
+  );
 
   return (
     <aside
@@ -245,30 +240,17 @@ export function Sidebar() {
       </div>
 
       <ScrollArea className="min-h-0 flex-1" contentClassName="gap-3 px-2 pb-5 pt-3">
-        {!flat && <ProjectsSection />}
-        {flat ? (
+        <ProjectsSection />
+        {merged ? (
           <>
             <PinnedSection />
-            <SidebarSection
-              id={SIDEBAR_SECTION.group}
-              label="Chats"
-              trailing={<ChatsSectionControls />}
-              dropKind="chats"
-            >
-              <SidebarBody groupBy={groupBy} flat nestProjects={nestProjects} />
-            </SidebarSection>
+            {group}
           </>
         ) : (
-          <SidebarSection id={SIDEBAR_SECTION.chats} label="Chats" trailing={<ChatsSectionControls />}>
+          <SidebarSection id={SIDEBAR_SECTION.chats} label="Chats" trailing={groupControls}>
             <div className="flex flex-col gap-3">
               <PinnedSection />
-              <SidebarSection
-                id={SIDEBAR_SECTION.group}
-                label={chatsSectionLabel(groupBy)}
-                dropKind="chats"
-              >
-                <SidebarBody groupBy={groupBy} flat={false} />
-              </SidebarSection>
+              {group}
             </div>
           </SidebarSection>
         )}

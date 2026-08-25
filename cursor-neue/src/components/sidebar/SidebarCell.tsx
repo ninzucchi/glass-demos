@@ -55,10 +55,9 @@ interface SidebarCellProps {
   leading?: SidebarLeading;
   selected?: boolean;
   muted?: boolean;
-  /** Folder children: 14px indent per level, plus 8px at the deepest
-   *  level (agents in a nested project). `nestLevel` wins when both are set. */
+  /** Folder children: 14px indent per level. `nestLevel` wins when both are set. */
   nested?: boolean;
-  /** Nest depth. Each level adds 14px; level 2+ adds 8px more. */
+  /** Nest depth. Each level adds the same 14px indent. */
   nestLevel?: number;
   onClick?: () => void;
   /** Project folder chevron: expand/collapse without opening the project chat. */
@@ -83,9 +82,9 @@ export function SidebarCell({
   onPointerDown,
 }: SidebarCellProps) {
   // Every row: 20px leading slot, then 6px to the label. Each nest level adds
-  // 14px. Agents under a nested project (level 2+) get 8px more.
+  // the same 14px spacer.
   const level = nestLevel ?? (nested ? 1 : 0);
-  const nestPad = level * 14 + (level >= 2 ? 8 : 0);
+  const nestPad = level * 14;
   const agentLike = leading?.kind === "agent" || (muted && !leading);
   return (
     <button

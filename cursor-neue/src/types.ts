@@ -198,31 +198,6 @@ export function projectWorkspaceIds(
   return out;
 }
 
-/** Projects whose children include `workspaceId`. */
-export const projectsInWorkspace = (
-  agents: Record<string, Agent>,
-  projectOrder: string[],
-  agentOrder: string[],
-  workspaceId: string,
-): Agent[] =>
-  projectOrder
-    .map((id) => agents[id])
-    .filter(
-      (a): a is Agent =>
-        !!a && isProject(a) && projectWorkspaceIds(a.id, agents, agentOrder).includes(workspaceId),
-    );
-
-/** Latest child activity. Falls back to the project's own time when empty. */
-export const projectRecency = (
-  project: Agent,
-  agents: Record<string, Agent>,
-  agentOrder: string[],
-): number => {
-  const children = agentsInProject(agents, agentOrder, project.id);
-  if (children.length === 0) return project.updatedAt;
-  return children.reduce((max, a) => Math.max(max, a.updatedAt), 0);
-};
-
 /** True when `id` is in the sidebar Pinned list. Pin is membership in
  *  `WorkspaceData.pinnedAgents`, not a field on the agent — the chat still
  *  belongs to its workspace. */
@@ -243,8 +218,8 @@ export const pinnedAgentsFor = (
       return true;
     });
 
-/** How the sidebar lists agents. Workspace keeps folder groups; Updated is a
- *  single list ordered by each agent's last-message time. */
+/** How the sidebar lists agents. Workspace keeps folder groups; Updated
+ *  splits chats into Today / Yesterday / Last 7 Days / Older. */
 export type AgentGroupBy = "workspace" | "updated";
 
 /** Keys in `WindowState.collapsedSidebar` for section headers. Workspace and
@@ -262,82 +237,6 @@ export interface Workspace {
   /** Initial sidebar folder state. A window may override this in
    *  `collapsedSidebar`; absent override = this default. */
   collapsed?: boolean;
-}
-
-/** Synthetic folder for a multi-workspace project union. Not in `workspaces`. */
-export const UNION_WORKSPACE_PREFIX = "union:";
-
-export const isUnionWorkspaceId = (id: string): boolean =>
-  id.startsWith(UNION_WORKSPACE_PREFIX);
-
-export function unionWorkspaceMemberIds(id: string): string[] {
-  if (!isUnionWorkspaceId(id)) return [];
-  return id.slice(UNION_WORKSPACE_PREFIX.length).split("+").filter(Boolean);
-}
-
-/** Member ids sorted by workspace name so "A + B" never also appears as "B + A". */
-export function sortedWorkspaceMembers(
-  ids: readonly string[],
-  workspaces: Record<string, Workspace>,
-): string[] {
-  return [...new Set(ids.filter((id) => !!workspaces[id]))].sort((a, b) => {
-    const byName = workspaces[a].name.localeCompare(workspaces[b].name, undefined, {
-      sensitivity: "base",
-    });
-    return byName || a.localeCompare(b);
-  });
-}
-
-export const unionWorkspaceName = (
-  memberIds: readonly string[],
-  workspaces: Record<string, Workspace>,
-): string => memberIds.map((id) => workspaces[id]?.name ?? id).join(" + ");
-
-export interface ProjectFolder {
-  id: string;
-  name: string;
-  memberIds: string[];
-  synthetic: boolean;
-}
-
-/** Folder that should host this project: an existing workspace, or a synthetic
- *  union folder named from sorted member names. */
-export function resolveProjectFolder(
-  projectId: string,
-  agents: Record<string, Agent>,
-  agentOrder: string[],
-  workspaces: Record<string, Workspace>,
-): ProjectFolder {
-  const project = agents[projectId];
-  const fromChildren = projectWorkspaceIds(projectId, agents, agentOrder);
-  const raw = fromChildren.length > 0 ? fromChildren : project ? [...project.workspaceIds] : [];
-  const memberIds = sortedWorkspaceMembers(raw, workspaces);
-  if (memberIds.length === 0) {
-    const fallback = workspaces[DEFAULT_WORKSPACE_ID];
-    return {
-      id: DEFAULT_WORKSPACE_ID,
-      name: fallback?.name ?? DEFAULT_WORKSPACE_ID,
-      memberIds: [DEFAULT_WORKSPACE_ID],
-      synthetic: false,
-    };
-  }
-  if (memberIds.length === 1) {
-    const id = memberIds[0];
-    return { id, name: workspaces[id].name, memberIds, synthetic: false };
-  }
-  const name = unionWorkspaceName(memberIds, workspaces);
-  const existing = Object.values(workspaces).find(
-    (w) => w.name.localeCompare(name, undefined, { sensitivity: "base" }) === 0,
-  );
-  if (existing) {
-    return { id: existing.id, name: existing.name, memberIds, synthetic: false };
-  }
-  return {
-    id: `${UNION_WORKSPACE_PREFIX}${memberIds.join("+")}`,
-    name,
-    memberIds,
-    synthetic: true,
-  };
 }
 
 /** Window override, else `fallback` (workspace.collapsed, or false). */
