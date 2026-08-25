@@ -12,6 +12,7 @@ import type {
   Workspace,
 } from "@/types";
 import type { IconName } from "@/icons/iconNames";
+import { normalizeWorkspaceIds } from "@/types";
 import { MAIN_WINDOW_ID, type WorkspaceData } from "@/store/useWorkspaceStore";
 import { ensurePinnedTabs, makeSplit, makeTab, makeTile } from "@/store/layoutTree";
 
@@ -35,7 +36,7 @@ const daysAgo = (n: number, hour = 12): number => {
 
 function agent(
   id: string,
-  workspaceId: string | null,
+  workspaceIds: string | readonly string[],
   branch: string,
   title: string,
   status: AgentStatus,
@@ -45,7 +46,7 @@ function agent(
 ): Agent {
   return {
     id,
-    workspaceId,
+    workspaceIds: normalizeWorkspaceIds(workspaceIds),
     projectId,
     branch,
     title,
@@ -57,7 +58,7 @@ function agent(
 
 function project(
   id: string,
-  workspaceId: string | null,
+  workspaceIds: string | readonly string[],
   branch: string,
   title: string,
   status: AgentStatus,
@@ -67,7 +68,7 @@ function project(
   color: ProjectColor,
 ): Agent {
   return {
-    ...agent(id, workspaceId, branch, title, status, updatedAt, messages),
+    ...agent(id, workspaceIds, branch, title, status, updatedAt, messages),
     kind: "project",
     icon,
     color,
@@ -126,7 +127,7 @@ export function createSeed(): WorkspaceData {
       u("The blog index loads every post at once."),
       a("Added page-based pagination with 10 per page and prev/next links.", "Worked 18s"),
     ]),
-    agent("a-mkt-2", "everysphere", "ettore/new-landing-page", "Build the new landing page", "running", daysAgo(0, 14), [
+    agent("a-mkt-2", ["everysphere", "baby-glass"], "ettore/new-landing-page", "Build the new landing page", "running", daysAgo(0, 14), [
       u("Start the redesigned landing page on a fresh branch."),
       a("Scaffolded the hero with a primary-toned gradient wash and a single CTA.", "Worked 21s"),
     ], "p-landing"),
@@ -253,6 +254,15 @@ export function createSeed(): WorkspaceData {
     agents,
     agentOrder,
     projectOrder: ["p-landing", "p-ios"],
+    flatFolderOrder: [
+      "everysphere",
+      "p-landing",
+      "baby-glass",
+      "cursor-icons",
+      "cursor-ios",
+      "p-ios",
+      "figma-plugin",
+    ],
     // Same agent records as Chats — pin is a sidebar list, not a new kind.
     pinnedAgents: ["a-icn-1", "a-ios-3"],
     // No overrides: every workspace starts on the default pinned set.

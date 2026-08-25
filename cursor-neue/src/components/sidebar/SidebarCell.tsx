@@ -35,7 +35,7 @@ function Leading({ leading }: { leading: SidebarLeading }) {
     case "agent": {
       const unread = isUnread(leading.status);
       return (
-        <span className="flex w-5 shrink-0 items-center justify-center">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
           <span
             className="h-1.5 w-1.5 rounded-full"
             style={{ background: unread ? "var(--icon-accent)" : "var(--icon-quaternary)" }}
@@ -55,9 +55,11 @@ interface SidebarCellProps {
   leading?: SidebarLeading;
   selected?: boolean;
   muted?: boolean;
-  /** Folder children: 6px indent so the child leading sits in the parent
-   *  icon→label gutter. */
+  /** Folder children: 14px indent per level, plus 8px at the deepest
+   *  level (agents in a nested project). `nestLevel` wins when both are set. */
   nested?: boolean;
+  /** Nest depth. Each level adds 14px; level 2+ adds 8px more. */
+  nestLevel?: number;
   onClick?: () => void;
   /** Project folder chevron: expand/collapse without opening the project chat. */
   onLeadingClick?: () => void;
@@ -74,13 +76,16 @@ export function SidebarCell({
   selected,
   muted,
   nested,
+  nestLevel,
   onClick,
   onLeadingClick,
   onAddClick,
   onPointerDown,
 }: SidebarCellProps) {
-  // Every row: 20px leading slot, then 6px to the label. Nested rows add a
-  // 6px spacer (see `nested`).
+  // Every row: 20px leading slot, then 6px to the label. Each nest level adds
+  // 14px. Agents under a nested project (level 2+) get 8px more.
+  const level = nestLevel ?? (nested ? 1 : 0);
+  const nestPad = level * 14 + (level >= 2 ? 8 : 0);
   const agentLike = leading?.kind === "agent" || (muted && !leading);
   return (
     <button
@@ -115,7 +120,9 @@ export function SidebarCell({
             : "text-secondary hover:bg-quaternary",
       )}
     >
-      {nested && <span className="w-1.5 shrink-0" aria-hidden />}
+      {level > 0 && (
+        <span className="shrink-0" style={{ width: nestPad }} aria-hidden />
+      )}
       {leading ? <Leading leading={leading} /> : <span className="w-5 shrink-0" />}
       {/* Overflowing labels fade out via a right-edge gradient mask instead of an
           ellipsis. flex-1 fills the cell so short labels show fully (the fade

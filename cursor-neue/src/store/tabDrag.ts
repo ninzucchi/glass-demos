@@ -41,7 +41,12 @@ export type TabDropTarget =
   // The cursor is over a window whose content pane is closed (chat fills it, so
   // there are no content tiles to target): releasing opens that window's
   // content and appends the tab.
-  | { scope: "open"; windowId: string; scopeId: string };
+  | { scope: "open"; windowId: string; scopeId: string }
+  // Sidebar agent-row CREATE drag: drop on Pinned pins, drop on Chats unpins
+  // or un-parents, drop on Projects unpins a project, drop on a project folder
+  // re-parents an agent (never a project).
+  | { scope: "sidebar-section"; section: "pinned" | "chats" | "projects" }
+  | { scope: "sidebar-project"; projectId: string };
 
 function sameDropTarget(a: TabDropTarget | null, b: TabDropTarget | null): boolean {
   if (a === b) return true;
@@ -54,6 +59,10 @@ function sameDropTarget(a: TabDropTarget | null, b: TabDropTarget | null): boole
     return a.side === b.side && a.windowId === b.windowId;
   if (a.scope === "open" && b.scope === "open")
     return a.windowId === b.windowId && a.scopeId === b.scopeId;
+  if (a.scope === "sidebar-section" && b.scope === "sidebar-section")
+    return a.section === b.section;
+  if (a.scope === "sidebar-project" && b.scope === "sidebar-project")
+    return a.projectId === b.projectId;
   return false;
 }
 
@@ -67,9 +76,12 @@ interface TabDragState {
   outside: boolean;
   // Live cursor position, used to position the floating drag chip.
   pointer: { x: number; y: number };
+  /** Live insertion slot while reordering a project in the Projects list. */
+  listIndex: number | null;
 
   begin: (source: TabDragSource, pointer: { x: number; y: number }) => void;
   move: (pointer: { x: number; y: number }, target: TabDropTarget | null, outside: boolean) => void;
+  setListIndex: (listIndex: number | null) => void;
   end: () => void;
 }
 
@@ -78,7 +90,9 @@ export const useTabDragStore = create<TabDragState>((set) => ({
   target: null,
   outside: false,
   pointer: { x: 0, y: 0 },
-  begin: (source, pointer) => set({ source, target: null, outside: false, pointer }),
+  listIndex: null,
+  begin: (source, pointer) =>
+    set({ source, target: null, outside: false, pointer, listIndex: null }),
   move: (pointer, target, outside) =>
     set((s) =>
       // Avoid churning `target`/`outside` (which subscribers read) when only the
@@ -87,5 +101,6 @@ export const useTabDragStore = create<TabDragState>((set) => ({
         ? { pointer }
         : { pointer, target, outside },
     ),
-  end: () => set({ source: null, target: null, outside: false }),
+  setListIndex: (listIndex) => set((s) => (s.listIndex === listIndex ? s : { listIndex })),
+  end: () => set({ source: null, target: null, outside: false, listIndex: null }),
 }));

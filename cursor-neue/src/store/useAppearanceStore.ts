@@ -17,7 +17,7 @@ interface AppearanceState {
  *  and desktop wallpaper). Deliberately not persisted: every load starts fresh
  *  in light / left, which also sidesteps any reload theme flash. */
 export const useAppearanceStore = create<AppearanceState>((set) => ({
-  theme: "dark",
+  theme: "light",
   sidebarPlacement: "left",
   wallpaper: 0,
   setTheme: (theme) => set({ theme }),

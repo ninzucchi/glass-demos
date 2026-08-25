@@ -96,11 +96,17 @@ export const PROJECT_COLOR_STROKE: Record<ProjectColor, string> = {
   purple: "var(--purple)",
 };
 
+/** Non-empty workspace membership. Every agent has at least one id. */
+export type WorkspaceIds = readonly [string, ...string[]];
+
 export interface Agent {
   id: string;
   /** Absent = `"agent"`. `"project"` is a first-class chat that can own children. */
   kind?: AgentKind;
-  workspaceId: string | null;
+  /** Workspaces this agent belongs to. Never empty — `normalizeWorkspaceIds`
+   *  is the only writer. A project's stored list is its own chat scope;
+   *  sidebar membership is `projectWorkspaceIds` (union of children). */
+  workspaceIds: WorkspaceIds;
   /** Parent project. Set only on regular agents; those rows leave Chats and
    *  nest under the project in the Projects section. */
   projectId?: string | null;
@@ -129,8 +135,30 @@ export interface Agent {
 /** Sidebar New Agent / Cmd+N land here when no folder or project is specified. */
 export const DEFAULT_WORKSPACE_ID = "everysphere";
 
+/** Collapse any id list to a unique, non-empty membership. Null/empty → default. */
+export function normalizeWorkspaceIds(
+  ids?: readonly (string | null | undefined)[] | string | null,
+): WorkspaceIds {
+  const list = Array.isArray(ids) ? ids : [ids];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const id of list) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  if (out.length === 0) out.push(DEFAULT_WORKSPACE_ID);
+  return out as unknown as WorkspaceIds;
+}
+
+/** First (primary) workspace. Always defined. */
+export const primaryWorkspaceId = (a: Agent): string => a.workspaceIds[0];
+
+export const agentInWorkspace = (a: Agent, workspaceId: string): boolean =>
+  a.workspaceIds.includes(workspaceId);
+
 export const agentKind = (a: Agent): AgentKind => a.kind ?? "agent";
-export const isProject = (a: Agent): boolean => agentKind(a) === "project";
+export const isProject = (a: Agent | undefined): boolean => !!a && agentKind(a) === "project";
 
 /** Regular sidebar chat: not a project, not a thread, not inside a project. */
 export const isChatsAgent = (a: Agent): boolean =>
@@ -151,15 +179,38 @@ export const agentsInProject = (
     .map((id) => agents[id])
     .filter((a): a is Agent => !!a && a.projectId === projectId && !a.thread && !isProject(a));
 
-/** Projects in `projectOrder` that belong to `workspaceId`. */
+/** Union of child agents' workspaces, in first-seen order. Empty when the
+ *  project has no children. */
+export function projectWorkspaceIds(
+  projectId: string,
+  agents: Record<string, Agent>,
+  agentOrder: string[],
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const child of agentsInProject(agents, agentOrder, projectId)) {
+    for (const id of child.workspaceIds) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+/** Projects whose children include `workspaceId`. */
 export const projectsInWorkspace = (
   agents: Record<string, Agent>,
   projectOrder: string[],
+  agentOrder: string[],
   workspaceId: string,
 ): Agent[] =>
   projectOrder
     .map((id) => agents[id])
-    .filter((a): a is Agent => !!a && isProject(a) && a.workspaceId === workspaceId);
+    .filter(
+      (a): a is Agent =>
+        !!a && isProject(a) && projectWorkspaceIds(a.id, agents, agentOrder).includes(workspaceId),
+    );
 
 /** Latest child activity. Falls back to the project's own time when empty. */
 export const projectRecency = (
@@ -178,12 +229,19 @@ export const projectRecency = (
 export const isAgentPinned = (pinnedAgents: string[], id: string): boolean =>
   pinnedAgents.includes(id);
 
-/** Live agents in pin order. Drops stale ids and thread agents. */
+/** Live pinned rows in pin order. Drops stale ids, threads, and children of a
+ *  pinned project (those stay nested under the project folder). */
 export const pinnedAgentsFor = (
   agents: Record<string, Agent>,
   pinnedAgents: string[],
 ): Agent[] =>
-  pinnedAgents.map((id) => agents[id]).filter((a): a is Agent => !!a && !a.thread);
+  pinnedAgents
+    .map((id) => agents[id])
+    .filter((a): a is Agent => {
+      if (!a || a.thread) return false;
+      if (!isProject(a) && a.projectId && pinnedAgents.includes(a.projectId)) return false;
+      return true;
+    });
 
 /** How the sidebar lists agents. Workspace keeps folder groups; Updated is a
  *  single list ordered by each agent's last-message time. */
@@ -206,6 +264,82 @@ export interface Workspace {
   collapsed?: boolean;
 }
 
+/** Synthetic folder for a multi-workspace project union. Not in `workspaces`. */
+export const UNION_WORKSPACE_PREFIX = "union:";
+
+export const isUnionWorkspaceId = (id: string): boolean =>
+  id.startsWith(UNION_WORKSPACE_PREFIX);
+
+export function unionWorkspaceMemberIds(id: string): string[] {
+  if (!isUnionWorkspaceId(id)) return [];
+  return id.slice(UNION_WORKSPACE_PREFIX.length).split("+").filter(Boolean);
+}
+
+/** Member ids sorted by workspace name so "A + B" never also appears as "B + A". */
+export function sortedWorkspaceMembers(
+  ids: readonly string[],
+  workspaces: Record<string, Workspace>,
+): string[] {
+  return [...new Set(ids.filter((id) => !!workspaces[id]))].sort((a, b) => {
+    const byName = workspaces[a].name.localeCompare(workspaces[b].name, undefined, {
+      sensitivity: "base",
+    });
+    return byName || a.localeCompare(b);
+  });
+}
+
+export const unionWorkspaceName = (
+  memberIds: readonly string[],
+  workspaces: Record<string, Workspace>,
+): string => memberIds.map((id) => workspaces[id]?.name ?? id).join(" + ");
+
+export interface ProjectFolder {
+  id: string;
+  name: string;
+  memberIds: string[];
+  synthetic: boolean;
+}
+
+/** Folder that should host this project: an existing workspace, or a synthetic
+ *  union folder named from sorted member names. */
+export function resolveProjectFolder(
+  projectId: string,
+  agents: Record<string, Agent>,
+  agentOrder: string[],
+  workspaces: Record<string, Workspace>,
+): ProjectFolder {
+  const project = agents[projectId];
+  const fromChildren = projectWorkspaceIds(projectId, agents, agentOrder);
+  const raw = fromChildren.length > 0 ? fromChildren : project ? [...project.workspaceIds] : [];
+  const memberIds = sortedWorkspaceMembers(raw, workspaces);
+  if (memberIds.length === 0) {
+    const fallback = workspaces[DEFAULT_WORKSPACE_ID];
+    return {
+      id: DEFAULT_WORKSPACE_ID,
+      name: fallback?.name ?? DEFAULT_WORKSPACE_ID,
+      memberIds: [DEFAULT_WORKSPACE_ID],
+      synthetic: false,
+    };
+  }
+  if (memberIds.length === 1) {
+    const id = memberIds[0];
+    return { id, name: workspaces[id].name, memberIds, synthetic: false };
+  }
+  const name = unionWorkspaceName(memberIds, workspaces);
+  const existing = Object.values(workspaces).find(
+    (w) => w.name.localeCompare(name, undefined, { sensitivity: "base" }) === 0,
+  );
+  if (existing) {
+    return { id: existing.id, name: existing.name, memberIds, synthetic: false };
+  }
+  return {
+    id: `${UNION_WORKSPACE_PREFIX}${memberIds.join("+")}`,
+    name,
+    memberIds,
+    synthetic: true,
+  };
+}
+
 /** Window override, else `fallback` (workspace.collapsed, or false). */
 export const sidebarCollapsed = (
   id: string,
@@ -223,7 +357,7 @@ export const workspaceFolderCollapsed = (
 // (heterogeneous, cross-workspace) would just take precedence in this resolver.
 export type ContentScopeId = string; // "ws:<id>@<branch>" | "agent:<id>" (later: "group:<id>")
 export const contentScopeId = (a: Agent): ContentScopeId =>
-  a.workspaceId ? `ws:${a.workspaceId}@${a.branch}` : `agent:${a.id}`;
+  `ws:${primaryWorkspaceId(a)}@${a.branch}`;
 
 /** Workspace id embedded in a scope id, or null for a standalone-agent scope.
  *  Canonical decoder so the "@<branch>" suffix is split in exactly one place. */

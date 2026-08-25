@@ -59,14 +59,14 @@ function DropdownChip({ label }: { label: string }) {
 
 /** Workspace selector. Null for standalone agents (no workspace to scope to). */
 function WorkspaceChip({ agent }: { agent?: Agent }) {
-  const workspaceId = agent?.workspaceId ?? null;
+  const workspaceId = agent ? agent.workspaceIds[0] : null;
   const name = useWorkspaceStore((s) => (workspaceId ? s.workspaces[workspaceId]?.name : null));
   return name ? <DropdownChip label={name} /> : null;
 }
 
 /** Branch selector. Null for standalone agents (not on a workspace branch). */
 function BranchChip({ agent }: { agent?: Agent }) {
-  const branch = agent?.workspaceId ? agent.branch : null;
+  const branch = agent ? agent.branch : null;
   return branch ? <DropdownChip label={branch} /> : null;
 }
 
@@ -228,7 +228,7 @@ export function Composer({
   agent?: Agent;
 }) {
   // Workspace agents show the workspace/branch selectors (expanded only); standalone don't.
-  const hasContext = !!agent?.workspaceId;
+  const hasContext = !!agent;
   const sendMessage = useWorkspaceStore((s) => s.sendMessage);
   const setDraft = useWorkspaceStore((s) => s.setDraft);
   // Unsent thread text is mirrored to the store so the parent chat's "1 Draft"

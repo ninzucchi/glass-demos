@@ -9,6 +9,7 @@
 // by the library and ignore defaultPrevented, so they work everywhere; Radix is
 // still used for positioning/portaling the content.
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import clsx from "clsx";
 import { cloneElement, isValidElement, useEffect, useRef, useState } from "react";
 import type { ComponentPropsWithoutRef, MouseEvent, ReactElement, ReactNode } from "react";
 
@@ -25,6 +26,7 @@ interface TooltipProps {
   sideOffset?: number;
   /** Hover delay before opening (ms). */
   delay?: number;
+  className?: string;
 }
 
 export function Tooltip({
@@ -34,6 +36,7 @@ export function Tooltip({
   align = "center",
   sideOffset = 6,
   delay = 600,
+  className,
 }: TooltipProps) {
   const [open, setOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
@@ -72,7 +75,10 @@ export function Tooltip({
           side={side}
           align={align}
           sideOffset={sideOffset}
-          className="tooltip-appear z-menu select-none rounded-md bg-elevated px-2 py-1 text-sm text-primary shadow-popover [transform-origin:var(--radix-tooltip-content-transform-origin)]"
+          className={clsx(
+            "tooltip-appear z-menu select-none bg-elevated text-sm text-primary shadow-popover [transform-origin:var(--radix-tooltip-content-transform-origin)]",
+            className ?? "rounded-md px-2 py-1",
+          )}
         >
           {content}
         </TooltipPrimitive.Content>
