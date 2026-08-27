@@ -1,0 +1,42 @@
+.project-board-canvas .react-flow__node {
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: inherit;
+  color: inherit;
+}
+
+.project-board-canvas .react-flow__node.selected {
+  box-shadow: none;
+}
+
+.project-board-canvas .react-flow__handle {
+  width: 8px;
+  height: 8px;
+  border: none;
+  background: var(--icon-tertiary);
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-default);
+}
+
+.project-board-canvas .react-flow__node:hover .react-flow__handle,
+.project-board-canvas .react-flow__handle-connecting,
+.project-board-canvas .react-flow__handle-valid {
+  opacity: 1;
+}
+
+.project-board-canvas .react-flow__edge-path {
+  stroke: var(--border-secondary);
+}
+
+.project-board-canvas .react-flow__connection-path {
+  stroke: var(--icon-tertiary);
+}
+
+.project-board-canvas .react-flow__attribution {
+  background: transparent;
+  color: var(--text-quaternary);
+  font-size: var(--font-size-xs);
+}

@@ -12,7 +12,7 @@ export function workspaceNamesInOrder(
   return workspaceOrder.filter((id) => set.has(id)).map((id) => workspaces[id]?.name ?? id);
 }
 
-/** Right-side hover list of workspaces. Shared by project and agent rows. */
+/** Right-side hover list of workspaces. Used on project rows only. */
 export function SidebarWorkspaceTooltip({
   names,
   children,

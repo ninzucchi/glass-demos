@@ -13,7 +13,8 @@ export function ChatToggle() {
   return (
     <IconButton
       name="agents"
-      size="base"
+      size="lg"
+      color="tertiary"
       active={visible}
       onClick={() => toggleChat(windowId)}
       aria-label={visible ? "Hide agent panel" : "Show agent panel"}

@@ -8,12 +8,14 @@ import type {
   DropZone,
   LayoutNode,
   PaneKind,
+  ProjectColor,
   SplitSide,
   Tab,
   TabType,
   TileNode,
   Workspace,
 } from "@/types";
+import type { IconName } from "@/icons/iconNames";
 import {
   canDropInPane,
   agentInWorkspace,
@@ -22,21 +24,24 @@ import {
   isAgentPinned,
   isDraftAgent,
   isProject,
+  isProjectScope,
   normalizeWorkspaceIds,
   PINNED_TAB_ORDER,
   pinnedTabsFor,
   primaryWorkspaceId,
   projectWorkspaceIds,
+  SIDEBAR_SECTION,
   sideToDirection,
   sidebarCollapsed,
   TAB_LABEL,
   workspaceIdOfScope,
 } from "@/types";
-import { centeredWindowGeo, type Geo } from "@/components/desktop/geometry";
+import { fittedWindowGeo, type Geo } from "@/components/desktop/geometry";
 import { useWindowId } from "@/components/window/WindowContext";
 import * as tree from "@/store/layoutTree";
 import { docToText } from "@/lib/composerDoc";
 import { createSeed } from "@/data/seed";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
 
 export const MAIN_WINDOW_ID = "main";
 
@@ -65,7 +70,8 @@ export interface WindowState {
   collapsedSidebar: Record<string, boolean>;
   /** Sidebar agent grouping for this window. Defaults to workspace folders. */
   agentGroupBy: AgentGroupBy;
-  /** Content per scope ("ws:<id>@<branch>" | "agent:<id>"), independent of other windows. */
+  /** Content per scope ("ws:<id>@<branch>" | "project:<id>" | "agent:<id>").
+   *  A project and its children share `project:<id>`. */
   contentByScope: Record<string, ContentScopeState>;
   /** The agents (chat) pane's layout tree: chat tabs referencing agents via
    *  `Tab.agentId`. Same tree type + transforms as content; per window. */
@@ -75,8 +81,6 @@ export interface WindowState {
   focusedContentTileId?: string;
   /** Desktop position/size; null until first measured (the main window centers). */
   geo: Geo | null;
-  /** Bumped by the green traffic light so the shell snaps the sidebar to max. */
-  sidebarFitNonce?: number;
 }
 
 export interface WorkspaceData {
@@ -114,6 +118,19 @@ interface WorkspaceActions {
       projectId?: string | null;
     },
   ) => void;
+  /** Create a project chat and open it in the focused tile. */
+  createProject: (
+    windowId: string,
+    input: {
+      title?: string;
+      workspaceId: string;
+      icon: IconName;
+      color: ProjectColor;
+      description?: string;
+      /** Named child agents. Empty or omitted creates the project only. */
+      agents?: string[];
+    },
+  ) => void;
   /** Create a new agent (inheriting the tile's context) as a NEW tab in a chat
    *  tile — the chat tab bar's "+" action. */
   addAgentTab: (tileId: string) => void;
@@ -126,6 +143,12 @@ interface WorkspaceActions {
   /** Drop a sidebar agent row onto a chat tile: merge as a tab (activating an
    *  existing tab of that agent in the tile instead of duplicating) or split. */
   openAgentInTile: (agentId: string, tileId: string, zone: DropZone) => void;
+  /** Crumbs: pop the focused chat back to the project parent. */
+  crumbBack: (windowId: string) => void;
+  /** Crumbs: restore the child we last popped from. */
+  crumbForward: (windowId: string) => void;
+  /** Keep an italic ephemeral chat tab as a permanent slot. */
+  pinEphemeralTab: (tileId: string, tabId: string) => void;
   /** Drop a sidebar agent row onto a chat panel's outer edge: full-span pane. */
   openAgentAtChatRoot: (agentId: string, windowId: string, side: SplitSide) => void;
   /** Drop a sidebar agent row onto the desktop: spawn a window with that agent
@@ -137,6 +160,11 @@ interface WorkspaceActions {
   /** Lift a workspace agent or project into the sidebar Pinned list.
    *  Unpin returns an agent to its project or Chats, and a project to Projects. */
   togglePinnedAgent: (id: string) => void;
+  /** Live-update a project's sidebar glyph and tint. */
+  updateProjectAppearance: (
+    id: string,
+    patch: { icon?: IconName; color?: ProjectColor },
+  ) => void;
   /** Re-parent an agent under a project, or `null` to return it to Chats.
    *  A project drop also unpins so the row appears under that folder. */
   moveAgentToProject: (windowId: string, id: string, projectId: string | null) => void;
@@ -260,7 +288,7 @@ interface WorkspaceActions {
    *  footer switcher applies), with normal chrome. */
   openWorkspaceInNewWindow: (workspaceId: string, geo: Geo) => void;
   setWindowGeo: (id: string, geo: Geo) => void;
-  /** Size the window like first load and open the sidebar at its max width. */
+  /** Size the window to the 64px-inset desktop frame. Sidebar width is unchanged. */
   fitWindow: (windowId: string) => void;
   focusWindow: (id: string) => void;
   closeWindow: (id: string) => void;
@@ -275,6 +303,8 @@ interface WorkspaceActions {
 interface EphemeralState {
   drafts: Record<string, string>;
   composerDoc: Record<string, ComposerBlock[]>;
+  /** Crumbs one-level stack: window id → child to restore on mouse-forward. */
+  crumbForward: Record<string, string>;
 }
 
 export type WorkspaceStore = WorkspaceData & EphemeralState & WorkspaceActions;
@@ -286,8 +316,80 @@ const defaultScope = (): ContentScopeState => ({
 });
 
 /** A fresh chat tab bound to an agent. */
-const chatTab = (agent?: Agent): Tab =>
-  tree.makeTab("chat", agent ? { agentId: agent.id, title: agent.title } : {});
+const chatTab = (agent?: Agent, extra?: Partial<Tab>): Tab =>
+  tree.makeTab("chat", {
+    ...(agent ? { agentId: agent.id, title: agent.title } : {}),
+    ...extra,
+  });
+
+const extraTabMode = () => useFeatureFlags.getState().ephemeralTabs;
+
+/** Subagents opened beside a project use one italic replaceable slot. */
+const usesEphemeralSlot = (agent: Agent): boolean =>
+  extraTabMode() === "ephemeral" &&
+  !!agent.projectId &&
+  !isProject(agent) &&
+  !agent.thread;
+
+const usesCrumbRewrite = (): boolean => extraTabMode() === "crumbs";
+
+/** Crumbs keeps one chat in the tile: rewrite the active tab in place. */
+const rewriteTileAgent = (
+  layout: LayoutNode,
+  tileId: string,
+  tile: TileNode,
+  agent: Agent,
+): LayoutNode => {
+  const current = tile.tabs.find((t) => t.id === tile.activeTabId);
+  if (current?.agentId === agent.id) return layout;
+  return tree.updateTab(layout, tileId, tile.activeTabId, {
+    agentId: agent.id,
+    title: agent.title,
+    ephemeral: false,
+  });
+};
+
+/** Remember a child when hopping to its project; otherwise drop the forward slot. */
+const rememberCrumbHop = (
+  crumbForward: Record<string, string> | undefined,
+  windowId: string,
+  from: Agent | undefined,
+  to: Agent,
+): Record<string, string> => {
+  if (from?.id === to.id) return crumbForward ?? {};
+  const next = { ...(crumbForward ?? {}) };
+  if (from && !isProject(from) && from.projectId === to.id && isProject(to)) {
+    next[windowId] = from.id;
+    return next;
+  }
+  delete next[windowId];
+  return next;
+};
+
+/** Activate an existing tab for `agent`, or write the tile's single ephemeral
+ *  slot (replace if one is already open). */
+const placeInEphemeralSlot = (
+  layout: LayoutNode,
+  tileId: string,
+  tile: TileNode,
+  agent: Agent,
+): LayoutNode => {
+  const existing = tile.tabs.find((t) => t.agentId === agent.id);
+  if (existing) return tree.setActiveTab(layout, tileId, existing.id);
+  const slot = tile.tabs.find((t) => t.ephemeral);
+  if (slot) {
+    return tree.setActiveTab(
+      tree.updateTab(layout, tileId, slot.id, {
+        agentId: agent.id,
+        title: agent.title,
+        ephemeral: true,
+      }),
+      tileId,
+      slot.id,
+    );
+  }
+  return tree.insertTabIntoTile(layout, tileId, chatTab(agent, { ephemeral: true }), "tab");
+};
 
 /** Starting thread title: "New Thread · {parent}", parent capped so the whole
  *  title stays tab-sized. */
@@ -332,18 +434,19 @@ const scopeIdOfWindow = (state: WorkspaceData, win: WindowState): string => {
  *  and scope creation so island and tab group can never disagree. */
 const withPinnedLeading = tree.ensurePinnedTabs;
 
-/** A fresh content scope for a workspace agent: the default layout with the
- *  workspace's pinned tabs seeded in (so the pinned set always exists as real
- *  tabs in the tab group, matching the island). Starts closed — opening the
- *  pane is an explicit action (`openContentScope`, a drop, etc.). */
+/** A fresh content scope. Workspace agents get the default layout plus pinned
+ *  tabs. Project agents get one Project tab. Both start closed. */
 const seededScope = (
   pinnedTabs: Record<string, TabType[]>,
   scopeId: string,
-): ContentScopeState => ({
-  layout: withPinnedLeading(pinnedTabs, scopeId, tree.makeDefaultLayout()),
-  open: false,
-  cleared: false,
-});
+): ContentScopeState =>
+  isProjectScope(scopeId)
+    ? { layout: tree.makeProjectLayout(), open: false, cleared: false }
+    : {
+        layout: withPinnedLeading(pinnedTabs, scopeId, tree.makeDefaultLayout()),
+        open: false,
+        cleared: false,
+      };
 
 /** Open a content scope, reseeding the workspace's main defaults when the
  *  scope was emptied (last tab closed) or has no tabs. An empty pinned override
@@ -355,6 +458,13 @@ const openContentScope = (
 ): { scope: ContentScopeState; pinnedTabs: Record<string, TabType[]> } => {
   const needsSeed = !!cur.cleared || tree.allTabs(cur.layout).length === 0;
   if (!needsSeed) return { scope: { ...cur, open: true, cleared: false }, pinnedTabs };
+
+  if (isProjectScope(scopeId)) {
+    return {
+      pinnedTabs,
+      scope: { layout: tree.makeProjectLayout(), open: true, cleared: false },
+    };
+  }
 
   let nextPinned = pinnedTabs;
   const workspaceId = workspaceIdOfScope(scopeId);
@@ -402,20 +512,21 @@ const layoutAt = (state: WorkspaceData, loc: NodeLocation): LayoutNode => {
   return (win.contentByScope[loc.scopeId ?? ""] ?? defaultScope()).layout;
 };
 
-/** Opening a chat marks it read: running/attention (accent dot) → idle. */
+/** Opening a chat marks it read: running/attention (accent dot) → idle.
+ *  Project children keep the status from seed so the board columns stay put. */
 const withAgentOpened = (
   agents: Record<string, Agent>,
   id: string,
 ): Record<string, Agent> => {
   const agent = agents[id];
   if (!agent || agent.status === "idle") return agents;
+  if (agent.projectId && !isProject(agent)) return agents;
   return { ...agents, [id]: { ...agent, status: "idle" } };
 };
 
 /** Point a window at `agent`: set `activeAgentId` and lazily seed its content
- *  scope (the single seam that swaps the right-hand pane per branch context).
- *  Runs only inside actions, so it reads the live pinned sets off the store to
- *  seed the workspace's pinned tabs into a fresh scope. */
+ *  scope. Project members reuse the project's scope (same open state, layout,
+ *  and selected tab). Workspace agents seed from pinned tabs. */
 const withActiveAgent = (win: WindowState, agent: Agent): WindowState => {
   const scopeId = contentScopeId(agent);
   if (win.contentByScope[scopeId]) return { ...win, activeAgentId: agent.id };
@@ -667,6 +778,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         ...createSeed(),
         drafts: {},
         composerDoc: {},
+        crumbForward: {},
 
         // Sidebar selection: if the agent already has a chat tab, activate it in
         // its tile; otherwise rewrite the focused tile's active tab in place (no
@@ -679,17 +791,23 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           if (!win || !agent) return;
           const existing = tree.findTab(win.chatLayout, (t) => t.agentId === id);
           let chatLayout: LayoutNode;
-          if (existing) {
+          if (usesCrumbRewrite()) {
+            const focused = focusedChatTile(win);
+            chatLayout = rewriteTileAgent(win.chatLayout, focused.id, focused, agent);
+          } else if (existing) {
             chatLayout = tree.setActiveTab(win.chatLayout, existing.tile.id, existing.tab.id);
           } else {
             const focused = focusedChatTile(win);
-            chatLayout = tree.updateTab(win.chatLayout, focused.id, focused.activeTabId, {
-              agentId: id,
-              title: agent.title,
-            });
+            chatLayout = usesEphemeralSlot(agent)
+              ? placeInEphemeralSlot(win.chatLayout, focused.id, focused, agent)
+              : tree.updateTab(win.chatLayout, focused.id, focused.activeTabId, {
+                  agentId: id,
+                  title: agent.title,
+                });
           }
           set({
             agents: withAgentOpened(state.agents, id),
+            crumbForward: rememberCrumbHop(state.crumbForward, windowId, state.agents[win.activeAgentId], agent),
             windows: {
               ...state.windows,
               [windowId]: withActiveAgent({ ...win, chatLayout }, agent),
@@ -742,14 +860,23 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           };
           const scopeId = contentScopeId(newAgent);
           // Like sidebar selection, show the new agent in the focused tile's
-          // active tab (rewrite in place, no accumulation).
+          // active tab (rewrite in place, no accumulation). A project child
+          // uses the one ephemeral slot so the project tab stays put.
           const focused = focusedChatTile(win);
-          const chatLayout = tree.updateTab(win.chatLayout, focused.id, focused.activeTabId, {
-            agentId: id,
-            title,
-          });
+          const chatLayout = usesEphemeralSlot(newAgent)
+            ? placeInEphemeralSlot(win.chatLayout, focused.id, focused, newAgent)
+            : tree.updateTab(win.chatLayout, focused.id, focused.activeTabId, {
+                agentId: id,
+                title,
+              });
           set({
             agents: { ...state.agents, [id]: newAgent },
+            crumbForward: rememberCrumbHop(
+              state.crumbForward,
+              windowId,
+              state.agents[win.activeAgentId],
+              newAgent,
+            ),
             // Prepend so the row stays within the group's first visible rows
             // (WorkspaceGroup slices to 3) rather than hiding behind "See more".
             agentOrder: [id, ...state.agentOrder],
@@ -775,6 +902,86 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             },
           });
           discardOrphanedDrafts();
+        },
+
+        createProject: (windowId, input) => {
+          const state = get();
+          const win = state.windows[windowId];
+          if (!win) return;
+          const workspaceId = state.workspaces[input.workspaceId]
+            ? input.workspaceId
+            : DEFAULT_WORKSPACE_ID;
+          const workspaceIds = normalizeWorkspaceIds(workspaceId);
+          const title = input.title?.trim() || "New Project";
+          const id = tree.uid("p");
+          const now = Date.now();
+          const newProject: Agent = {
+            id,
+            kind: "project",
+            workspaceIds,
+            branch: "main",
+            title,
+            status: "idle",
+            updatedAt: now,
+            messages: input.description
+              ? [
+                  { role: "user", text: input.description },
+                  {
+                    role: "agent",
+                    text: "Scoped the work and opened child agents for the first slice.",
+                    tool: "Worked 5s",
+                  },
+                ]
+              : [],
+            icon: input.icon,
+            color: input.color,
+            description: input.description,
+          };
+          const childStatuses: Agent["status"][] = ["running", "unread", "attention", "idle"];
+          const children: Agent[] = (input.agents ?? []).map((agentTitle, index) => ({
+            id: tree.uid("a"),
+            workspaceIds,
+            projectId: id,
+            branch: "main",
+            title: agentTitle,
+            status: childStatuses[index % childStatuses.length],
+            updatedAt: now - (index + 1) * 3_600_000,
+            messages: [
+              { role: "user", text: `Take on ${agentTitle}.` },
+              { role: "agent", text: "Starting from the project brief.", tool: "Worked 4s" },
+            ],
+          }));
+          const nextAgents = { ...state.agents, [id]: newProject };
+          for (const child of children) nextAgents[child.id] = child;
+          const scopeId = contentScopeId(newProject);
+          const focused = focusedChatTile(win);
+          const chatLayout = tree.updateTab(win.chatLayout, focused.id, focused.activeTabId, {
+            agentId: id,
+            title,
+          });
+          set({
+            agents: nextAgents,
+            agentOrder: [id, ...children.map((child) => child.id), ...state.agentOrder],
+            projectOrder: [id, ...state.projectOrder],
+            windows: {
+              ...state.windows,
+              [windowId]: {
+                ...win,
+                activeAgentId: id,
+                chatCollapsed: false,
+                chatLayout,
+                collapsedSidebar: {
+                  ...win.collapsedSidebar,
+                  [SIDEBAR_SECTION.projects]: false,
+                  [workspaceId]: false,
+                  [id]: false,
+                },
+                contentByScope: win.contentByScope[scopeId]
+                  ? win.contentByScope
+                  : { ...win.contentByScope, [scopeId]: seededScope(state.pinnedTabs, scopeId) },
+              },
+            },
+          });
         },
 
         addAgentTab: (tileId) => {
@@ -811,10 +1018,20 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             messages: [],
             draft: true,
           };
-          const chatLayout = tree.addTab(win.chatLayout, tileId, "chat", { agentId: id, title });
+          const chatLayout = usesCrumbRewrite()
+            ? rewriteTileAgent(win.chatLayout, tileId, tile, newAgent)
+            : usesEphemeralSlot(newAgent)
+              ? placeInEphemeralSlot(win.chatLayout, tileId, tile, newAgent)
+              : tree.addTab(win.chatLayout, tileId, "chat", { agentId: id, title });
           set({
             agents: { ...state.agents, [id]: newAgent },
             agentOrder: [id, ...state.agentOrder],
+            crumbForward: rememberCrumbHop(
+              state.crumbForward,
+              loc.windowId,
+              state.agents[win.activeAgentId],
+              newAgent,
+            ),
             windows: {
               ...state.windows,
               [loc.windowId]: withActiveAgent({ ...win, chatLayout }, newAgent),
@@ -857,17 +1074,85 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           // Merging into a tile that already shows this agent activates the
           // existing tab instead of duplicating it (splits still mirror).
           const existing = zone === "tab" ? tile.tabs.find((t) => t.agentId === agentId) : undefined;
-          const chatLayout = existing
-            ? tree.setActiveTab(win.chatLayout, tileId, existing.id)
-            : tree.insertTabIntoTile(win.chatLayout, tileId, chatTab(agent), zone);
+          const chatLayout =
+            zone === "tab" && usesCrumbRewrite()
+              ? rewriteTileAgent(win.chatLayout, tileId, tile, agent)
+              : existing
+                ? tree.setActiveTab(win.chatLayout, tileId, existing.id)
+                : zone === "tab" && usesEphemeralSlot(agent)
+                  ? placeInEphemeralSlot(win.chatLayout, tileId, tile, agent)
+                  : tree.insertTabIntoTile(win.chatLayout, tileId, chatTab(agent), zone);
           set({
             agents: withAgentOpened(state.agents, agentId),
+            crumbForward: rememberCrumbHop(
+              state.crumbForward,
+              loc.windowId,
+              state.agents[win.activeAgentId],
+              agent,
+            ),
             windows: {
               ...state.windows,
               [loc.windowId]: withActiveAgent({ ...win, chatLayout }, agent),
             },
           });
           discardOrphanedDrafts();
+        },
+
+        crumbBack: (windowId) => {
+          if (!usesCrumbRewrite()) return;
+          const state = get();
+          const win = state.windows[windowId];
+          const current = win ? state.agents[win.activeAgentId] : undefined;
+          const parentId = current && !isProject(current) ? current.projectId : null;
+          const parent = parentId ? state.agents[parentId] : undefined;
+          if (!win || !current || !parent || !isProject(parent)) return;
+          const focused = focusedChatTile(win);
+          const chatLayout = rewriteTileAgent(win.chatLayout, focused.id, focused, parent);
+          set({
+            agents: withAgentOpened(state.agents, parent.id),
+            crumbForward: rememberCrumbHop(state.crumbForward, windowId, current, parent),
+            windows: {
+              ...state.windows,
+              [windowId]: withActiveAgent({ ...win, chatLayout }, parent),
+            },
+          });
+        },
+
+        crumbForward: (windowId) => {
+          if (!usesCrumbRewrite()) return;
+          const state = get();
+          const win = state.windows[windowId];
+          const childId = state.crumbForward[windowId];
+          const child = childId ? state.agents[childId] : undefined;
+          if (!win || !child) return;
+          const focused = focusedChatTile(win);
+          const chatLayout = rewriteTileAgent(win.chatLayout, focused.id, focused, child);
+          set({
+            agents: withAgentOpened(state.agents, child.id),
+            crumbForward: rememberCrumbHop(
+              state.crumbForward,
+              windowId,
+              state.agents[win.activeAgentId],
+              child,
+            ),
+            windows: {
+              ...state.windows,
+              [windowId]: withActiveAgent({ ...win, chatLayout }, child),
+            },
+          });
+        },
+
+        pinEphemeralTab: (tileId, tabId) => {
+          const state = get();
+          const loc = locate(state, tileId);
+          if (!loc || loc.pane !== "chat") return;
+          const win = state.windows[loc.windowId];
+          const tab = tree.findTile(win.chatLayout, tileId)?.tabs.find((t) => t.id === tabId);
+          if (!tab?.ephemeral) return;
+          const chatLayout = tree.updateTab(win.chatLayout, tileId, tabId, { ephemeral: false });
+          set({
+            windows: { ...state.windows, [loc.windowId]: { ...win, chatLayout } },
+          });
         },
 
         openAgentAtChatRoot: (agentId, windowId, side) => {
@@ -970,6 +1255,15 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             windows,
             drafts,
             composerDoc,
+          });
+        },
+
+        updateProjectAppearance: (id, patch) => {
+          const state = get();
+          const agent = state.agents[id];
+          if (!agent || !isProject(agent)) return;
+          set({
+            agents: { ...state.agents, [id]: { ...agent, ...patch } },
           });
         },
 
@@ -1827,13 +2121,12 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         fitWindow: (windowId) => {
           const win = get().windows[windowId];
           if (!win) return;
-          const geo = centeredWindowGeo() ?? win.geo;
+          const geo = fittedWindowGeo() ?? win.geo;
           if (!geo) return;
           patchWindow(windowId, {
             geo,
             sidebarCollapsed: false,
             chatCollapsed: false,
-            sidebarFitNonce: (win.sidebarFitNonce ?? 0) + 1,
           });
         },
         focusWindow: (id) => {
@@ -1872,10 +2165,10 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         },
 
         reset: () => {
-          // Snap the main window to the optically-centered default size so a
-          // reset lands in the same frame as the Center screenshot / first load.
+          // Snap the main window to the fitted desktop frame so a reset matches
+          // first load.
           const seed = createSeed();
-          const geo = centeredWindowGeo();
+          const geo = fittedWindowGeo();
           const main = seed.windows[MAIN_WINDOW_ID];
           if (main && geo) {
             seed.windows = {
@@ -1883,12 +2176,12 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
               [MAIN_WINDOW_ID]: { ...main, geo },
             };
           }
-          set({ ...seed, drafts: {}, composerDoc: {} });
+          set({ ...seed, drafts: {}, composerDoc: {}, crumbForward: {} });
         },
       };
     },
     {
-      name: "unification-demo-v18",
+      name: "unification-demo-v22",
       // No versioning/migrations: state still persists and reloads across
       // refreshes, but we don't carry backwards compatibility. To force a clean
       // reset, change `name` (or clear the localStorage entry).
@@ -1900,24 +2193,44 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         merged.pinnedAgents ??= [];
         merged.projectOrder ??= [];
         if (merged.agents) {
+          const seedAgents = createSeed().agents;
           const nextAgents: Record<string, Agent> = {};
           for (const [id, agent] of Object.entries(merged.agents)) {
             const legacy = agent as Agent & { workspaceId?: string | null };
             nextAgents[id] = {
               ...agent,
               workspaceIds: normalizeWorkspaceIds(legacy.workspaceIds ?? legacy.workspaceId),
+              description: seedAgents[id]?.description ?? agent.description,
+              title: seedAgents[id]?.title ?? agent.title,
             };
           }
           merged.agents = nextAgents;
         }
         const windows = { ...merged.windows };
         for (const [id, win] of Object.entries(windows)) {
+          let next = win;
           if (!win.chatLayout) {
-            windows[id] = {
+            next = {
               ...win,
               chatLayout: defaultChatLayout(merged.agents[win.activeAgentId]),
             };
           }
+          if (merged.agents) {
+            let contentByScope = next.contentByScope;
+            for (const agent of Object.values(merged.agents)) {
+              if (!isProject(agent)) continue;
+              const sid = contentScopeId(agent);
+              if (contentByScope[sid]) continue;
+              contentByScope = {
+                ...contentByScope,
+                [sid]: seededScope(merged.pinnedTabs ?? {}, sid),
+              };
+            }
+            if (contentByScope !== next.contentByScope) {
+              next = { ...next, contentByScope };
+            }
+          }
+          windows[id] = next;
         }
         return { ...merged, windows };
       },

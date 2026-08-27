@@ -27,7 +27,9 @@ import { SidebarCollapse } from "@/components/sidebar/SidebarCollapse";
 import { SidebarDropOutline } from "@/components/sidebar/SidebarDropOutline";
 import { WorkspaceGroup } from "@/components/sidebar/WorkspaceGroup";
 import { ProjectSortList } from "@/components/sidebar/ProjectSortList";
+import { SidebarFooter } from "@/components/sidebar/SidebarFooter";
 import { WorkspaceSortList } from "@/components/sidebar/WorkspaceSortList";
+import { Icon } from "@/components/ui/Icon";
 import { ScrollArea } from "@/components/ui/ScrollArea";
 import {
   AgentGroupControls,
@@ -39,7 +41,7 @@ import {
 function SidebarHeader() {
   // Traffic lights, then the toggle+search control group (its own tight gap).
   return (
-    <div className="flex h-toolbar shrink-0 items-center gap-2 pl-3.5 pr-2">
+    <div className="flex h-[var(--titlebar-h)] shrink-0 items-center gap-2 pl-3.5 pr-2">
       <WindowTrafficLights />
       <SidebarNavControls />
     </div>
@@ -87,6 +89,21 @@ function SidebarSection({
   );
 }
 
+function NewProjectButton() {
+  const windowId = useWindowId();
+  const openNewProject = useUiStore((s) => s.openNewProject);
+  return (
+    <button
+      type="button"
+      aria-label="New project"
+      onClick={() => openNewProject(windowId)}
+      className="flex size-4 shrink-0 items-center justify-center text-[color:var(--icon-tertiary)] hover:text-[color:var(--icon-secondary)]"
+    >
+      <Icon name="plus" size="base" color="inherit" />
+    </button>
+  );
+}
+
 function ProjectsSection() {
   const agents = useWorkspaceStore((s) => s.agents);
   const projectOrder = useWorkspaceStore((s) => s.projectOrder);
@@ -106,10 +123,14 @@ function ProjectsSection() {
     const agent = useWorkspaceStore.getState().agents[id];
     return !!agent && isProject(agent);
   });
-  if (projects.length === 0 && !draggingProject) return null;
   return (
-    <SidebarSection id={SIDEBAR_SECTION.projects} label="Projects" dropKind="projects">
-      <ProjectSortList projects={projects} />
+    <SidebarSection
+      id={SIDEBAR_SECTION.projects}
+      label="Projects"
+      dropKind="projects"
+      trailing={<NewProjectButton />}
+    >
+      {(projects.length > 0 || draggingProject) && <ProjectSortList projects={projects} />}
     </SidebarSection>
   );
 }
@@ -239,7 +260,7 @@ export function Sidebar() {
         />
       </div>
 
-      <ScrollArea className="min-h-0 flex-1" contentClassName="gap-3 px-2 pb-5 pt-3">
+      <ScrollArea className="min-h-0 flex-1" contentClassName="gap-3 px-2 pb-3 pt-3">
         <ProjectsSection />
         {merged ? (
           <>
@@ -255,6 +276,7 @@ export function Sidebar() {
           </SidebarSection>
         )}
       </ScrollArea>
+      <SidebarFooter />
     </aside>
   );
 }

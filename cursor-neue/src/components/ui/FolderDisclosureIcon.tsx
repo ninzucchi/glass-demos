@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Icon, type IconName } from "@/components/ui/Icon";
+import { Icon, type IconName, type IconSize } from "@/components/ui/Icon";
 
 // Shared CSS group marker that the disclosure swap hangs off of. The parent row
 // button MUST carry this class (see FolderDisclosureIcon below).
@@ -18,6 +18,7 @@ export function FolderDisclosureIcon({
   hitTarget,
   icon,
   iconColor,
+  iconSize = "base",
 }: {
   open: boolean;
   hitTarget?: boolean;
@@ -25,6 +26,7 @@ export function FolderDisclosureIcon({
   icon?: IconName;
   /** Stroke for the resting glyph only. Chevron stays icon-secondary. */
   iconColor?: string;
+  iconSize?: IconSize;
 }) {
   const restIcon = icon ?? (open ? "folder-open" : "folder");
   return (
@@ -41,14 +43,14 @@ export function FolderDisclosureIcon({
     >
       <Icon
         name={restIcon}
-        size="base"
+        size={iconSize}
         color={iconColor ? "inherit" : "secondary"}
         className="group-hover/disclosure:opacity-0"
         style={iconColor ? { color: iconColor } : undefined}
       />
       <Icon
         name="chevron-right"
-        size="base"
+        size={iconSize}
         color="secondary"
         className={clsx(
           "absolute opacity-0 transition-transform duration-slow ease-out-quart group-hover/disclosure:opacity-100",

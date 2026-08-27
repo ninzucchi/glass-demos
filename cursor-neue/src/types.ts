@@ -4,7 +4,7 @@ import type { IconName } from "@/icons/iconNames";
 
 // "chat" is a tab type too (same Tile/Tab engine) but it is only used by the
 // Chat panel and is NOT offered in the Content panel's + menu.
-export type TabType = "chat" | "files" | "browser" | "terminal" | "canvas" | "review";
+export type TabType = "chat" | "files" | "browser" | "terminal" | "canvas" | "review" | "project";
 
 export interface Tab {
   id: string;
@@ -15,6 +15,9 @@ export interface Tab {
   /** Chat tabs only: the agent whose conversation this tab shows. Titles/icons
    *  derive from the agent at render time, so renames stay live. */
   agentId?: string;
+  /** Chat tabs only: one replaceable slot beside a project. Italic until the
+   *  user double-clicks to keep it. */
+  ephemeral?: boolean;
 }
 
 // The two tile-hosting panes. Both share the same layout tree + tile engine;
@@ -61,9 +64,25 @@ export const sideToDirection = (side: SplitSide): SplitDirection =>
 export type DropZone = SplitSide | "tab";
 
 // Sidebar entities. Content is shared per "scope" (today: workspace, else the agent itself).
-// Live sidebar-dot state: idle = default/read (quaternary); running and
-// attention = unread (accent). Opening the chat writes idle.
-export type AgentStatus = "idle" | "running" | "attention";
+// Live sidebar-dot + project-board column. `idle` is Done / read.
+// `unread` is new activity that is not blocking. `attention` needs a reply.
+// `running` is Working. Opening the chat writes idle.
+export type AgentStatus = "idle" | "running" | "attention" | "unread";
+
+export const AGENT_STATUS_LABEL: Record<AgentStatus, string> = {
+  attention: "Needs Attention",
+  unread: "Unread",
+  running: "Working",
+  idle: "Done",
+};
+
+/** Project board column order (left to right). */
+export const AGENT_BOARD_STATUSES: AgentStatus[] = [
+  "attention",
+  "unread",
+  "running",
+  "idle",
+];
 
 // A single chat turn. `tool` is an agent-only status line (e.g. "Worked 12s")
 // rendered just above the message text.
@@ -89,11 +108,98 @@ export interface ThreadRef {
 export type AgentKind = "agent" | "project";
 
 /** Cursor color-family tokens used as a project icon stroke. */
-export type ProjectColor = "blue" | "purple";
+export const PROJECT_COLORS = [
+  "default",
+  "green",
+  "cyan",
+  "blue",
+  "purple",
+  "magenta",
+  "orange",
+  "yellow",
+  "red",
+  "brand",
+] as const;
+export type ProjectColor = (typeof PROJECT_COLORS)[number];
+
+export const PROJECT_COLOR_LABEL: Record<ProjectColor, string> = {
+  default: "Default",
+  green: "Green",
+  cyan: "Cyan",
+  blue: "Blue",
+  purple: "Purple",
+  magenta: "Magenta",
+  orange: "Orange",
+  yellow: "Yellow",
+  red: "Red",
+  brand: "Brand",
+};
 
 export const PROJECT_COLOR_STROKE: Record<ProjectColor, string> = {
+  default: "var(--icon-secondary)",
+  green: "var(--green)",
+  cyan: "var(--cyan)",
   blue: "var(--blue)",
   purple: "var(--purple)",
+  magenta: "var(--magenta)",
+  orange: "var(--orange)",
+  yellow: "var(--yellow)",
+  red: "var(--red)",
+  brand: "var(--brand)",
+};
+
+export const PROJECT_COLOR_SWATCH: Record<ProjectColor, string> = {
+  default: "var(--bg-quaternary)",
+  green: "var(--green)",
+  cyan: "var(--cyan)",
+  blue: "var(--blue)",
+  purple: "var(--purple)",
+  magenta: "var(--magenta)",
+  orange: "var(--orange)",
+  yellow: "var(--yellow)",
+  red: "var(--red)",
+  brand: "var(--brand)",
+};
+
+/** Selected and hover wash for a project row. */
+export const PROJECT_COLOR_BG: Record<ProjectColor, string> = {
+  default: "bg-quaternary",
+  green: "bg-green-quaternary",
+  cyan: "bg-cyan-quaternary",
+  blue: "bg-blue-quaternary",
+  purple: "bg-purple-quaternary",
+  magenta: "bg-magenta-quaternary",
+  orange: "bg-orange-quaternary",
+  yellow: "bg-yellow-quaternary",
+  red: "bg-red-quaternary",
+  brand: "bg-[color-mix(in_oklab,var(--brand)_8%,transparent)]",
+};
+
+export const PROJECT_COLOR_HOVER_BG: Record<ProjectColor, string> = {
+  default: "hover:bg-quaternary",
+  green: "hover:bg-green-quaternary",
+  cyan: "hover:bg-cyan-quaternary",
+  blue: "hover:bg-blue-quaternary",
+  purple: "hover:bg-purple-quaternary",
+  magenta: "hover:bg-magenta-quaternary",
+  orange: "hover:bg-orange-quaternary",
+  yellow: "hover:bg-yellow-quaternary",
+  red: "hover:bg-red-quaternary",
+  brand: "hover:bg-[color-mix(in_oklab,var(--brand)_8%,transparent)]",
+};
+
+/** Icon well: one step above the row hover wash so the shape still reads. */
+export const PROJECT_COLOR_WELL: Record<ProjectColor, string> = {
+  default: "bg-tertiary",
+  green: "bg-green-tertiary",
+  cyan: "bg-cyan-tertiary",
+  blue: "bg-blue-tertiary",
+  purple: "bg-purple-tertiary",
+  magenta: "bg-magenta-tertiary",
+  orange: "bg-orange-tertiary",
+  yellow: "bg-yellow-tertiary",
+  red: "bg-red-tertiary",
+  brand: "bg-[color-mix(in_oklab,var(--brand)_12%,transparent)]",
 };
 
 /** Non-empty workspace membership. Every agent has at least one id. */
@@ -130,6 +236,8 @@ export interface Agent {
   icon?: IconName;
   /** Project-only: Cursor color-family token for the icon stroke. */
   color?: ProjectColor;
+  /** Project-only: one-line summary under the title in the project thread header. */
+  description?: string;
 }
 
 /** Sidebar New Agent / Cmd+N land here when no folder or project is specified. */
@@ -169,6 +277,16 @@ export const isChatsAgent = (a: Agent): boolean =>
 export const isDraftAgent = (a: Agent | undefined): boolean =>
   !!a && !!a.draft && !a.thread && !isProject(a);
 
+/** First line of the latest agent reply, or empty when none exists. */
+export const lastAgentReply = (agent: Agent): string => {
+  for (let i = agent.messages.length - 1; i >= 0; i--) {
+    const message = agent.messages[i];
+    if (message.role !== "agent") continue;
+    return message.text.split("\n")[0]?.trim() ?? "";
+  }
+  return "";
+};
+
 /** Agents nested under a project, in `agentOrder`. */
 export const agentsInProject = (
   agents: Record<string, Agent>,
@@ -179,8 +297,8 @@ export const agentsInProject = (
     .map((id) => agents[id])
     .filter((a): a is Agent => !!a && a.projectId === projectId && !a.thread && !isProject(a));
 
-/** Union of child agents' workspaces, in first-seen order. Empty when the
- *  project has no children. */
+/** Union of child agents' workspaces, in first-seen order. When the project
+ *  has no children, the project's own membership is the hover-card list. */
 export function projectWorkspaceIds(
   projectId: string,
   agents: Record<string, Agent>,
@@ -193,6 +311,16 @@ export function projectWorkspaceIds(
       if (seen.has(id)) continue;
       seen.add(id);
       out.push(id);
+    }
+  }
+  if (out.length === 0) {
+    const project = agents[projectId];
+    if (project) {
+      for (const id of project.workspaceIds) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
     }
   }
   return out;
@@ -252,11 +380,26 @@ export const workspaceFolderCollapsed = (
   overrides?: Record<string, boolean>,
 ): boolean => sidebarCollapsed(workspace.id, overrides, workspace.collapsed ?? false);
 
-// Single seam for "what Content does this agent see?". A future Group concept
-// (heterogeneous, cross-workspace) would just take precedence in this resolver.
-export type ContentScopeId = string; // "ws:<id>@<branch>" | "agent:<id>" (later: "group:<id>")
-export const contentScopeId = (a: Agent): ContentScopeId =>
-  `ws:${primaryWorkspaceId(a)}@${a.branch}`;
+// Single seam for "what Content does this agent see?". A project and every
+// child (and thread) under it share one scope, so the right pane's open state,
+// size (while it stays open), layout, and selected tab persist across hops.
+// A future Group concept would just take precedence in this resolver.
+export type ContentScopeId = string; // "ws:<id>@<branch>" | "project:<id>" | "agent:<id>"
+
+/** Project that owns this agent's content panel, if any. */
+export const contentProjectId = (a: Agent): string | null =>
+  isProject(a) ? a.id : (a.projectId ?? null);
+
+export const contentScopeId = (a: Agent): ContentScopeId => {
+  const projectId = contentProjectId(a);
+  return projectId
+    ? `project:${projectId}`
+    : `ws:${primaryWorkspaceId(a)}@${a.branch}`;
+};
+
+/** Project chats own a private content scope so they do not share workspace tabs. */
+export const isProjectScope = (scopeId: ContentScopeId): boolean =>
+  scopeId.startsWith("project:");
 
 /** Workspace id embedded in a scope id, or null for a standalone-agent scope.
  *  Canonical decoder so the "@<branch>" suffix is split in exactly one place. */
@@ -287,6 +430,7 @@ export const TAB_LABEL: Record<TabType, string> = {
   terminal: "Terminal",
   canvas: "Canvas",
   review: "Review",
+  project: "Project",
 };
 
 // A Files tab shows a specific open file once `folder` is set (opening a file
@@ -304,6 +448,7 @@ export const DEFAULT_SIDEBAR_OPEN: Record<TabType, boolean> = {
   terminal: false,
   canvas: false,
   review: false,
+  project: false,
 };
 
 // Resolve a tile's sidebar state for a tab type: the shared per-type value if

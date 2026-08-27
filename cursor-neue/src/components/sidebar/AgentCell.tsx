@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import { isAgentPinned, type Agent } from "@/types";
@@ -6,10 +6,6 @@ import { useWindowId } from "@/components/window/WindowContext";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useTabDragStore } from "@/store/tabDrag";
 import { SidebarCell } from "@/components/sidebar/SidebarCell";
-import {
-  SidebarWorkspaceTooltip,
-  workspaceNamesInOrder,
-} from "@/components/sidebar/SidebarWorkspaceTooltip";
 import { Icon } from "@/components/ui/Icon";
 import { beginTabDrag } from "@/components/tile/tabDragInteraction";
 import { isOutsideWindows, newWindowGeo } from "@/components/desktop/geometry";
@@ -42,12 +38,6 @@ export function AgentCell({ agent, selected, onSelect, nested, nestLevel }: Agen
   const openAgentAtChatRoot = useWorkspaceStore((s) => s.openAgentAtChatRoot);
   const openAgentInNewWindow = useWorkspaceStore((s) => s.openAgentInNewWindow);
   const dragging = useTabDragStore((s) => s.source?.agentId === agent.id);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const workspaceOrder = useWorkspaceStore((s) => s.workspaceOrder);
-  const workspaceNames = useMemo(
-    () => workspaceNamesInOrder(agent.workspaceIds, workspaceOrder, workspaces),
-    [agent.workspaceIds, workspaceOrder, workspaces],
-  );
   // Suppress the click-to-select that fires right after a drag ends.
   const didDragRef = useRef(false);
 
@@ -97,25 +87,21 @@ export function AgentCell({ agent, selected, onSelect, nested, nestLevel }: Agen
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div data-sidebar-flip={`agent:${agent.id}`} className={clsx(dragging && "opacity-40")}>
-          <SidebarWorkspaceTooltip names={workspaceNames}>
-            <div>
-              <SidebarCell
-                label={agent.title}
-                leading={{ kind: "agent", status: agent.status }}
-                selected={selected}
-                nested={nested}
-                nestLevel={nestLevel}
-                onPointerDown={onPointerDown}
-                onClick={() => {
-                  if (didDragRef.current) {
-                    didDragRef.current = false;
-                    return;
-                  }
-                  onSelect();
-                }}
-              />
-            </div>
-          </SidebarWorkspaceTooltip>
+          <SidebarCell
+            label={agent.title}
+            leading={{ kind: "agent", status: agent.status }}
+            selected={selected}
+            nested={nested}
+            nestLevel={nestLevel}
+            onPointerDown={onPointerDown}
+            onClick={() => {
+              if (didDragRef.current) {
+                didDragRef.current = false;
+                return;
+              }
+              onSelect();
+            }}
+          />
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

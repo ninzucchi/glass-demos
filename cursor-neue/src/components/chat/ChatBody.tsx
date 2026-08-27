@@ -1,8 +1,12 @@
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { Composer } from "@/components/chat/Composer";
-import { SelectionToolbar, useMessageSelection } from "@/components/chat/SelectionToolbar";
+import { ProjectFollowUp } from "@/components/chat/ProjectFollowUp";
+import { ProjectThreadHeader } from "@/components/chat/ProjectThreadHeader";
 import { ThreadOriginPin } from "@/components/chat/ThreadOrigin";
-import type { Agent, Tab } from "@/types";
+import { FollowUpPill } from "@/components/ui/FollowUpPill";
+import { isProject, type Agent, type Tab } from "@/types";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
+import { useWindowId } from "@/components/window/WindowContext";
 import {
   useActiveAgent,
   useWorkspaceStore,
@@ -17,6 +21,12 @@ const COLUMN = "mx-auto w-full max-w-[640px] pl-3 pr-[calc(12px+var(--island-ins
 // Minimum tile width for "Reply in Thread" to split right; narrower tiles get
 // the thread as a new tab instead (half of a narrower pane would be cramped).
 const SPLIT_MIN_TILE_W = 560;
+
+function CrumbBackPill() {
+  const windowId = useWindowId();
+  const crumbBack = useWorkspaceStore((s) => s.crumbBack);
+  return <FollowUpPill onClick={() => crumbBack(windowId)}>Back</FollowUpPill>;
+}
 
 const threadDisposition = (tileId: string): ThreadDisposition => {
   const el = document.querySelector(`[data-tile-id="${tileId}"]`);
@@ -49,8 +59,8 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
   const activeAgent = useActiveAgent();
   const agent = tabAgent ?? activeAgent;
   const messages = agent?.messages ?? [];
-
-  const createThread = useWorkspaceStore((s) => s.createThread);
+  const crumbs = useFeatureFlags((s) => s.ephemeralTabs === "crumbs");
+  const showCrumbBack = crumbs && !!agent && !isProject(agent) && !!agent.projectId;
 
   // Threads spawned from this conversation, grouped by source message index,
   // for the reply pills. A thread earns a pill once it has activity ("N
@@ -72,21 +82,14 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
     return map;
   }, [agents, drafts, agent]);
 
-  const transcriptRef = useRef<HTMLDivElement>(null);
-  const selection = useMessageSelection(transcriptRef);
-
-  const onReply = (sel: { messageIndex: number; text: string }) => {
-    if (!agent) return;
-    createThread(tileId, agent.id, sel.messageIndex, sel.text, threadDisposition(tileId));
-    window.getSelection()?.removeAllRanges();
-  };
-
   // Empty non-thread conversation (a freshly created agent): center the
   // expanded composer. An empty THREAD falls through to the standard layout —
   // origin pin on top, (empty) transcript, docked composer with the quote.
-  if (messages.length === 0 && !agent?.thread) {
+  // A project always shows its thread header, even with no messages yet.
+  if (messages.length === 0 && !agent?.thread && !isProject(agent)) {
     return (
-      <div className="flex h-full items-center justify-center bg-chrome px-3">
+      <div className="flex h-full flex-col items-center justify-center gap-2 bg-chrome px-3">
+        {showCrumbBack && <CrumbBackPill />}
         <Composer variant="expanded" agent={agent} />
       </div>
     );
@@ -102,44 +105,58 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
         </div>
       )}
       <div className="flex-1 overflow-auto pb-4 pt-2">
-        <div ref={transcriptRef} className={`${COLUMN} flex flex-col gap-3`}>
-          {messages.map((m, i) => {
-            const threads = threadsByMessage.get(i);
-            const body =
-              m.role === "user" ? (
-                // Ring (not border) so the 1px doesn't push text inward; px-2.5
-                // lands the text on the shared 22px gutter (12px container + 10px).
-                <div
-                  data-msg-index={i}
-                  className="w-full rounded-2xl bg-elevated px-2.5 py-2 text-lg text-primary shadow-[0_0_0_1px_var(--border-tertiary)]"
-                >
-                  {m.text}
-                </div>
-              ) : (
-                // Agent turn: optional tool line + message grouped with no gap; tool
-                // py-[3px] (6px total), message py-1. px-2.5 matches the bubble inset
-                // so every chat line shares one 22px left margin.
-                <div data-msg-index={i} className="flex flex-col px-2.5">
-                  {m.tool && <div className="py-[3px] text-lg text-tertiary">{m.tool}</div>}
-                  <div className="py-1 text-lg text-primary">{m.text}</div>
+        <div className={`${COLUMN} flex flex-col`}>
+          {isProject(agent) && (
+            <div className="my-12">
+              <ProjectThreadHeader project={agent} />
+            </div>
+          )}
+          <div className="flex flex-col gap-3">
+            {messages.map((m, i) => {
+              const threads = threadsByMessage.get(i);
+              const body =
+                m.role === "user" ? (
+                  // Ring (not border) so the 1px doesn't push text inward.
+                  // Bubble hugs content up to 500px and sits on the right;
+                  // copy stays left-aligned.
+                  <div className="ml-auto w-fit max-w-[500px] rounded-2xl bg-elevated px-3.5 py-3 text-left text-lg text-primary shadow-[0_0_0_1px_var(--border-tertiary)]">
+                    {m.text}
+                  </div>
+                ) : (
+                  // Agent turn: optional tool line + message grouped with no gap; tool
+                  // py-[3px] (6px total), message py-1. px-2.5 matches the bubble inset
+                  // so every chat line shares one 22px left margin.
+                  <div className="flex flex-col px-2.5">
+                    {m.tool && <div className="py-[3px] text-lg text-tertiary">{m.tool}</div>}
+                    <div className="py-1 text-lg text-primary">{m.text}</div>
+                  </div>
+                );
+              if (!threads?.length) return <div key={i}>{body}</div>;
+              return (
+                <div key={i} className="flex flex-col gap-1">
+                  {body}
+                  <div className="flex flex-col gap-px px-1">
+                    {threads.map((t) => (
+                      <ReplyPill key={t.id} thread={t} tileId={tileId} />
+                    ))}
+                  </div>
                 </div>
               );
-            if (!threads?.length) return <div key={i}>{body}</div>;
-            return (
-              <div key={i} className="flex flex-col gap-1">
-                {body}
-                <div className="flex flex-col gap-px px-1">
-                  {threads.map((t) => (
-                    <ReplyPill key={t.id} thread={t} tileId={tileId} />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+            })}
+          </div>
         </div>
       </div>
+      {agent && isProject(agent) && (
+        <div className={`${COLUMN} pb-2`}>
+          <ProjectFollowUp project={agent} tileId={tileId} />
+        </div>
+      )}
+      {showCrumbBack && (
+        <div className={`${COLUMN} pb-2`}>
+          <CrumbBackPill />
+        </div>
+      )}
       <Composer agent={agent} />
-      {selection && agent && <SelectionToolbar selection={selection} onReply={onReply} />}
     </div>
   );
 }

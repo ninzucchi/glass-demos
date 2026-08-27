@@ -5,7 +5,8 @@
 :root {
   /* Layout */
   --toolbar-h: 36px;
-  --sidebar-w: 232px;
+  --titlebar-h: 44px;
+  --sidebar-w: 280px;
   --window-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 24px 64px -12px rgba(0, 0, 0, 0.45),
     0 8px 24px -8px rgba(0, 0, 0, 0.35);
 
@@ -97,6 +98,10 @@
   --shadow-tertiary: rgba(0, 0, 0, 0.12);
 
   --desktop-bg: radial-gradient(120% 120% at 30% 10%, #1a1c1f 0%, #101113 55%, #060708 100%);
+
+  /* Lifted off chrome to match sidebar highlight (`--bg-quaternary-opaque`).
+     Beats the shared `--bg-elevated: var(--editor)` via :root.dark specificity. */
+  --bg-elevated: color-mix(in oklab, var(--base) 6%, var(--chrome));
 }
 
 /* Shared semantic colors (reference these in UI) */

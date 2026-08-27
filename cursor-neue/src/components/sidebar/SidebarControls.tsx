@@ -171,7 +171,8 @@ export function MainSidebarToggle() {
   return (
     <IconButton
       name="layout-sidebar-left"
-      size="base"
+      size="lg"
+      color="tertiary"
       active={!collapsed}
       onClick={() => toggleSidebar(windowId)}
       aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}

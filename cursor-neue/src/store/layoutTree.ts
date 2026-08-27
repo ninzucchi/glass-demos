@@ -86,8 +86,11 @@ function dropTab(tile: TileNode, tabId: string): TileNode {
   return { ...tile, tabs, activeTabId };
 }
 
-/** Default content for a freshly created (lazy) scope. */
+/** Default content for a freshly created (lazy) workspace scope. */
 export const makeDefaultLayout = (): LayoutNode => makeTile([makeTab("files")]);
+
+/** Default content for a project agent: one Project tab, no workspace pins. */
+export const makeProjectLayout = (): LayoutNode => makeTile([makeTab("project")]);
 
 export function findTile(node: LayoutNode, tileId: string): TileNode | null {
   if (isTile(node)) return node.id === tileId ? node : null;

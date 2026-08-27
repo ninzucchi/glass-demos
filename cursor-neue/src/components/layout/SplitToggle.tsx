@@ -27,7 +27,7 @@ export function SplitToggle() {
   return (
     <IconButton
       name="layout-split-horizontal"
-      size="base"
+      size="lg"
       active={split}
       onClick={() => (chatCollapsed ? toggleChat(windowId) : toggleContentOpen(windowId))}
       aria-label={chatCollapsed ? "Restore split" : open ? "Hide content panel" : "Show content panel"}

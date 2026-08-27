@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import clsx from "clsx";
 import { isProject, type Agent } from "@/types";
 import { useTabDragStore } from "@/store/tabDrag";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { ProjectGroup } from "@/components/sidebar/ProjectGroup";
 import {
@@ -24,6 +26,7 @@ function measureList(list: HTMLElement): SortMetrics {
 /** Projects section list. A project drag inside the list reorders; a drag over
  *  Pinned still pins. A pinned project dragged back in opens a gap to insert. */
 export function ProjectSortList({ projects }: { projects: Agent[] }) {
+  const collapsible = useFeatureFlags((s) => s.projectFolders) === "off";
   const listRef = useRef<HTMLDivElement>(null);
   const metricsRef = useRef<SortMetrics | null>(null);
   const draggingId = useTabDragStore((s) =>
@@ -98,7 +101,15 @@ export function ProjectSortList({ projects }: { projects: Agent[] }) {
   }, [draggingProject, draggingId, pointer.x, pointer.y, scrollTick]);
 
   return (
-    <div ref={listRef} data-project-list="" className="relative flex flex-col gap-1">
+    <div
+      ref={listRef}
+      data-project-list=""
+      className={clsx(
+        "relative flex flex-col",
+        // Folder groups need 4px between blocks; Off rows match agent gap-px.
+        collapsible ? "gap-1" : "gap-px",
+      )}
+    >
       {projects.map((project, i) => (
         <div
           key={project.id}

@@ -9,6 +9,7 @@ import { BrowserContent, BrowserSidebar } from "@/components/tabs/tabTypes/Brows
 import { TerminalContent, TerminalSidebar } from "@/components/tabs/tabTypes/TerminalTab";
 import { CanvasContent, CanvasSidebar } from "@/components/tabs/tabTypes/CanvasTab";
 import { ReviewContent, ReviewSidebar } from "@/components/tabs/tabTypes/ReviewTab";
+import { ProjectContent, ProjectSidebar } from "@/components/tabs/tabTypes/ProjectTab";
 import { ChatBody } from "@/components/chat/ChatBody";
 import { fileIconFor } from "@/data/files";
 
@@ -43,4 +44,10 @@ export const TAB_REGISTRY: Record<TabType, TabTypeDef> = {
   },
   canvas: { icon: "brush", hasSidebar: true, Content: CanvasContent, Sidebar: CanvasSidebar },
   review: { icon: "plus-minus", hasSidebar: true, Content: ReviewContent, Sidebar: ReviewSidebar },
+  project: {
+    icon: "board-kanban",
+    hasSidebar: false,
+    Content: ProjectContent,
+    Sidebar: ProjectSidebar,
+  },
 };

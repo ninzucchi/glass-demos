@@ -8,8 +8,12 @@ import { MainContainer } from "@/components/layout/MainContainer";
 import { useTabDragStore } from "@/store/tabDrag";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { ComposerSurface } from "@/components/chat/ComposerSurface";
+import { NewProjectDialog } from "@/components/sidebar/NewProjectDialog";
+import { ProjectsIntroDialog } from "@/components/sidebar/ProjectsIntroDialog";
+import { ProjectsNux } from "@/components/sidebar/ProjectsNux";
 import { CustomizeModal } from "@/components/ui/CustomizeModal";
 import { useDeferredPaneCollapse } from "@/components/layout/useDeferredPaneCollapse";
+import { useCrumbMouseNav } from "@/components/window/useCrumbMouseNav";
 import {
   SidebarChromeCollapsedProvider,
   SidebarCollapseChainProvider,
@@ -22,11 +26,13 @@ import {
   useWindow,
   useWorkspaceStore,
 } from "@/store/useWorkspaceStore";
+import { DEFAULT_W } from "@/components/desktop/geometry";
 
 // react-resizable-panels sizes in percentages, but the sidebar's usable floor is a
 // fixed pixel width (where the header controls sit flush to the edge). We derive the
 // % min from the live window width so the floor lands at the same pixel in any window.
 const SIDEBAR_MIN_PX = 168;
+const SIDEBAR_DEFAULT_PX = 280;
 const SIDEBAR_MAX_PCT = 32;
 
 // The pinned/open island collapses to its icon-only rail when the full-width
@@ -41,6 +47,7 @@ const CHAT_COLUMN_PAD_PX = 12; // the column's own px-3
 // (traffic lights in the sidebar top, panel toggle inline in the top-right tab toolbar).
 export function Window() {
   const windowId = useWindowId();
+  useCrumbMouseNav();
   const win = useWindow();
   const collapsed = win?.sidebarCollapsed ?? false;
   // When the chat (agent) is hidden, Content fills the main area and the sidebar
@@ -48,6 +55,8 @@ export function Window() {
   // maximize double-click (the chat|content divider that normally hosts it is
   // gone). `toggle` flips the shared maximize (collapse both / restore both).
   const chatCollapsed = win?.chatCollapsed ?? false;
+  const windowW = win?.geo?.w ?? DEFAULT_W;
+  const sidebarDefaultPct = Math.min((SIDEBAR_DEFAULT_PX / windowW) * 100, SIDEBAR_MAX_PCT);
   const { toggle: toggleMaximize } = useMaximizeContent();
   const setSidebarCollapsed = useWorkspaceStore((s) => s.setSidebarCollapsed);
   // Over-dragging the divider past the sidebar's min snaps it to 0 (live
@@ -60,10 +69,24 @@ export function Window() {
   const [visuallyCollapsed, setVisuallyCollapsed] = useState(collapsed);
   const sidebarRef = useRef<ImperativePanelHandle>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  // Last chosen sidebar width in pixels (default or user drag). The panel API
+  // stores %, so a window scale would otherwise stretch the sidebar; we re-apply
+  // this px as a % whenever the shell width changes.
+  const sidebarPxRef = useRef(SIDEBAR_DEFAULT_PX);
+  const applyingSidebarPx = useRef(false);
+  const userResizingSidebar = useRef(false);
   // Pixel floor expressed as a % of the current window width, recomputed as the
   // window resizes so the sidebar's collapse threshold lands at the same pixel
   // width in every window regardless of its overall size.
   const [minSize, setMinSize] = useState(14);
+
+  const applySidebarPx = (windowW: number) => {
+    const panel = sidebarRef.current;
+    if (!panel || panel.isCollapsed() || windowW <= 0) return;
+    applyingSidebarPx.current = true;
+    panel.resize(Math.min((sidebarPxRef.current / windowW) * 100, SIDEBAR_MAX_PCT));
+    applyingSidebarPx.current = false;
+  };
 
   // The store flag is the single source of truth; keep the imperative panel in
   // sync with it. Must run pre-paint (useLayoutEffect): the chat panel reads
@@ -74,16 +97,11 @@ export function Window() {
     const panel = sidebarRef.current;
     if (!panel) return;
     if (collapsed && !panel.isCollapsed()) panel.collapse();
-    else if (!collapsed && panel.isCollapsed()) panel.expand();
+    else if (!collapsed && panel.isCollapsed()) {
+      panel.expand();
+      applySidebarPx(shellRef.current?.clientWidth ?? 0);
+    }
   }, [collapsed]);
-
-  // Green traffic light: after the store opens the sidebar, snap it to max %.
-  useLayoutEffect(() => {
-    if (!win?.sidebarFitNonce) return;
-    const panel = sidebarRef.current;
-    if (!panel || panel.isCollapsed()) return;
-    panel.resize(SIDEBAR_MAX_PCT);
-  }, [win?.sidebarFitNonce]);
 
   // Bridge for the chat (agent) divider's over-drag: it lives in MainContainer
   // but, once the chat has closed, a continued leftward drag should also close
@@ -149,7 +167,9 @@ export function Window() {
     return () => ro.disconnect();
   }, []);
 
-  // Track window width and translate the pixel floor into a % min for the panel.
+  // Keep the sidebar's pixel width stable when the window scales, and keep the
+  // % min in lockstep with the live window width. geo.w runs pre-paint; the
+  // observer covers first measure and any width change that skips geo.
   useLayoutEffect(() => {
     const el = shellRef.current;
     if (!el) return;
@@ -157,12 +177,20 @@ export function Window() {
       const w = el.clientWidth;
       if (w <= 0) return;
       setMinSize(Math.min((SIDEBAR_MIN_PX / w) * 100, SIDEBAR_MAX_PCT));
+      applySidebarPx(w);
     };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  useLayoutEffect(() => {
+    const w = shellRef.current?.clientWidth ?? 0;
+    if (w <= 0) return;
+    setMinSize(Math.min((SIDEBAR_MIN_PX / w) * 100, SIDEBAR_MAX_PCT));
+    applySidebarPx(w);
+  }, [win?.geo?.w]);
 
   return (
     // Shell stays transparent so the sidebar can blur the desktop wallpaper
@@ -191,7 +219,7 @@ export function Window() {
               ref={sidebarRef}
               collapsible
               collapsedSize={0}
-              defaultSize={SIDEBAR_MAX_PCT}
+              defaultSize={sidebarDefaultPct}
               minSize={minSize}
               maxSize={SIDEBAR_MAX_PCT}
               onCollapse={() => {
@@ -202,13 +230,28 @@ export function Window() {
                 setVisuallyCollapsed(false);
                 sidebarCollapse.onExpand();
               }}
+              onResize={(size) => {
+                if (applyingSidebarPx.current || !userResizingSidebar.current) return;
+                const w = shellRef.current?.clientWidth ?? 0;
+                if (w <= 0 || size <= 0) return;
+                sidebarPxRef.current = (size / 100) * w;
+              }}
             >
               <Sidebar />
             </Panel>
             {!collapsed && (
               <ResizeHandle
                 direction="horizontal"
-                onDragging={sidebarCollapse.onDragging}
+                onDragging={(isDragging) => {
+                  userResizingSidebar.current = isDragging;
+                  sidebarCollapse.onDragging(isDragging);
+                  if (isDragging) return;
+                  const panel = sidebarRef.current;
+                  const w = shellRef.current?.clientWidth ?? 0;
+                  if (!panel || panel.isCollapsed() || w <= 0) return;
+                  const size = panel.getSize();
+                  if (size > 0) sidebarPxRef.current = (size / 100) * w;
+                }}
                 // Only border Content (and thus offer maximize) once the chat is
                 // hidden; with the chat shown this divider sits between sidebar and
                 // chat, so double-click there shouldn't maximize.
@@ -236,7 +279,10 @@ export function Window() {
           </div>
           {/* Scoped to this window's shell so the scrim is clipped to the window
               (rounded corners + overflow-hidden) rather than the whole desktop. */}
+          <ProjectsNux />
           <CustomizeModal />
+          <NewProjectDialog />
+          <ProjectsIntroDialog />
           <ComposerSurface />
         </div>
       </SidebarCollapseChainProvider>

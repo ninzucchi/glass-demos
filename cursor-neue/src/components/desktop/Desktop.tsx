@@ -4,7 +4,7 @@ import { DebugBar } from "@/components/desktop/DebugBar";
 import { Dock } from "@/components/desktop/Dock";
 import { Window } from "@/components/window/Window";
 import { WindowProvider } from "@/components/window/WindowContext";
-import { centeredWindowGeo } from "@/components/desktop/geometry";
+import { fittedWindowGeo } from "@/components/desktop/geometry";
 import { MAIN_WINDOW_ID, useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { wallpaperBackground, preloadWallpapers } from "@/lib/wallpaper";
 import { WALLPAPERS } from "@/config";
@@ -85,7 +85,7 @@ export function Desktop() {
   const focusWindow = useWorkspaceStore((s) => s.focusWindow);
   const setMaximized = useWorkspaceStore((s) => s.setMaximized);
 
-  // Center the main window once measured (its geo is null until then). Detached
+  // Fit the main window once measured (its geo is null until then). Detached
   // windows are positioned by the store at spawn time. `mainExists` is a
   // separate dep so relaunching from the dock (absent → present, geo still
   // null) re-runs the effect; keying on `mainGeo` alone never changes (null →
@@ -94,7 +94,7 @@ export function Desktop() {
   const mainGeo = windows[MAIN_WINDOW_ID]?.geo ?? null;
   useLayoutEffect(() => {
     if (!mainExists || mainGeo) return;
-    const geo = centeredWindowGeo();
+    const geo = fittedWindowGeo();
     if (geo) setWindowGeo(MAIN_WINDOW_ID, geo);
   }, [mainExists, mainGeo, setWindowGeo]);
 

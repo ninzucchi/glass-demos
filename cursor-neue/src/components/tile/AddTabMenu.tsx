@@ -15,39 +15,14 @@ import { useActiveScopeId, useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useUiStore } from "@/store/useUiStore";
 import { useWindowId } from "@/components/window/WindowContext";
 import { fileIconFor, getRecentFiles } from "@/data/files";
-import type { TileVariant } from "@/components/tile/Tile";
 
-export function AddTabMenu({
-  tileId,
-  variant = "content",
-}: {
-  tileId: string;
-  variant?: TileVariant;
-}) {
+export function AddTabMenu({ tileId }: { tileId: string }) {
   const addTab = useWorkspaceStore((s) => s.addTab);
-  const addAgentTab = useWorkspaceStore((s) => s.addAgentTab);
   const openCustomize = useUiStore((s) => s.openCustomize);
   const windowId = useWindowId();
   // Recents come from the active workspace's file tree (same source as the
   // Files tab), so the menu shows files that actually exist in this workspace.
   const recents = getRecentFiles(useActiveScopeId());
-
-  // Chat tab bar: "+" starts a new agent as a new tab in this tile (inheriting
-  // the tile's workspace/branch context) directly — no menu, it's one action.
-  // Styled to match an inactive chat pill (tertiary at rest, hover fill).
-  if (variant === "chat") {
-    return (
-      <button
-        type="button"
-        data-no-drag=""
-        aria-label="New agent"
-        onClick={() => addAgentTab(tileId)}
-        className="mx-1.5 flex size-6 shrink-0 items-center justify-center self-center rounded-lg text-secondary transition-colors hover:bg-quaternary hover:text-primary"
-      >
-        <Icon name="plus" size="base" color="inherit" />
-      </button>
-    );
-  }
 
   return (
     <DropdownMenu>

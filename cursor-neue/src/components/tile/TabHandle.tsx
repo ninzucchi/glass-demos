@@ -16,6 +16,7 @@ import { allTabs } from "@/store/layoutTree";
 import { isOutsideWindows, newWindowGeo } from "@/components/desktop/geometry";
 import { beginTabDrag } from "@/components/tile/tabDragInteraction";
 import type { TileVariant } from "@/components/tile/Tile";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
 
 interface TabHandleProps {
   tab: Tab;
@@ -27,6 +28,8 @@ interface TabHandleProps {
   paneFocused?: boolean;
   onSelect: () => void;
   onClose: () => void;
+  /** False hides the hover × and ignores middle-click close. */
+  closable?: boolean;
 }
 
 // The 1px chrome->content divider drawn along every tab's bottom edge.
@@ -40,6 +43,7 @@ export function TabHandle({
   paneFocused = true,
   onSelect,
   onClose,
+  closable = true,
 }: TabHandleProps) {
   const moveTab = useWorkspaceStore((s) => s.moveTab);
   const moveTabToRoot = useWorkspaceStore((s) => s.moveTabToRoot);
@@ -62,6 +66,9 @@ export function TabHandle({
     variant !== "chat" && workspaceId ? pinnedTabsFor(s.pinnedTabs, workspaceId) : null,
   );
   const togglePinnedTab = useWorkspaceStore((s) => s.togglePinnedTab);
+  const pinEphemeralTab = useWorkspaceStore((s) => s.pinEphemeralTab);
+  const ephemeralTabsOn = useFeatureFlags((s) => s.ephemeralTabs === "ephemeral");
+  const isEphemeralChat = variant === "chat" && ephemeralTabsOn && !!tab.ephemeral;
   const content = useActiveContent();
   const isPinnedType = !!pinnedSet?.includes(tab.type);
   const isPinnedTab =
@@ -130,8 +137,12 @@ export function TabHandle({
         }
         onSelect();
       }}
+      onDoubleClick={() => {
+        if (didDragRef.current) return;
+        if (isEphemeralChat) pinEphemeralTab(tileId, tab.id);
+      }}
       onAuxClick={(e) => {
-        if (e.button === 1) {
+        if (e.button === 1 && closable) {
           e.preventDefault();
           onClose();
         }
@@ -182,7 +193,9 @@ export function TabHandle({
       <span
         className={clsx(
           "min-w-0 truncate px-[2px] text-base leading-[18px]",
+          isEphemeralChat && "italic",
           isChat &&
+            closable &&
             "group-hover/tab:[mask-image:linear-gradient(to_right,#000,#000_calc(100%_-_44px),transparent_calc(100%_-_18px))]",
         )}
       >
@@ -192,34 +205,36 @@ export function TabHandle({
           shows unpin (close it via right-click or middle-click); everything else
           shows the close x. Content tabs fade the title cleanly under it with a
           gradient matching the tab's opaque bg. */}
-      <div
-        className={clsx(
-          "pointer-events-none absolute inset-y-0 right-0 flex items-center pl-6 opacity-0 group-hover/tab:opacity-100",
-          // Chat pills tuck the x into their tighter trailing inset.
-          isChat ? "pr-[3px]" : "pr-2",
-          // The opaque fade would paint over the bottom hairline, so re-draw it.
-          !isChat && HAIRLINE,
-        )}
-        style={
-          isChat
-            ? undefined
-            : { background: `linear-gradient(to right, transparent, ${tabBg} 24px)` }
-        }
-      >
-        <button
-          type="button"
-          aria-label={isPinnedTab ? "Unpin tab" : "Close tab"}
-          data-no-drag=""
-          className="pointer-events-auto flex size-5 shrink-0 items-center justify-center rounded hover:bg-quaternary"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isPinnedTab && workspaceId) togglePinnedTab(workspaceId, tab.type);
-            else onClose();
-          }}
+      {closable && (
+        <div
+          className={clsx(
+            "pointer-events-none absolute inset-y-0 right-0 flex items-center pl-6 opacity-0 group-hover/tab:opacity-100",
+            // Chat pills tuck the x into their tighter trailing inset.
+            isChat ? "pr-[3px]" : "pr-2",
+            // The opaque fade would paint over the bottom hairline, so re-draw it.
+            !isChat && HAIRLINE,
+          )}
+          style={
+            isChat
+              ? undefined
+              : { background: `linear-gradient(to right, transparent, ${tabBg} 24px)` }
+          }
         >
-          <Icon name={isPinnedTab ? "pin-slash" : "x"} size="base" color="secondary" />
-        </button>
-      </div>
+          <button
+            type="button"
+            aria-label={isPinnedTab ? "Unpin tab" : "Close tab"}
+            data-no-drag=""
+            className="pointer-events-auto flex size-5 shrink-0 items-center justify-center rounded hover:bg-quaternary"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isPinnedTab && workspaceId) togglePinnedTab(workspaceId, tab.type);
+              else onClose();
+            }}
+          >
+            <Icon name={isPinnedTab ? "pin-slash" : "x"} size="base" color="secondary" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

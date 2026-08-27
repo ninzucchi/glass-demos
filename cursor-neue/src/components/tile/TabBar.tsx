@@ -11,7 +11,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import type { TileNode } from "@/types";
-import { pinnedTabsFor, workspaceIdOfScope } from "@/types";
+import { isProjectScope, pinnedTabsFor, workspaceIdOfScope } from "@/types";
 import {
   useActiveContent,
   useActiveScopeId,
@@ -21,8 +21,11 @@ import {
 import { hasNode } from "@/store/layoutTree";
 import { useTabDragStore } from "@/store/tabDrag";
 import { newWindowGeo } from "@/components/desktop/geometry";
+import { ChatCrumbs } from "@/components/chat/ChatCrumbs";
 import { TabHandle } from "@/components/tile/TabHandle";
 import { AddTabMenu } from "@/components/tile/AddTabMenu";
+import { ProjectAgentsMenu } from "@/components/tile/ProjectAgentsMenu";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { TileContextMenu } from "@/components/tile/TileContextMenu";
 import { SplitToggle } from "@/components/layout/SplitToggle";
 import { SidebarReexpandCluster } from "@/components/sidebar/SidebarControls";
@@ -61,7 +64,7 @@ function InsertionCaret({
       className={clsx(
         "pointer-events-none absolute z-30 w-[2px] rounded-full bg-accent",
         // Chat pills are inset; content tabs run edge to edge.
-        isChat ? "inset-y-[5px]" : "inset-y-0",
+        isChat ? "inset-y-2" : "inset-y-0",
       )}
       style={{ left: left - 1 }}
     />
@@ -87,7 +90,8 @@ export function TabBar({
   const togglePinnedTab = useWorkspaceStore((s) => s.togglePinnedTab);
   // Pin/unpin targets the active scope's workspace (content tiles only ever
   // render inside the window's active scope); null in a standalone-agent scope.
-  const workspaceId = workspaceIdOfScope(useActiveScopeId());
+  const scopeId = useActiveScopeId();
+  const workspaceId = workspaceIdOfScope(scopeId);
   const pinned = useWorkspaceStore((s) =>
     workspaceId ? pinnedTabsFor(s.pinnedTabs, workspaceId) : null,
   );
@@ -107,6 +111,7 @@ export function TabBar({
   }, [tile.tabs.length]);
 
   const isChat = variant === "chat";
+  const crumbs = isChat && useFeatureFlags((s) => s.ephemeralTabs === "crumbs");
 
   // Whether this content pane is the window's focused one: its active tab keeps
   // full-strength chrome while resting panes dim theirs. Chat panes track focus
@@ -132,7 +137,8 @@ export function TabBar({
     // tabs are inset rounded pills rather than full-height rectangles.
     <div
       className={clsx(
-        "flex h-toolbar shrink-0 items-stretch bg-chrome",
+        "flex shrink-0 items-stretch bg-chrome",
+        isChat ? "h-[var(--titlebar-h)]" : "h-toolbar",
         !isChat && "shadow-[inset_0_-1px_0_0_var(--border-tertiary)]",
       )}
     >
@@ -147,19 +153,25 @@ export function TabBar({
           className={clsx("pl-3.5 pr-2", !isChat && "border-r border-tertiary")}
         />
       )}
+      {crumbs ? (
+        <ChatCrumbs tile={tile} />
+      ) : (
+        <>
       <div
         ref={scrollRef}
         data-tab-strip=""
         className={clsx(
           "no-scrollbar relative flex items-stretch overflow-x-auto",
           // Pills get a vertical inset + gaps instead of stretching edge to edge.
-          isChat && "gap-0.5 py-[5px] pl-1.5",
+          isChat && "gap-1 py-2 pl-1.5",
         )}
         style={
           overflowing ? { maskImage: OVERFLOW_MASK, WebkitMaskImage: OVERFLOW_MASK } : undefined
         }
       >
-        {tile.tabs.map((tab) => (
+        {tile.tabs.map((tab, index) => {
+          const closable = !isChat || index > 0;
+          return (
           <ContextMenu key={tab.id}>
             <ContextMenuTrigger asChild>
               <div className="flex items-stretch">
@@ -169,6 +181,7 @@ export function TabBar({
                   variant={variant}
                   active={tab.id === tile.activeTabId}
                   paneFocused={paneFocused}
+                  closable={closable}
                   onSelect={() => setActiveTab(tile.id, tab.id)}
                   onClose={() => closeTab(tile.id, tab.id)}
                 />
@@ -212,13 +225,24 @@ export function TabBar({
               </ContextMenuSection>
               <ContextMenuSeparator />
               <ContextMenuSection>
-                <ContextMenuItem onSelect={() => closeTab(tile.id, tab.id)}>
-                  <Icon name="x" size="base" color="tertiary" />
-                  Close Tab
-                </ContextMenuItem>
+                {closable && (
+                  <ContextMenuItem onSelect={() => closeTab(tile.id, tab.id)}>
+                    <Icon name="x" size="base" color="tertiary" />
+                    Close Tab
+                  </ContextMenuItem>
+                )}
                 <ContextMenuItem
                   disabled={tile.tabs.length <= 1}
-                  onSelect={() => closeOtherTabs(tile.id, tab.id)}
+                  onSelect={() => {
+                    if (!isChat) {
+                      closeOtherTabs(tile.id, tab.id);
+                      return;
+                    }
+                    const keepFirst = tile.tabs[0]?.id;
+                    for (const t of tile.tabs) {
+                      if (t.id !== tab.id && t.id !== keepFirst) closeTab(tile.id, t.id);
+                    }
+                  }}
                 >
                   <Icon name="x" size="base" color="tertiary" />
                   Close Other Tabs
@@ -226,12 +250,16 @@ export function TabBar({
               </ContextMenuSection>
             </ContextMenuContent>
           </ContextMenu>
-        ))}
+          );
+        })}
         {dropIndex !== null && (
           <InsertionCaret index={dropIndex} stripRef={scrollRef} isChat={isChat} />
         )}
       </div>
-      <AddTabMenu tileId={tile.id} variant={variant} />
+      {!isChat && !isProjectScope(scopeId) && <AddTabMenu tileId={tile.id} />}
+      {isChat && <ProjectAgentsMenu tile={tile} />}
+        </>
+      )}
       {/* Empty bar area also opens the split / close menu (chat hides split). */}
       <TileContextMenu tileId={tile.id} className="flex-1" showSplit={!isChat}>
         <div className="h-full w-full" />

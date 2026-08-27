@@ -4,17 +4,20 @@ import clsx from "clsx";
 import {
   agentsInProject,
   isAgentPinned,
+  isProject,
   primaryWorkspaceId,
   projectWorkspaceIds,
   sidebarCollapsed,
   type Agent,
 } from "@/types";
 import { useWindowId } from "@/components/window/WindowContext";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useTabDragStore } from "@/store/tabDrag";
 import { beginTabDrag } from "@/components/tile/tabDragInteraction";
 import { isOutsideWindows, newWindowGeo } from "@/components/desktop/geometry";
 import { AgentList } from "@/components/sidebar/AgentList";
+import { ProjectIconPicker } from "@/components/sidebar/ProjectIconPicker";
 import { SidebarCell } from "@/components/sidebar/SidebarCell";
 import { SidebarCollapse } from "@/components/sidebar/SidebarCollapse";
 import { SidebarDropOutline } from "@/components/sidebar/SidebarDropOutline";
@@ -28,6 +31,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSection,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
@@ -54,20 +58,28 @@ export function ProjectGroup({
   const windowId = useWindowId();
   const win = useWindow();
   const activeAgentId = win?.activeAgentId;
+  const activeAgent = activeAgentId ? agents[activeAgentId] : undefined;
+  const projectSelected =
+    project.id === activeAgentId ||
+    (!!activeAgent && !isProject(activeAgent) && activeAgent.projectId === project.id);
   const setActiveAgent = useWorkspaceStore((s) => s.setActiveAgent);
   const createAgent = useWorkspaceStore((s) => s.createAgent);
   const togglePinnedAgent = useWorkspaceStore((s) => s.togglePinnedAgent);
+  const archiveAgent = useWorkspaceStore((s) => s.archiveAgent);
   const moveProject = useWorkspaceStore((s) => s.moveProject);
   const toggleSidebarCollapsed = useWorkspaceStore((s) => s.toggleSidebarCollapsed);
   const openAgentInTile = useWorkspaceStore((s) => s.openAgentInTile);
   const openAgentAtChatRoot = useWorkspaceStore((s) => s.openAgentAtChatRoot);
   const openAgentInNewWindow = useWorkspaceStore((s) => s.openAgentInNewWindow);
   const collapsed = sidebarCollapsed(project.id, win?.collapsedSidebar);
+  const collapsible = useFeatureFlags((s) => s.projectFolders) === "off";
   const pinned = isAgentPinned(pinnedAgents, project.id);
   const dragging = useTabDragStore((s) => s.source?.agentId === project.id);
   const didDragRef = useRef(false);
   const [seeMore, setSeeMore] = useState(false);
+  const [menuPanel, setMenuPanel] = useState<"main" | "icons">("main");
   const hostRef = useRef<HTMLDivElement>(null);
+  const updateProjectAppearance = useWorkspaceStore((s) => s.updateProjectAppearance);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) =>
     beginTabDrag(e, {
@@ -117,12 +129,13 @@ export function ProjectGroup({
     (s) => s.target?.scope === "sidebar-project" && s.target.projectId === project.id,
   );
 
+  const children = useMemo(
+    () => agentsInProject(agents, agentOrder, project.id),
+    [agents, agentOrder, project.id],
+  );
   const list = useMemo(
-    () =>
-      agentsInProject(agents, agentOrder, project.id).filter(
-        (a) => pinned || !isAgentPinned(pinnedAgents, a.id),
-      ),
-    [agents, agentOrder, pinned, pinnedAgents, project.id],
+    () => children.filter((a) => pinned || !isAgentPinned(pinnedAgents, a.id)),
+    [children, pinned, pinnedAgents],
   );
 
   const shown = seeMore ? list : list.slice(0, VISIBLE);
@@ -145,7 +158,11 @@ export function ProjectGroup({
       data-sidebar-project-id={project.id}
       data-sidebar-flip={`project:${project.id}`}
     >
-      <ContextMenu>
+      <ContextMenu
+        onOpenChange={(open) => {
+          if (open) setMenuPanel("main");
+        }}
+      >
         <ContextMenuTrigger asChild>
           <div>
             <SidebarWorkspaceTooltip names={workspaceNames}>
@@ -157,9 +174,10 @@ export function ProjectGroup({
                     collapsed,
                     icon: project.icon ?? "pencil",
                     color: project.color ?? "blue",
+                    collapsible,
                   }}
                   nestLevel={nestLevel}
-                  selected={project.id === activeAgentId}
+                  selected={projectSelected}
                   onPointerDown={onPointerDown}
                   onClick={() => {
                     if (didDragRef.current) {
@@ -168,42 +186,80 @@ export function ProjectGroup({
                     }
                     setActiveAgent(windowId, project.id);
                   }}
-                  onLeadingClick={() => toggleSidebarCollapsed(windowId, project.id)}
-                  onAddClick={() => {
-                    createAgent(windowId, {
-                      workspaceId:
-                        projectWorkspaceIds(project.id, agents, agentOrder)[0] ??
-                        primaryWorkspaceId(project),
-                      projectId: project.id,
-                    });
-                  }}
+                  onLeadingClick={
+                    collapsible
+                      ? () => toggleSidebarCollapsed(windowId, project.id)
+                      : undefined
+                  }
+                  onAddClick={
+                    collapsible
+                      ? () => {
+                          createAgent(windowId, {
+                            workspaceId:
+                              projectWorkspaceIds(project.id, agents, agentOrder)[0] ??
+                              primaryWorkspaceId(project),
+                            projectId: project.id,
+                          });
+                        }
+                      : undefined
+                  }
                 />
               </div>
             </SidebarWorkspaceTooltip>
           </div>
         </ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuSection>
-            <ContextMenuItem onSelect={() => togglePinnedAgent(project.id)}>
-              <Icon name={pinned ? "pin-slash" : "pin"} size="base" color="tertiary" />
-              {pinned ? "Unpin" : "Pin"}
-            </ContextMenuItem>
-          </ContextMenuSection>
+        <ContextMenuContent className={menuPanel === "icons" ? "!min-w-0 p-0" : undefined}>
+          {menuPanel === "icons" ? (
+            <ProjectIconPicker
+              icon={project.icon ?? "pencil"}
+              color={project.color ?? "blue"}
+              onPickIcon={(icon) => updateProjectAppearance(project.id, { icon })}
+              onPickColor={(color) => updateProjectAppearance(project.id, { color })}
+              onBack={() => setMenuPanel("main")}
+            />
+          ) : (
+            <>
+              <ContextMenuSection>
+                <ContextMenuItem onSelect={() => togglePinnedAgent(project.id)}>
+                  <Icon name={pinned ? "pin-slash" : "pin"} size="base" color="tertiary" />
+                  {pinned ? "Unpin" : "Pin"}
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setMenuPanel("icons");
+                  }}
+                >
+                  <Icon name="smiley-happy" size="base" color="tertiary" />
+                  Edit Icon
+                </ContextMenuItem>
+              </ContextMenuSection>
+              <ContextMenuSeparator />
+              <ContextMenuSection>
+                <ContextMenuItem onSelect={() => archiveAgent(project.id)}>
+                  <Icon name="trash" size="base" color="tertiary" />
+                  Delete
+                </ContextMenuItem>
+              </ContextMenuSection>
+            </>
+          )}
         </ContextMenuContent>
       </ContextMenu>
-      <SidebarCollapse open={!collapsed} padded={padded}>
-        <div className="flex flex-col gap-px">
-          <AgentList agents={shown} nestLevel={nestLevel + 1} />
-          {showMore && (
-            <SidebarCell
-              muted
-              nestLevel={nestLevel + 1}
-              label="See more"
-              onClick={() => setSeeMore(true)}
-            />
-          )}
-        </div>
-      </SidebarCollapse>
+      {collapsible && (
+        <SidebarCollapse open={!collapsed} padded={padded}>
+          <div className="flex flex-col gap-px">
+            <AgentList agents={shown} nestLevel={nestLevel + 1} />
+            {showMore && (
+              <SidebarCell
+                muted
+                nestLevel={nestLevel + 1}
+                label="See more"
+                onClick={() => setSeeMore(true)}
+              />
+            )}
+          </div>
+        </SidebarCollapse>
+      )}
       <SidebarDropOutline hostRef={hostRef} active={dropActive} />
     </div>
   );

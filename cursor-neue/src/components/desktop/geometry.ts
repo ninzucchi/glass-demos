@@ -15,9 +15,9 @@ export const MIN_H = 480;
 export const DEFAULT_W = 1280;
 export const DEFAULT_H = 832;
 
-/** Gap from a window to the desktop edge. Also the gap from a window to the
- *  left dock — same distance, measured from the dock's outer edge. */
-export const EDGE_GAP = 16;
+/** Gap from a window to the desktop edge, the left dock's outer edge, and the
+ *  top of the bottom debug bar. Start + green-zoom both fill this inset. */
+export const EDGE_GAP = 64;
 
 /** Fixed output size for the "Center" screenshot (MacBook 14" logical frame). */
 export const CENTER_SHOT_W = 1512;
@@ -78,7 +78,16 @@ function dockExtent(): number {
   return Math.max(0, dock.getBoundingClientRect().right - desk.left);
 }
 
-/** Largest rect that keeps EDGE_GAP to the screen and to the left dock. */
+/** Distance from the desktop's bottom edge to the debug bar's top edge. */
+function debugBarExtent(): number {
+  const desk = desktopRect();
+  const bar = document.querySelector("[data-debug-bar]") as HTMLElement | null;
+  if (!desk || !bar) return 0;
+  return Math.max(0, desk.bottom - bar.getBoundingClientRect().top);
+}
+
+/** Largest rect that keeps EDGE_GAP to the screen, the left dock, and the
+ *  bottom debug bar. */
 function safeDesktopBounds(deskW: number, deskH: number): {
   left: number;
   top: number;
@@ -89,7 +98,7 @@ function safeDesktopBounds(deskW: number, deskH: number): {
     left: dockExtent() + EDGE_GAP,
     top: EDGE_GAP,
     right: deskW - EDGE_GAP,
-    bottom: deskH - EDGE_GAP,
+    bottom: deskH - debugBarExtent() - EDGE_GAP,
   };
 }
 
@@ -112,10 +121,21 @@ export function centerOnDesktop(
   };
 }
 
-/** Centered DEFAULT_W×DEFAULT_H window. Shared by the initial main-window
- *  placement, Reset demo, and the Center screenshot snap. Returns null before
- *  the desktop is measured. Width/x keep EDGE_GAP past the dock so the window
- *  never sits tighter to the dock than to the other screen edges. */
+/** Window that fills the safe desktop rect (64px inset, past the dock and the
+ *  debug bar). Used for first load, reset, and the green traffic light. Returns
+ *  null before the desktop is measured. */
+export function fittedWindowGeo(): Geo | null {
+  const desk = desktopRect();
+  if (!desk) return null;
+  const safe = safeDesktopBounds(desk.width, desk.height);
+  const w = Math.max(1, safe.right - safe.left);
+  const h = Math.max(1, safe.bottom - safe.top);
+  return { x: safe.left, y: safe.top, w, h };
+}
+
+/** Centered DEFAULT_W×DEFAULT_H window. Used by the Center screenshot snap.
+ *  Returns null before the desktop is measured. Width/x keep EDGE_GAP past the
+ *  dock so the window never sits tighter to the dock than to the other edges. */
 export function centeredWindowGeo(): Geo | null {
   const desk = desktopRect();
   if (!desk) return null;
