@@ -22,7 +22,9 @@ import {
   contentScopeId,
   DEFAULT_WORKSPACE_ID,
   isAgentPinned,
+  isBlankDraft,
   isDraftAgent,
+  isDraftProject,
   isProject,
   isProjectScope,
   normalizeWorkspaceIds,
@@ -117,6 +119,13 @@ interface WorkspaceActions {
       workspaceIds?: string[];
       projectId?: string | null;
     },
+  ) => void;
+  /** Open a draft New Project chat. Send publishes it into the Projects list. */
+  createDraftProject: (windowId: string) => void;
+  /** Live-update title, workspace, or branch on an agent or project. */
+  updateAgentMeta: (
+    id: string,
+    patch: { title?: string; workspaceId?: string; branch?: string },
   ) => void;
   /** Create a project chat and open it in the focused tile. */
   createProject: (
@@ -769,7 +778,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         const state = get();
         const live = new Set(Object.values(state.windows).map((w) => w.activeAgentId));
         const orphaned = state.agentOrder.filter(
-          (id) => isDraftAgent(state.agents[id]) && !live.has(id),
+          (id) => isBlankDraft(state.agents[id]) && !live.has(id),
         );
         for (const id of orphaned) get().archiveAgent(id);
       };
@@ -902,6 +911,85 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             },
           });
           discardOrphanedDrafts();
+        },
+
+        createDraftProject: (windowId) => {
+          const state = get();
+          const win = state.windows[windowId];
+          if (!win) return;
+          const active = state.agents[win.activeAgentId];
+          if (isDraftProject(active)) {
+            if (win.chatCollapsed) patchWindow(windowId, { chatCollapsed: false });
+            return;
+          }
+          const id = tree.uid("p");
+          const title = "New Project";
+          const workspaceIds = normalizeWorkspaceIds(DEFAULT_WORKSPACE_ID);
+          const workspaceId = workspaceIds[0];
+          const newProject: Agent = {
+            id,
+            kind: "project",
+            workspaceIds,
+            branch: "main",
+            title,
+            status: "idle",
+            updatedAt: Date.now(),
+            messages: [],
+            draft: true,
+            icon: "agent",
+            color: "default",
+          };
+          const scopeId = contentScopeId(newProject);
+          const focused = focusedChatTile(win);
+          const chatLayout = tree.updateTab(win.chatLayout, focused.id, focused.activeTabId, {
+            agentId: id,
+            title,
+          });
+          set({
+            agents: { ...state.agents, [id]: newProject },
+            crumbForward: rememberCrumbHop(
+              state.crumbForward,
+              windowId,
+              state.agents[win.activeAgentId],
+              newProject,
+            ),
+            agentOrder: [id, ...state.agentOrder],
+            windows: {
+              ...state.windows,
+              [windowId]: {
+                ...win,
+                activeAgentId: id,
+                chatCollapsed: false,
+                chatLayout,
+                collapsedSidebar: {
+                  ...win.collapsedSidebar,
+                  [SIDEBAR_SECTION.projects]: false,
+                  [workspaceId]: false,
+                },
+                contentByScope: win.contentByScope[scopeId]
+                  ? win.contentByScope
+                  : { ...win.contentByScope, [scopeId]: seededScope(state.pinnedTabs, scopeId) },
+              },
+            },
+          });
+          discardOrphanedDrafts();
+        },
+
+        updateAgentMeta: (id, patch) => {
+          const state = get();
+          const agent = state.agents[id];
+          if (!agent) return;
+          const next = { ...agent };
+          if (patch.title !== undefined) {
+            const title = patch.title.trim() || (isProject(agent) ? "New Project" : "New Agent");
+            next.title = title;
+          }
+          if (patch.workspaceId !== undefined) {
+            next.workspaceIds = normalizeWorkspaceIds(patch.workspaceId);
+          }
+          if (patch.branch !== undefined) next.branch = patch.branch;
+          if (next === agent) return;
+          set({ agents: { ...state.agents, [id]: next } });
         },
 
         createProject: (windowId, input) => {
@@ -1401,6 +1489,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           // Sending consumes the composer's unsent content.
           const { [agentId]: _sent, ...drafts } = state.drafts;
           const { [agentId]: _doc, ...composerDoc } = state.composerDoc;
+          const publishingProject = isDraftProject(agent);
           set({
             agents: {
               ...state.agents,
@@ -1409,10 +1498,15 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
                 draft: false,
                 messages: [...agent.messages, { role: "user", text: trimmed }],
                 updatedAt: Date.now(),
+                ...(publishingProject && !agent.description ? { description: trimmed } : {}),
               },
             },
             drafts,
             composerDoc,
+            projectOrder:
+              publishingProject && !state.projectOrder.includes(agentId)
+                ? [agentId, ...state.projectOrder]
+                : state.projectOrder,
           });
         },
 

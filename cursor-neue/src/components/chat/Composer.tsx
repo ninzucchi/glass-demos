@@ -1,11 +1,27 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { KeyboardEvent, RefObject } from "react";
 import clsx from "clsx";
 import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
+import { ProjectIconPicker } from "@/components/sidebar/ProjectIconPicker";
 import { ThreadOriginCaption } from "@/components/chat/ThreadOrigin";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSection,
+  DropdownMenuTrigger,
+} from "@/components/ui/menu";
+import { PROJECT_BRANCHES, PROJECT_MODELS, type ProjectModel } from "@/data/models";
+import type { IconName } from "@/icons/iconNames";
 import { useWindowId } from "@/components/window/WindowContext";
-import type { Agent } from "@/types";
+import {
+  isDraftProject,
+  PROJECT_COLOR_STROKE,
+  type Agent,
+  type ProjectColor,
+} from "@/types";
 import { useUiStore } from "@/store/useUiStore";
 import { useActiveAgent, useWorkspaceStore } from "@/store/useWorkspaceStore";
 
@@ -46,33 +62,143 @@ function ContextUsageRing({ percent }: { percent: number }) {
   );
 }
 
-/** A label + dropdown caret — the shared shape for the workspace, branch, and
- *  model selectors. */
-function DropdownChip({ label }: { label: string }) {
+const TEXT_CHIP =
+  "flex min-w-0 items-center gap-1 text-base text-secondary outline-none hover:text-primary";
+
+const GHOST_CHIP =
+  "flex h-6 min-w-0 shrink-0 items-center gap-2 rounded-full px-2 text-left text-base text-secondary outline-none transition-colors duration-base hover:bg-tertiary data-[state=open]:bg-tertiary";
+
+const PILL_CHIP =
+  "flex min-w-0 shrink-0 items-center rounded-full border border-secondary bg-elevated text-sm leading-none text-primary outline-none hover:bg-tertiary data-[state=open]:bg-tertiary";
+
+const PILL_STYLE: CSSProperties = {
+  boxSizing: "border-box",
+  height: 26,
+  minHeight: 26,
+  maxHeight: 26,
+  paddingTop: 0,
+  paddingRight: 8,
+  paddingBottom: 0,
+  paddingLeft: 8,
+  gap: 4,
+};
+
+type ChipLook = "text" | "pill";
+
+function SelectMenu({
+  label,
+  value,
+  options,
+  look,
+  icon,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { id: string; label: string }[];
+  look: ChipLook | "ghost";
+  icon?: IconName;
+  onChange: (id: string) => void;
+}) {
+  const shown = options.find((option) => option.id === value)?.label ?? value;
+  const className =
+    look === "pill" ? PILL_CHIP : look === "text" ? TEXT_CHIP : GHOST_CHIP;
   return (
-    <button type="button" className="flex min-w-0 items-center gap-1 text-base text-secondary">
-      <span className="truncate text-left">{label}</span>
-      <Icon name="chevron-down" size="sm" color="quaternary" />
-    </button>
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className={className}
+          style={look === "pill" ? PILL_STYLE : undefined}
+        >
+          {icon && look === "pill" && <Icon name={icon} size="sm" color="secondary" />}
+          <span>{shown}</span>
+          <Icon
+            name="chevron-down"
+            size="sm"
+            color={look === "text" ? "quaternary" : "secondary"}
+          />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="z-menu min-w-[180px]">
+        <DropdownMenuSection>
+          <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
+            {options.map((option) => (
+              <DropdownMenuRadioItem key={option.id} value={option.id}>
+                {option.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuSection>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
 /** Workspace selector. Null for standalone agents (no workspace to scope to). */
-function WorkspaceChip({ agent }: { agent?: Agent }) {
+function WorkspaceChip({ agent, look = "text" }: { agent?: Agent; look?: ChipLook }) {
   const workspaceId = agent ? agent.workspaceIds[0] : null;
-  const name = useWorkspaceStore((s) => (workspaceId ? s.workspaces[workspaceId]?.name : null));
-  return name ? <DropdownChip label={name} /> : null;
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const workspaceOrder = useWorkspaceStore((s) => s.workspaceOrder);
+  const updateAgentMeta = useWorkspaceStore((s) => s.updateAgentMeta);
+  const name = workspaceId ? workspaces[workspaceId]?.name : null;
+  if (!agent || !name) return null;
+  return (
+    <SelectMenu
+      label="Workspace"
+      look={look}
+      icon="folder"
+      value={workspaceId ?? ""}
+      options={workspaceOrder.map((id) => ({
+        id,
+        label: workspaces[id]?.name ?? id,
+      }))}
+      onChange={(id) => updateAgentMeta(agent.id, { workspaceId: id })}
+    />
+  );
 }
 
 /** Branch selector. Null for standalone agents (not on a workspace branch). */
-function BranchChip({ agent }: { agent?: Agent }) {
+function BranchChip({ agent, look = "text" }: { agent?: Agent; look?: ChipLook }) {
+  const updateAgentMeta = useWorkspaceStore((s) => s.updateAgentMeta);
   const branch = agent ? agent.branch : null;
-  return branch ? <DropdownChip label={branch} /> : null;
+  if (!agent || !branch) return null;
+  const options = PROJECT_BRANCHES.includes(branch as (typeof PROJECT_BRANCHES)[number])
+    ? PROJECT_BRANCHES
+    : ([branch, ...PROJECT_BRANCHES] as const);
+  return (
+    <SelectMenu
+      label="Branch"
+      look={look}
+      icon="git-branch"
+      value={branch}
+      options={options.map((id) => ({ id, label: id }))}
+      onChange={(id) => updateAgentMeta(agent.id, { branch: id })}
+    />
+  );
 }
 
-/** Model selector. Used in the two-story card's bottom bar. */
-function ModelChip() {
-  return <DropdownChip label="Composer 2.5" />;
+/** Model selector. Ghost pill, same as the compact create-project footer. */
+function ModelChip({
+  value,
+  onChange,
+}: {
+  value: ProjectModel;
+  onChange: (model: ProjectModel) => void;
+}) {
+  return (
+    <SelectMenu
+      label="Model"
+      look="ghost"
+      value={value}
+      options={PROJECT_MODELS.map((id) => ({ id, label: id }))}
+      onChange={(id) => {
+        const match = PROJECT_MODELS.find((item) => item === id);
+        if (match) onChange(match);
+      }}
+    />
+  );
 }
 
 /** Round add-context button, shared by both variants. */
@@ -88,17 +214,17 @@ function AddContextButton() {
   );
 }
 
-/** Round dictate button, shared by both variants. The empty composer shows the
- *  mic (no text to send), so the trailing action is dictation in both states. */
-function DictateButton() {
+/** Mic while empty; filled arrow-up send once the prompt has text. */
+function ComposerAction({ empty, onSend }: { empty: boolean; onSend: () => void }) {
   return (
     <button
       type="button"
       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral"
-      aria-label="Dictate"
+      aria-label={empty ? "Dictate" : "Send"}
+      onClick={empty ? undefined : onSend}
     >
       <Icon
-        name="mic-filled"
+        name={empty ? "mic-filled" : "arrow-up-filled"}
         size="base"
         color="inherit"
         style={{ color: "var(--text-inverted)" }}
@@ -130,9 +256,13 @@ function ComposerCard({
   quote,
   autoFocus,
   defaultValue,
+  model,
+  onModelChange,
   onInput,
   onKeyDown,
+  onSend,
   onExpand,
+  extraInputPx = 0,
 }: {
   inputRef: RefObject<HTMLTextAreaElement>;
   empty: boolean;
@@ -140,11 +270,15 @@ function ComposerCard({
   quote?: string;
   autoFocus?: boolean;
   defaultValue?: string;
+  model: ProjectModel;
+  onModelChange: (model: ProjectModel) => void;
   onInput: () => void;
   onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
+  onSend: () => void;
   /** Opens the expanded writing surface. Omitted where there's no agent to
    *  attach the surface's text and shapes to. */
   onExpand?: () => void;
+  extraInputPx?: number;
 }) {
   return (
     <div className="flex flex-col rounded-2xl bg-elevated shadow-[0_0_0_1px_var(--border-secondary)]">
@@ -164,7 +298,10 @@ function ComposerCard({
           onInput={onInput}
           onKeyDown={onKeyDown}
           aria-label={placeholder}
-          style={{ minHeight: RESTING_INPUT_H, maxHeight: MAX_INPUT_H }}
+          style={{
+            minHeight: RESTING_INPUT_H + extraInputPx,
+            maxHeight: MAX_INPUT_H + extraInputPx,
+          }}
           className={clsx(
             "w-full min-w-0 resize-none overflow-y-auto bg-transparent text-lg leading-[20px] text-primary outline-none",
             onExpand && "pr-7",
@@ -194,10 +331,97 @@ function ComposerCard({
       <div className="flex items-center justify-between gap-2 p-2">
         <div className="flex min-w-0 items-center gap-2">
           <AddContextButton />
-          <ModelChip />
+          <ModelChip value={model} onChange={onModelChange} />
         </div>
-        <DictateButton />
+        <ComposerAction empty={empty} onSend={onSend} />
       </div>
+    </div>
+  );
+}
+
+function iconWellFill(color: ProjectColor): CSSProperties {
+  const key = PROJECT_COLOR_STROKE[color];
+  const fillFrom = `color-mix(in oklab, ${key} 18%, var(--bg-chrome))`;
+  const fillTo = `color-mix(in oklab, ${key} 8%, var(--bg-chrome))`;
+  return {
+    backgroundImage: `linear-gradient(var(--badge-angle), ${fillFrom}, ${fillTo})`,
+  };
+}
+
+/** Icon stacked over a large name field. Used on the New Project empty state. */
+function ProjectNameRow({ agent }: { agent: Agent }) {
+  const updateAgentMeta = useWorkspaceStore((s) => s.updateAgentMeta);
+  const updateProjectAppearance = useWorkspaceStore((s) => s.updateProjectAppearance);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [name, setName] = useState(() =>
+    agent.title === "New Project" ? "" : agent.title,
+  );
+  const icon = (agent.icon ?? "agent") as IconName;
+  const color = (agent.color ?? "default") as ProjectColor;
+
+  return (
+    <div className="flex w-full flex-col items-start gap-3 py-px">
+      <DropdownMenu modal={false} open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label="Edit project icon"
+            className="-mt-1 flex size-8 shrink-0 items-center justify-center rounded-[6px] [--badge-angle:0deg] dark:[--badge-angle:180deg]"
+            style={iconWellFill(color)}
+          >
+            <Icon
+              name={icon}
+              size="sm"
+              color="inherit"
+              style={{ color: PROJECT_COLOR_STROKE[color] }}
+            />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          side="bottom"
+          className="z-menu !min-w-0 overflow-hidden !rounded-[12px] border border-tertiary p-0"
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
+          <ProjectIconPicker
+            icon={icon}
+            color={color}
+            onPickIcon={(next) => updateProjectAppearance(agent.id, { icon: next })}
+            onPickColor={(next) => updateProjectAppearance(agent.id, { color: next })}
+          />
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <input
+        value={name}
+        onChange={(e) => {
+          setName(e.target.value);
+          updateAgentMeta(agent.id, { title: e.target.value });
+        }}
+        placeholder="New Project"
+        aria-label="Project name"
+        autoComplete="off"
+        data-1p-ignore
+        data-lpignore="true"
+        className="w-full bg-transparent text-[26px] leading-8 tracking-[-0.26px] text-primary outline-none placeholder:text-primary placeholder:opacity-20"
+      />
+    </div>
+  );
+}
+
+/** Repo, branch, and a disabled environment pill under the New Project composer. */
+function OnboardingPickers({ agent }: { agent: Agent }) {
+  return (
+    <div className="flex flex-wrap items-center" style={{ marginTop: 8, gap: 8 }}>
+      <WorkspaceChip agent={agent} look="pill" />
+      <BranchChip agent={agent} look="pill" />
+      <span
+        aria-disabled
+        className="flex shrink-0 items-center rounded-full border border-secondary bg-elevated text-sm leading-none text-tertiary"
+        style={PILL_STYLE}
+      >
+        <Icon name="cloud" size="sm" color="tertiary" />
+        <span>Cloud</span>
+      </span>
     </div>
   );
 }
@@ -240,6 +464,7 @@ export function Composer({
   // draft starts non-empty.
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [empty, setEmpty] = useState(() => draft === "");
+  const [model, setModel] = useState<ProjectModel>(PROJECT_MODELS[0]);
   const autosize = () => {
     const el = inputRef.current;
     // The single-line pill shares this ref (for focus) but must not autosize.
@@ -297,25 +522,44 @@ export function Composer({
     e.preventDefault();
     submit(e.currentTarget);
   };
+  const sendFromRef = () => {
+    const el = inputRef.current;
+    if (el) submit(el);
+  };
 
   if (variant === "expanded") {
+    const projectOnboarding = !!agent && isDraftProject(agent);
     return (
-      <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2 pl-3 pr-[calc(12px+var(--island-inset,0px))]">
-        {hasContext && (
-          <div className="flex min-w-0 items-center gap-2 px-2.5">
-            <WorkspaceChip agent={agent} />
-            <BranchChip agent={agent} />
-          </div>
+      <div className="mx-auto flex w-full max-w-[640px] flex-col gap-4 pl-3 pr-[calc(12px+var(--island-inset,0px))]">
+        {projectOnboarding ? (
+          <ProjectNameRow agent={agent} />
+        ) : (
+          hasContext && (
+            <div className="flex min-w-0 items-center gap-2 px-2.5">
+              <WorkspaceChip agent={agent} />
+              <BranchChip agent={agent} />
+            </div>
+          )
         )}
-        <ComposerCard
-          inputRef={inputRef}
-          empty={empty}
-          placeholder="Plan, @ for context, / for commands"
-          defaultValue={draft}
-          onInput={onCardInput}
-          onKeyDown={onSendKeyDown}
-          onExpand={expand}
-        />
+        <div className="flex flex-col">
+          <ComposerCard
+            inputRef={inputRef}
+            empty={empty}
+            placeholder={
+              projectOnboarding
+                ? "What should we work on?"
+                : "Plan, @ for context, / for commands"
+            }
+            defaultValue={draft}
+            model={model}
+            onModelChange={setModel}
+            onInput={onCardInput}
+            onKeyDown={onSendKeyDown}
+            onSend={sendFromRef}
+            extraInputPx={projectOnboarding ? 40 : 0}
+          />
+          {projectOnboarding && <OnboardingPickers agent={agent} />}
+        </div>
       </div>
     );
   }
@@ -332,8 +576,11 @@ export function Composer({
           quote={agent.thread.excerpt}
           autoFocus
           defaultValue={draft}
+          model={model}
+          onModelChange={setModel}
           onInput={onCardInput}
           onKeyDown={onSendKeyDown}
+          onSend={sendFromRef}
           onExpand={expand}
         />
         <AccessoryRow agent={agent} />
@@ -351,6 +598,7 @@ export function Composer({
             ref={inputRef as unknown as RefObject<HTMLInputElement>}
             className="w-full min-w-0 bg-transparent text-lg text-primary outline-none placeholder:text-quaternary"
             placeholder="/ for commands, @ to add context..."
+            onInput={handleInput}
             onKeyDown={onSendKeyDown}
           />
           <div
@@ -359,7 +607,7 @@ export function Composer({
             aria-hidden
           />
         </div>
-        <DictateButton />
+        <ComposerAction empty={empty} onSend={sendFromRef} />
       </div>
       <AccessoryRow agent={agent} />
     </div>

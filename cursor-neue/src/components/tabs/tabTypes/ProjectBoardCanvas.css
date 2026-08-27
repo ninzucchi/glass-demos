@@ -1,3 +1,13 @@
+.project-board-canvas .react-flow {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+.project-board-canvas .react-flow__background {
+  background: transparent;
+}
+
 .project-board-canvas .react-flow__node {
   padding: 0;
   background: transparent;
@@ -39,4 +49,17 @@
   background: transparent;
   color: var(--text-quaternary);
   font-size: var(--font-size-xs);
+}
+
+.project-board-canvas__wash {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    in oklab,
+    rgb(255 255 255 / 0.05),
+    rgb(0 0 0 / 0.04)
+  );
+  mix-blend-mode: soft-light;
 }

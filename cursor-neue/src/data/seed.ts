@@ -83,6 +83,8 @@ function project(
   };
 }
 
+export const SEED_PROJECT_IDS = ["p-sidebar", "p-keyboard", "p-base-ui"] as const;
+
 export function createSeed(): WorkspaceData {
   const workspaces: Record<string, Workspace> = {
     everysphere: { id: "everysphere", name: "anysphere" },

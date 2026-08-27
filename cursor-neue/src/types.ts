@@ -277,6 +277,15 @@ export const isChatsAgent = (a: Agent): boolean =>
 export const isDraftAgent = (a: Agent | undefined): boolean =>
   !!a && !!a.draft && !a.thread && !isProject(a);
 
+/** New Project that has not sent a first prompt. Hidden from the Projects list
+ *  until send publishes it. */
+export const isDraftProject = (a: Agent | undefined): boolean =>
+  !!a && !!a.draft && isProject(a);
+
+/** Unsent New Agent or New Project. */
+export const isBlankDraft = (a: Agent | undefined): boolean =>
+  isDraftAgent(a) || isDraftProject(a);
+
 /** First line of the latest agent reply, or empty when none exists. */
 export const lastAgentReply = (agent: Agent): string => {
   for (let i = agent.messages.length - 1; i >= 0; i--) {

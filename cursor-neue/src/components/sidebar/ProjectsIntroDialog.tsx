@@ -3,7 +3,9 @@ import { motion, useReducedMotion } from "motion/react";
 import { Icon } from "@/components/ui/Icon";
 import type { IconName } from "@/icons/iconNames";
 import { useWindowId } from "@/components/window/WindowContext";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useUiStore } from "@/store/useUiStore";
+import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 const DIALOG_EASE = [0.25, 1, 0.5, 1] as const;
 
@@ -20,6 +22,8 @@ export function ProjectsIntroDialog() {
   const close = useUiStore((s) => s.closeProjectsIntro);
   const dismissNux = useUiStore((s) => s.dismissProjectsNux);
   const openNewProject = useUiStore((s) => s.openNewProject);
+  const createDraftProject = useWorkspaceStore((s) => s.createDraftProject);
+  const createMode = useFeatureFlags((s) => s.projectCreate);
   const reduceMotion = useReducedMotion();
   const dialogTransition = {
     duration: reduceMotion ? 0 : 0.2,
@@ -29,7 +33,8 @@ export function ProjectsIntroDialog() {
   const start = () => {
     close();
     dismissNux();
-    openNewProject(windowId);
+    if (createMode === "composer") createDraftProject(windowId);
+    else openNewProject(windowId);
   };
 
   if (!open) return null;

@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import { Composer } from "@/components/chat/Composer";
+import { ProjectTemplateStrip } from "@/components/chat/ProjectTemplateStrip";
 import { ProjectFollowUp } from "@/components/chat/ProjectFollowUp";
 import { ProjectThreadHeader } from "@/components/chat/ProjectThreadHeader";
 import { ThreadOriginPin } from "@/components/chat/ThreadOrigin";
 import { FollowUpPill } from "@/components/ui/FollowUpPill";
-import { isProject, type Agent, type Tab } from "@/types";
+import { isDraftProject, isProject, type Agent, type Tab } from "@/types";
 import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useWindowId } from "@/components/window/WindowContext";
 import {
@@ -86,7 +87,17 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
   // expanded composer. An empty THREAD falls through to the standard layout —
   // origin pin on top, (empty) transcript, docked composer with the quote.
   // A project always shows its thread header, even with no messages yet.
-  if (messages.length === 0 && !agent?.thread && !isProject(agent)) {
+  if (messages.length === 0 && !agent?.thread && (!isProject(agent) || isDraftProject(agent))) {
+    if (isDraftProject(agent)) {
+      return (
+        <div className="flex h-full flex-col bg-chrome">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-3">
+            <Composer variant="expanded" agent={agent} />
+          </div>
+          <ProjectTemplateStrip agent={agent} />
+        </div>
+      );
+    }
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 bg-chrome px-3">
         {showCrumbBack && <CrumbBackPill />}

@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Icon } from "@/components/ui/Icon";
-import { OutlineButton } from "@/components/ui/OutlineButton";
+import { IconButton } from "@/components/ui/IconButton";
 import {
   PROJECT_SUGGESTIONS,
   PROJECT_TEMPLATES,
   type ProjectTemplate,
 } from "@/data/projectTemplates";
-import { PROJECT_COLOR_STROKE, type ProjectColor } from "@/types";
+import { isProject, PROJECT_COLOR_STROKE, type ProjectColor } from "@/types";
+import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 const WELL_TONE: Record<ProjectColor, string> = {
   default: "bg-quaternary",
@@ -22,10 +23,16 @@ const WELL_TONE: Record<ProjectColor, string> = {
   brand: "bg-[color-mix(in_oklab,var(--brand)_12%,transparent)]",
 };
 
-const SECTIONS: { label: string; items: ProjectTemplate[] }[] = [
-  { label: "For You", items: PROJECT_SUGGESTIONS },
-  { label: "Templates", items: PROJECT_TEMPLATES },
-];
+const PER_SECTION = 3;
+
+function takeFresh(
+  items: ProjectTemplate[],
+  existingTitles: Set<string>,
+): ProjectTemplate[] {
+  return items
+    .filter((item) => !existingTitles.has(item.title.toLowerCase()))
+    .slice(0, PER_SECTION);
+}
 
 /** Checkbox picker for Suggestions create. For You sits above Templates. */
 export function NewProjectSuggestions({
@@ -35,12 +42,30 @@ export function NewProjectSuggestions({
   onCustom: () => void;
   onAdd: (templates: ProjectTemplate[]) => void;
 }) {
+  const agents = useWorkspaceStore((s) => s.agents);
+  const existingTitles = useMemo(() => {
+    const titles = new Set<string>();
+    for (const agent of Object.values(agents)) {
+      if (isProject(agent)) titles.add(agent.title.toLowerCase());
+    }
+    return titles;
+  }, [agents]);
+  const forYou = useMemo(
+    () => takeFresh(PROJECT_SUGGESTIONS, existingTitles),
+    [existingTitles],
+  );
+  const templates = useMemo(
+    () => takeFresh(PROJECT_TEMPLATES, existingTitles),
+    [existingTitles],
+  );
+  const sections = [
+    { label: "For You", items: forYou },
+    { label: "Templates", items: templates },
+  ];
   const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(PROJECT_SUGGESTIONS.map((item) => item.id)),
+    () => new Set(forYou.map((item) => item.id)),
   );
-  const chosen = [...PROJECT_SUGGESTIONS, ...PROJECT_TEMPLATES].filter((item) =>
-    selected.has(item.id),
-  );
+  const chosen = [...forYou, ...templates].filter((item) => selected.has(item.id));
   const count = chosen.length;
 
   const toggle = (id: string) => {
@@ -53,19 +78,28 @@ export function NewProjectSuggestions({
   };
 
   return (
-    <div className="flex w-[440px] flex-col gap-5 p-5">
-      <div className="flex flex-col gap-1.5">
+    <div className="relative flex w-[440px] flex-col gap-5 p-5">
+      <Dialog.Close asChild>
+        <IconButton
+          name="x"
+          size="base"
+          color="tertiary"
+          aria-label="Close"
+          className="absolute right-4 top-4"
+        />
+      </Dialog.Close>
+      <div className="flex flex-col gap-1.5 pr-8">
         <Dialog.Title className="text-3xl font-medium text-primary">
-          Projects for large units of work
+          Suggested Projects
         </Dialog.Title>
         <Dialog.Description className="text-base text-secondary">
-          Add a few starters, or create a custom project. Agents run in parallel
-          to get it done.
+          Create Projects to Take on Large Chunks of Work. Here are a few
+          suggestions to get started.
         </Dialog.Description>
       </div>
 
       <div className="flex min-h-0 flex-col gap-4">
-        {SECTIONS.map((section) => (
+        {sections.map((section) => (
           <section key={section.label} className="flex flex-col gap-2">
             <h3 className="text-sm text-tertiary">{section.label}</h3>
             <div className="overflow-hidden rounded-xl bg-quaternary">
@@ -83,15 +117,21 @@ export function NewProjectSuggestions({
         ))}
       </div>
 
-      <div className="flex items-center justify-end gap-2">
-        <OutlineButton onClick={onCustom}>Create Custom</OutlineButton>
+      <div className="flex flex-col gap-2">
         <button
           type="button"
           disabled={count === 0}
           onClick={() => onAdd(chosen)}
-          className="flex h-8 shrink-0 items-center justify-center rounded-lg bg-neutral px-3 text-lg font-medium text-inverted hover:bg-neutral-hover disabled:pointer-events-none disabled:opacity-40"
+          className="flex h-9 w-full items-center justify-center rounded-lg bg-neutral px-3 text-lg font-medium text-inverted hover:bg-neutral-hover disabled:pointer-events-none disabled:opacity-40"
         >
           {count === 1 ? "Add 1 Project" : `Add ${count} Projects`}
+        </button>
+        <button
+          type="button"
+          onClick={onCustom}
+          className="flex h-9 w-full items-center justify-center rounded-lg border border-secondary px-3 text-lg font-medium text-primary hover:bg-quaternary"
+        >
+          Create Custom
         </button>
       </div>
     </div>
@@ -124,14 +164,14 @@ function SuggestionRow({
         aria-hidden
         className={
           checked
-            ? "flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-neutral"
+            ? "flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-neutral shadow-[inset_0_0_0_1px_var(--border-secondary)]"
             : "flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-secondary"
         }
       >
         {checked && (
           <Icon
-            name="check"
-            size="2xs"
+            name="check-filled"
+            size="sm"
             color="inherit"
             style={{ color: "var(--text-inverted)" }}
           />

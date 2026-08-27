@@ -57,10 +57,7 @@ export function WorkspaceGroup({
   const showMore = !expanded && list.length > VISIBLE;
 
   return (
-    <div
-      data-sidebar-flip={`workspace:${workspace.id}`}
-      className={clsx("flex flex-col gap-px", dragging && "opacity-40")}
-    >
+    <div className={clsx("flex flex-col gap-px", dragging && "opacity-40")}>
       <div onPointerDown={onPointerDown}>
         <SidebarCell
           label={workspace.name}

@@ -156,7 +156,6 @@ export function ProjectGroup({
       className={clsx("relative flex flex-col gap-px", dragging && "opacity-40")}
       data-sidebar-drop="project"
       data-sidebar-project-id={project.id}
-      data-sidebar-flip={`project:${project.id}`}
     >
       <ContextMenu
         onOpenChange={(open) => {
@@ -208,14 +207,19 @@ export function ProjectGroup({
             </SidebarWorkspaceTooltip>
           </div>
         </ContextMenuTrigger>
-        <ContextMenuContent className={menuPanel === "icons" ? "!min-w-0 p-0" : undefined}>
+        <ContextMenuContent
+          className={
+            menuPanel === "icons"
+              ? "!min-w-0 overflow-hidden !rounded-[12px] border border-tertiary p-0"
+              : undefined
+          }
+        >
           {menuPanel === "icons" ? (
             <ProjectIconPicker
               icon={project.icon ?? "pencil"}
               color={project.color ?? "blue"}
               onPickIcon={(icon) => updateProjectAppearance(project.id, { icon })}
               onPickColor={(color) => updateProjectAppearance(project.id, { color })}
-              onBack={() => setMenuPanel("main")}
             />
           ) : (
             <>

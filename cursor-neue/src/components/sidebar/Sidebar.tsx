@@ -14,7 +14,6 @@ import { useTabDragStore } from "@/store/tabDrag";
 import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useUiStore } from "@/store/useUiStore";
 import { AgentList } from "@/components/sidebar/AgentList";
-import { useSidebarFlip } from "@/components/sidebar/sidebarFlip";
 import {
   chatsRows,
   recentsBuckets,
@@ -22,6 +21,8 @@ import {
   RECENTS_BUCKET_LABEL,
 } from "@/components/sidebar/chatsRows";
 import { ProjectGroup } from "@/components/sidebar/ProjectGroup";
+import { ProjectPlaceholderRow } from "@/components/sidebar/ProjectPlaceholderRow";
+import { ProjectSuggestionsCard } from "@/components/sidebar/ProjectSuggestionsCard";
 import { SidebarCell } from "@/components/sidebar/SidebarCell";
 import { SidebarCollapse } from "@/components/sidebar/SidebarCollapse";
 import { SidebarDropOutline } from "@/components/sidebar/SidebarDropOutline";
@@ -31,6 +32,8 @@ import { SidebarFooter } from "@/components/sidebar/SidebarFooter";
 import { WorkspaceSortList } from "@/components/sidebar/WorkspaceSortList";
 import { Icon } from "@/components/ui/Icon";
 import { ScrollArea } from "@/components/ui/ScrollArea";
+import { SIDEBAR_PROJECT_PLACEHOLDERS } from "@/data/projectTemplates";
+import { SEED_PROJECT_IDS } from "@/data/seed";
 import {
   AgentGroupControls,
   SidebarNavControls,
@@ -91,12 +94,16 @@ function SidebarSection({
 
 function NewProjectButton() {
   const windowId = useWindowId();
+  const createMode = useFeatureFlags((s) => s.projectCreate);
   const openNewProject = useUiStore((s) => s.openNewProject);
+  const createDraftProject = useWorkspaceStore((s) => s.createDraftProject);
   return (
     <button
       type="button"
       aria-label="New project"
-      onClick={() => openNewProject(windowId)}
+      onClick={() =>
+        createMode === "composer" ? createDraftProject(windowId) : openNewProject(windowId)
+      }
       className="flex size-4 shrink-0 items-center justify-center text-[color:var(--icon-tertiary)] hover:text-[color:var(--icon-secondary)]"
     >
       <Icon name="plus" size="base" color="inherit" />
@@ -104,19 +111,39 @@ function NewProjectButton() {
   );
 }
 
+const SEED_PROJECT_ID_SET = new Set<string>(SEED_PROJECT_IDS);
+
 function ProjectsSection() {
   const agents = useWorkspaceStore((s) => s.agents);
   const projectOrder = useWorkspaceStore((s) => s.projectOrder);
   const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
+  const onboarding = useFeatureFlags((s) => s.projectOnboarding);
+  const onboardingNew = onboarding === "new";
+  const dismissed = useUiStore((s) => s.dismissedProjectPlaceholders);
+  const hintDismissed = useUiStore((s) => s.projectSuggestionsCardDismissed);
   const projects = useMemo(
     () =>
       projectOrder
         .map((pid) => agents[pid])
-        .filter(
-          (a): a is Agent => !!a && isProject(a) && !isAgentPinned(pinnedAgents, a.id),
-        ),
-    [agents, pinnedAgents, projectOrder],
+        .filter((a): a is Agent => {
+          if (!a || !isProject(a) || a.draft || isAgentPinned(pinnedAgents, a.id)) return false;
+          if (onboardingNew && SEED_PROJECT_ID_SET.has(a.id)) return false;
+          return true;
+        }),
+    [agents, onboardingNew, pinnedAgents, projectOrder],
   );
+  const placeholders = useMemo(() => {
+    if (!onboardingNew) return [];
+    const existing = new Set(
+      Object.values(agents)
+        .filter((agent) => isProject(agent) && !agent.draft && !SEED_PROJECT_ID_SET.has(agent.id))
+        .map((agent) => agent.title.toLowerCase()),
+    );
+    const hidden = new Set(dismissed);
+    return SIDEBAR_PROJECT_PLACEHOLDERS.filter(
+      (item) => !hidden.has(item.id) && !existing.has(item.title.toLowerCase()),
+    );
+  }, [agents, dismissed, onboardingNew]);
   const draggingProject = useTabDragStore((s) => {
     const id = s.source?.agentId;
     if (!id || s.source?.tabId) return false;
@@ -130,7 +157,13 @@ function ProjectsSection() {
       dropKind="projects"
       trailing={<NewProjectButton />}
     >
+      {onboardingNew && !hintDismissed && placeholders.length > 0 && (
+        <ProjectSuggestionsCard />
+      )}
       {(projects.length > 0 || draggingProject) && <ProjectSortList projects={projects} />}
+      {placeholders.map((item) => (
+        <ProjectPlaceholderRow key={item.id} item={item} />
+      ))}
     </SidebarSection>
   );
 }
@@ -232,18 +265,13 @@ export function Sidebar() {
   const openCustomize = useUiStore((s) => s.openCustomize);
   const mode = useFeatureFlags((s) => s.sidebarProjects);
   const merged = mode === "merged";
-  const rootRef = useRef<HTMLElement>(null);
-  useSidebarFlip(rootRef, `${mode}:${groupBy}`);
   const groupControls = <AgentGroupControls />;
   const group = (
     <GroupSection groupBy={groupBy} trailing={merged ? groupControls : undefined} />
   );
 
   return (
-    <aside
-      ref={rootRef}
-      className="flex h-full w-full select-none flex-col bg-sidebar backdrop-blur-[12px]"
-    >
+    <aside className="flex h-full w-full select-none flex-col bg-sidebar backdrop-blur-[12px]">
       <SidebarHeader />
       <div className="flex shrink-0 flex-col gap-px px-2 pt-1">
         <SidebarCell label="Search" leading={{ kind: "action", icon: "magnifying-glass" }} />

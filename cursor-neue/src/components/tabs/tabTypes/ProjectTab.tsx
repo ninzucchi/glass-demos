@@ -6,9 +6,18 @@ import { EmptyTabSidebar } from "./placeholder";
 import {
   CardHandles,
   ProjectBoardCanvas,
+  canvasEdges,
   nodesFromClusters,
+  placeHubNode,
+  routeEdges,
   type CanvasCluster,
 } from "./ProjectBoardCanvas";
+import {
+  AGENT_PARENT,
+  PR_DEPENDS,
+  TASK_DEPENDS,
+  pairsFromDepends,
+} from "@/data/boardLinks";
 import {
   PR_BOARD_STATES,
   PR_STATE_LABEL,
@@ -31,11 +40,14 @@ import { formatRelativeTime } from "@/lib/relativeTime";
 import {
   AGENT_BOARD_STATUSES,
   AGENT_STATUS_LABEL,
+  PROJECT_COLOR_STROKE,
   agentsInProject,
   contentProjectId,
+  isProject,
   lastAgentReply,
   type Agent,
   type AgentStatus,
+  type ProjectColor,
 } from "@/types";
 import { useWindowId } from "@/components/window/WindowContext";
 import { useActiveAgent, useWorkspaceStore } from "@/store/useWorkspaceStore";
@@ -379,6 +391,7 @@ function PrCard({ item, layout }: { item: PullRequest; layout: BoardView }) {
 type TaskMapData = { task: Task; projectId: string; onOpenAgent: (id: string) => void };
 type AgentMapData = { agent: Agent };
 type PrMapData = { item: PullRequest };
+type HubMapData = { title: string; color: ProjectColor };
 
 function TaskMapNode({ data }: NodeProps<Node<TaskMapData>>) {
   return (
@@ -412,10 +425,36 @@ function PrMapNode({ data }: NodeProps<Node<PrMapData>>) {
   );
 }
 
+function ProjectHubNode({ data }: NodeProps<Node<HubMapData>>) {
+  const stroke = PROJECT_COLOR_STROKE[data.color];
+  return (
+    <div
+      className={clsx(
+        CARD_SURFACE,
+        "relative flex items-center justify-center px-3 py-2",
+      )}
+      style={{
+        border: `1px solid color-mix(in oklab, ${stroke} 50%, transparent)`,
+      }}
+    >
+      <CardHandles />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 rounded-[inherit]"
+        style={{ background: `color-mix(in oklab, ${stroke} 10%, transparent)` }}
+      />
+      <span className="relative text-center text-2xl font-medium text-primary">
+        {data.title}
+      </span>
+    </div>
+  );
+}
+
 const MAP_NODE_TYPES: NodeTypes = {
   task: TaskMapNode,
   agent: AgentMapNode,
   pr: PrMapNode,
+  projectHub: ProjectHubNode,
 };
 
 function BoardGroup({
@@ -481,6 +520,7 @@ export function ProjectContent() {
   const [view, setView] = useState<BoardView>("columns");
 
   const projectId = agent ? contentProjectId(agent) : null;
+  const project = projectId ? agents[projectId] : undefined;
   const children = projectId ? agentsInProject(agents, agentOrder, projectId) : [];
   const prs = projectId ? pullRequestsFor(projectId) : [];
   const tasks = projectId ? tasksFor(projectId) : [];
@@ -495,15 +535,32 @@ export function ProjectContent() {
   const prStates = emptyToEnd(PR_BOARD_STATES, (state) => prsByState(state).length === 0);
   const taskStatuses = emptyToEnd(TASK_BOARD_STATUSES, (status) => tasksByStatus(status).length === 0);
 
-  const mapNodes = useMemo(() => {
+  const mapGraph = useMemo(() => {
     const openAgent = (agentId: string) => setActiveAgent(windowId, agentId);
+    const mapChildren = projectId ? agentsInProject(agents, agentOrder, projectId) : [];
+    const mapTasks = projectId ? tasksFor(projectId) : [];
+    const mapPrs = projectId ? pullRequestsFor(projectId) : [];
+    const mapAgentsByStatus = (status: AgentStatus) =>
+      mapChildren.filter((child) => child.status === status);
+    const mapPrsByState = (state: PrState) => mapPrs.filter((item) => item.state === state);
+    const mapTasksByStatus = (status: TaskStatus) =>
+      mapTasks.filter((task) => task.status === status);
+    const mapAgentStatuses = emptyToEnd(
+      AGENT_BOARD_STATUSES,
+      (status) => mapAgentsByStatus(status).length === 0,
+    );
+    const mapPrStates = emptyToEnd(PR_BOARD_STATES, (state) => mapPrsByState(state).length === 0);
+    const mapTaskStatuses = emptyToEnd(
+      TASK_BOARD_STATUSES,
+      (status) => mapTasksByStatus(status).length === 0,
+    );
     let clusters: CanvasCluster[] = [];
     switch (surface) {
       case "tasks":
-        clusters = taskStatuses.map((status) => ({
+        clusters = mapTaskStatuses.map((status) => ({
           id: status,
           title: TASK_STATUS_LABEL[status],
-          items: tasksByStatus(status).map((task) => ({
+          items: mapTasksByStatus(status).map((task) => ({
             id: task.id,
             type: "task",
             data: { task, projectId: projectId ?? "", onOpenAgent: openAgent },
@@ -511,10 +568,10 @@ export function ProjectContent() {
         }));
         break;
       case "agents":
-        clusters = agentStatuses.map((status) => ({
+        clusters = mapAgentStatuses.map((status) => ({
           id: status,
           title: AGENT_STATUS_LABEL[status],
-          items: agentsByStatus(status).map((child) => ({
+          items: mapAgentsByStatus(status).map((child) => ({
             id: child.id,
             type: "agent",
             data: { agent: child },
@@ -522,10 +579,10 @@ export function ProjectContent() {
         }));
         break;
       case "prs":
-        clusters = prStates.map((state) => ({
+        clusters = mapPrStates.map((state) => ({
           id: state,
           title: PR_STATE_LABEL[state],
-          items: prsByState(state).map((item) => ({
+          items: mapPrsByState(state).map((item) => ({
             id: item.id,
             type: "pr",
             data: { item },
@@ -537,68 +594,107 @@ export function ProjectContent() {
         return _exhaustive;
       }
     }
-    return nodesFromClusters(clusters);
-  }, [
-    agentStatuses,
-    agents,
-    agentOrder,
-    children,
-    prs,
-    prStates,
-    projectId,
-    setActiveAgent,
-    surface,
-    taskStatuses,
-    tasks,
-    windowId,
-  ]);
+    let nodes = nodesFromClusters(clusters);
+    let pairs: { source: string; target: string }[] = [];
+    switch (surface) {
+      case "tasks":
+        pairs = pairsFromDepends(TASK_DEPENDS, new Set(mapTasks.map((task) => task.id)));
+        break;
+      case "prs":
+        pairs = pairsFromDepends(PR_DEPENDS, new Set(mapPrs.map((item) => item.id)));
+        break;
+      case "agents": {
+        if (project && isProject(project)) {
+          const hubId = `hub:${project.id}`;
+          nodes = placeHubNode(nodes, {
+            id: hubId,
+            type: "projectHub",
+            data: {
+              title: project.title,
+              color: project.color ?? "blue",
+            },
+            position: { x: 0, y: 0 },
+          });
+          const childIds = new Set(mapChildren.map((child) => child.id));
+          for (const child of mapChildren) {
+            const parent = AGENT_PARENT[child.id];
+            if (parent && childIds.has(parent)) {
+              pairs.push({ source: parent, target: child.id });
+            } else {
+              pairs.push({ source: hubId, target: child.id });
+            }
+          }
+        }
+        break;
+      }
+      default: {
+        const _exhaustive: never = surface;
+        return _exhaustive;
+      }
+    }
+    return { nodes, edges: routeEdges(canvasEdges(pairs), nodes) };
+  }, [agentOrder, agents, project, projectId, setActiveAgent, surface, windowId]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-editor">
-      <div className="flex shrink-0 items-center justify-between px-3 py-4">
-        <Segmented
-          label="Project surface"
-          value={surface}
-          onSelect={setSurface}
-          options={[
-            { id: "tasks", label: "Tasks" },
-            { id: "agents", label: "Agents" },
-            { id: "prs", label: "PRs" },
-          ]}
-        />
-        <Segmented
-          label="Board layout"
-          value={view}
-          onSelect={setView}
-          options={[
-            { id: "columns", icon: "menu", iconClassName: "rotate-90" },
-            { id: "rows", icon: "menu" },
-            { id: "map", icon: "map" },
-          ]}
-        />
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-editor">
+      {view === "map" && (
+        <div className="absolute inset-0">
+          <ProjectBoardCanvas
+            key={`${projectId ?? "none"}-${surface}`}
+            nodes={mapGraph.nodes}
+            edges={mapGraph.edges}
+            nodeTypes={MAP_NODE_TYPES}
+            onOpenNode={
+              surface === "agents"
+                ? (id) => {
+                    if (id.startsWith("hub:")) return;
+                    setActiveAgent(windowId, id);
+                  }
+                : undefined
+            }
+          />
+        </div>
+      )}
+      <div
+        className={clsx(
+          "flex items-center justify-between px-3 py-4",
+          view === "map" ? "pointer-events-none relative z-10" : "shrink-0",
+        )}
+      >
+        <div className={view === "map" ? "pointer-events-auto" : undefined}>
+          <Segmented
+            label="Project surface"
+            value={surface}
+            onSelect={setSurface}
+            options={[
+              { id: "tasks", label: "Tasks" },
+              { id: "agents", label: "Agents" },
+              { id: "prs", label: "PRs" },
+            ]}
+          />
+        </div>
+        <div className={view === "map" ? "pointer-events-auto" : undefined}>
+          <Segmented
+            label="Board layout"
+            value={view}
+            onSelect={setView}
+            options={[
+              { id: "columns", icon: "menu", iconClassName: "rotate-90" },
+              { id: "rows", icon: "menu" },
+              { id: "map", icon: "map" },
+            ]}
+          />
+        </div>
       </div>
+      {view !== "map" && (
       <div
         className={clsx(
           "min-h-0 flex-1",
           view === "rows"
             ? "overflow-y-auto overflow-x-hidden"
-            : view === "map"
-              ? "overflow-hidden"
-              : "overflow-x-auto overflow-y-hidden",
+            : "overflow-x-auto overflow-y-hidden",
         )}
       >
-        {view === "map" ? (
-          <ProjectBoardCanvas
-            key={`${projectId ?? "none"}-${surface}`}
-            nodes={mapNodes}
-            nodeTypes={MAP_NODE_TYPES}
-            onOpenNode={
-              surface === "agents"
-                ? (id) => setActiveAgent(windowId, id)
-                : undefined
-            }
-          />
-        ) : (
         <div
           className={clsx(
             "flex gap-2 px-3 pb-2",
@@ -665,8 +761,8 @@ export function ProjectContent() {
             }
           })()}
         </div>
-        )}
       </div>
+      )}
     </div>
   );
 }

@@ -5,6 +5,8 @@ import {
   PROJECT_CREATE_MODES,
   PROJECT_FOLDERS_LABEL,
   PROJECT_FOLDERS_MODES,
+  PROJECT_ONBOARDING_LABEL,
+  PROJECT_ONBOARDING_MODES,
   PROJECT_ICON_SHAPE_LABEL,
   PROJECT_ICON_SHAPE_MODES,
   SIDEBAR_PROJECTS_LABEL,
@@ -30,6 +32,8 @@ export function DebugBar() {
   const setIconShape = useFeatureFlags((s) => s.setProjectIconShape);
   const createMode = useFeatureFlags((s) => s.projectCreate);
   const setCreateMode = useFeatureFlags((s) => s.setProjectCreate);
+  const onboarding = useFeatureFlags((s) => s.projectOnboarding);
+  const setOnboarding = useFeatureFlags((s) => s.setProjectOnboarding);
   const promoOn = !useUiStore((s) => s.projectsNuxDismissed);
   const togglePromo = useUiStore((s) => s.toggleProjectsNux);
 
@@ -89,6 +93,13 @@ export function DebugBar() {
         labels={PROJECT_CREATE_LABEL}
         value={createMode}
         onSelect={setCreateMode}
+      />
+      <Segmented
+        label="Onboarding"
+        options={PROJECT_ONBOARDING_MODES}
+        labels={PROJECT_ONBOARDING_LABEL}
+        value={onboarding}
+        onSelect={setOnboarding}
       />
     </div>
   );

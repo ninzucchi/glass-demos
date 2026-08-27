@@ -86,7 +86,7 @@ export function AgentCell({ agent, selected, onSelect, nested, nestLevel }: Agen
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div data-sidebar-flip={`agent:${agent.id}`} className={clsx(dragging && "opacity-40")}>
+        <div className={clsx(dragging && "opacity-40")}>
           <SidebarCell
             label={agent.title}
             leading={{ kind: "agent", status: agent.status }}

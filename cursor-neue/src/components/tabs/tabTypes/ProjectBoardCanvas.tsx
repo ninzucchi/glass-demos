@@ -21,10 +21,12 @@ import "./ProjectBoardCanvas.css";
 import { IconButton } from "@/components/ui/IconButton";
 
 const CARD_W = 280;
-const CARD_H = 124;
-const CARD_GAP = 18;
-const CLUSTER_PAD = 56;
-const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+const CARD_H = 118;
+const CARD_GAP = 16;
+const CLUSTER_GAP = 72;
+const ANGLE_STEP = Math.PI / 10;
+export const HUB_W = 280;
+export const HUB_H = 48;
 
 export type ClusterItem = {
   id: string;
@@ -58,122 +60,245 @@ function hits(a: Rect, b: Rect, gap: number): boolean {
   );
 }
 
-function blobRadius(count: number): number {
-  if (count <= 1) return Math.max(CARD_W, CARD_H) / 2;
-  return Math.sqrt(count) * 92 + 40;
+function bbox(rects: Rect[]): Rect {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const rect of rects) {
+    minX = Math.min(minX, rect.x);
+    minY = Math.min(minY, rect.y);
+    maxX = Math.max(maxX, rect.x + rect.w);
+    maxY = Math.max(maxY, rect.y + rect.h);
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
-function clusterOrigin(index: number, total: number, radius: number): { x: number; y: number } {
-  if (total <= 1) return { x: 240, y: 180 };
-  const angle = (index / total) * Math.PI * 2 - Math.PI * 0.65;
-  const spread = radius * 2.15 + 140;
-  return {
-    x: 420 + Math.cos(angle) * spread,
-    y: 300 + Math.sin(angle) * spread * 0.78,
-  };
-}
-
-/** Spiral out from the cluster center until the card clears every placed rect. */
-function placeInBlob(
-  id: string,
-  index: number,
-  origin: { x: number; y: number },
-  placed: Rect[],
-): { x: number; y: number } {
-  const spin = hashUnit(id, 3) * Math.PI * 2;
-  const theta = index * GOLDEN + spin;
-  let radius = Math.sqrt(index) * 64;
-  if (index === 0) {
-    const first = {
-      x: origin.x - CARD_W / 2 + (hashUnit(id, 1) - 0.5) * 28,
-      y: origin.y - CARD_H / 2 + (hashUnit(id, 2) - 0.5) * 20,
+/** Closest open slot around the current pile. Favors height so wide cards form a blob. */
+function placeInBlob(id: string, placed: Rect[]): { x: number; y: number } {
+  if (placed.length === 0) {
+    return {
+      x: (hashUnit(id, 1) - 0.5) * 36,
+      y: (hashUnit(id, 2) - 0.5) * 24,
     };
-    if (!placed.some((rect) => hits({ ...first, w: CARD_W, h: CARD_H }, rect, CARD_GAP))) {
-      return first;
+  }
+  const pile = bbox(placed);
+  const origin = { x: pile.x + pile.w / 2, y: pile.y + pile.h / 2 };
+  const spin = hashUnit(id, 4) * Math.PI * 2;
+  for (let radius = 36; radius < 1600; radius += 10) {
+    const turns = Math.max(12, Math.round((Math.PI * 2) / ANGLE_STEP));
+    for (let step = 0; step < turns; step++) {
+      const theta = spin + step * ANGLE_STEP;
+      const next = {
+        x: origin.x + Math.cos(theta) * radius * 0.62 - CARD_W / 2,
+        y: origin.y + Math.sin(theta) * radius * 1.18 - CARD_H / 2,
+      };
+      if (!placed.some((rect) => hits({ ...next, w: CARD_W, h: CARD_H }, rect, CARD_GAP))) {
+        return next;
+      }
     }
   }
-  while (radius < 2400) {
-    const next = {
-      x: origin.x + Math.cos(theta) * radius * 1.55 - CARD_W / 2,
-      y: origin.y + Math.sin(theta) * radius * 0.82 - CARD_H / 2,
-    };
-    if (!placed.some((rect) => hits({ ...next, w: CARD_W, h: CARD_H }, rect, CARD_GAP))) {
-      return next;
-    }
-    radius += 14;
-  }
-  return {
-    x: origin.x + index * (CARD_W + CARD_GAP),
-    y: origin.y,
-  };
+  return { x: pile.x, y: pile.y + pile.h + CARD_GAP };
 }
 
-/** Place each former column as a loose blob. Nothing overlaps. Positions stay stable per id. */
+function packCluster(items: ClusterItem[]): { item: ClusterItem; local: { x: number; y: number } }[] {
+  const placed: Rect[] = [];
+  return items.map((item) => {
+    const local = placeInBlob(item.id, placed);
+    placed.push({ x: local.x, y: local.y, w: CARD_W, h: CARD_H });
+    return { item, local };
+  });
+}
+
+function clusterSlot(index: number, total: number, sizes: Rect[]): { x: number; y: number } {
+  const cols = total <= 2 ? total : 2;
+  const col = index % cols;
+  const row = Math.floor(index / cols);
+  const colWidth: number[] = [];
+  const rowHeight: number[] = [];
+  sizes.forEach((size, i) => {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+    colWidth[c] = Math.max(colWidth[c] ?? 0, size.w);
+    rowHeight[r] = Math.max(rowHeight[r] ?? 0, size.h);
+  });
+  let x = 48;
+  for (let c = 0; c < col; c++) x += colWidth[c] + CLUSTER_GAP;
+  let y = 48;
+  for (let r = 0; r < row; r++) y += rowHeight[r] + CLUSTER_GAP;
+  return { x, y };
+}
+
+/** Pack each former column as its own blob, then sit those piles in a compact grid. */
 export function nodesFromClusters(clusters: CanvasCluster[]): Node[] {
   const filled = clusters.filter((cluster) => cluster.items.length > 0);
-  const maxRadius = Math.max(...filled.map((cluster) => blobRadius(cluster.items.length)), 80);
-  const placed: Rect[] = [];
+  const packed = filled.map((cluster) => {
+    const members = packCluster(cluster.items);
+    const bounds = bbox(
+      members.map((member) => ({ x: member.local.x, y: member.local.y, w: CARD_W, h: CARD_H })),
+    );
+    return { members, bounds };
+  });
   const nodes: Node[] = [];
-  filled.forEach((cluster, clusterIndex) => {
-    const origin = clusterOrigin(clusterIndex, filled.length, maxRadius + CLUSTER_PAD);
-    cluster.items.forEach((item, index) => {
-      const position = placeInBlob(item.id, index, origin, placed);
-      placed.push({ x: position.x, y: position.y, w: CARD_W, h: CARD_H });
+  packed.forEach((cluster, index) => {
+    const slot = clusterSlot(
+      index,
+      packed.length,
+      packed.map((item) => item.bounds),
+    );
+    const ox = slot.x - cluster.bounds.x;
+    const oy = slot.y - cluster.bounds.y;
+    for (const member of cluster.members) {
       nodes.push({
-        id: item.id,
-        type: item.type,
-        position,
-        data: item.data,
+        id: member.item.id,
+        type: member.item.type,
+        position: { x: member.local.x + ox, y: member.local.y + oy },
+        data: member.item.data,
         style: { width: CARD_W },
       });
-    });
+    }
   });
   return nodes;
+}
+
+function nodeRect(node: Node): Rect {
+  const width =
+    typeof node.style?.width === "number" ? node.style.width : node.type === "projectHub" ? HUB_W : CARD_W;
+  const height = node.type === "projectHub" ? HUB_H : CARD_H;
+  return { x: node.position.x, y: node.position.y, w: width, h: height };
+}
+
+function nodeCenter(node: Node): { x: number; y: number } {
+  const rect = nodeRect(node);
+  return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+}
+
+/** Sit the project hub in the middle and push overlapping cards out. */
+export function placeHubNode(nodes: Node[], hub: Node): Node[] {
+  if (nodes.length === 0) {
+    return [{ ...hub, position: { x: 48, y: 48 }, style: { width: HUB_W }, zIndex: 2 }];
+  }
+  const box = bbox(nodes.map(nodeRect));
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const hubNode: Node = {
+    ...hub,
+    position: { x: cx - HUB_W / 2, y: cy - HUB_H / 2 },
+    style: { width: HUB_W },
+    zIndex: 2,
+  };
+  const hubRect = nodeRect(hubNode);
+  const shifted = nodes.map((node) => {
+    const rect = nodeRect(node);
+    if (!hits(rect, hubRect, CARD_GAP)) return node;
+    const center = nodeCenter(node);
+    let dx = center.x - cx;
+    let dy = center.y - cy;
+    const dist = Math.hypot(dx, dy) || 1;
+    dx /= dist;
+    dy /= dist;
+    const minDist = Math.max(HUB_W, HUB_H) / 2 + Math.max(rect.w, rect.h) / 2 + CARD_GAP;
+    const push = Math.max(0, minDist - dist);
+    return {
+      ...node,
+      position: { x: node.position.x + dx * push, y: node.position.y + dy * push },
+    };
+  });
+  return [hubNode, ...shifted];
+}
+
+export function canvasEdges(pairs: { source: string; target: string }[]): Edge[] {
+  return pairs.map(({ source, target }) => ({
+    id: `${source}->${target}`,
+    source,
+    target,
+  }));
+}
+
+/** Pick handles so wires leave the nearer side of each card. */
+export function routeEdges(edges: Edge[], nodes: Node[]): Edge[] {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  return edges.map((edge) => {
+    const source = byId.get(edge.source);
+    const target = byId.get(edge.target);
+    if (!source || !target) return edge;
+    const from = nodeCenter(source);
+    const to = nodeCenter(target);
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      return {
+        ...edge,
+        sourceHandle: dx >= 0 ? "sr" : "sl",
+        targetHandle: dx >= 0 ? "tl" : "tr",
+      };
+    }
+    return {
+      ...edge,
+      sourceHandle: dy >= 0 ? "sb" : "st",
+      targetHandle: dy >= 0 ? "tt" : "tb",
+    };
+  });
 }
 
 export function CardHandles() {
   return (
     <>
-      <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
+      <Handle type="target" id="tt" position={Position.Top} />
+      <Handle type="source" id="st" position={Position.Top} />
+      <Handle type="target" id="tb" position={Position.Bottom} />
+      <Handle type="source" id="sb" position={Position.Bottom} />
+      <Handle type="target" id="tl" position={Position.Left} />
+      <Handle type="source" id="sl" position={Position.Left} />
+      <Handle type="target" id="tr" position={Position.Right} />
+      <Handle type="source" id="sr" position={Position.Right} />
     </>
   );
 }
 
 export function ProjectBoardCanvas({
   nodes: initialNodes,
+  edges: initialEdges = [],
   nodeTypes,
   onOpenNode,
 }: {
   nodes: Node[];
+  edges?: Edge[];
   nodeTypes: NodeTypes;
   onOpenNode?: (id: string) => void;
 }) {
   return (
     <ReactFlowProvider>
-      <CanvasInner nodes={initialNodes} nodeTypes={nodeTypes} onOpenNode={onOpenNode} />
+      <CanvasInner
+        nodes={initialNodes}
+        edges={initialEdges}
+        nodeTypes={nodeTypes}
+        onOpenNode={onOpenNode}
+      />
     </ReactFlowProvider>
   );
 }
 
 function CanvasInner({
   nodes: initialNodes,
+  edges: initialEdges,
   nodeTypes,
   onOpenNode,
 }: {
   nodes: Node[];
+  edges: Edge[];
   nodeTypes: NodeTypes;
   onOpenNode?: (id: string) => void;
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges);
   const [spaceDown, setSpaceDown] = useState(false);
   const { zoomIn, zoomOut, fitView } = useReactFlow();
 
   useEffect(() => {
     setNodes(initialNodes);
-    setEdges([]);
-  }, [initialNodes, setEdges, setNodes]);
+    setEdges(initialEdges);
+  }, [initialEdges, initialNodes, setEdges, setNodes]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -214,10 +339,11 @@ function CanvasInner({
     <div
       className={
         spaceDown
-          ? "project-board-canvas h-full min-h-0 cursor-grab"
-          : "project-board-canvas h-full min-h-0"
+          ? "project-board-canvas relative h-full min-h-0 cursor-grab"
+          : "project-board-canvas relative h-full min-h-0"
       }
     >
+      <div className="project-board-canvas__wash" />
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -240,13 +366,13 @@ function CanvasInner({
           style: { stroke: "var(--border-secondary)", strokeWidth: 1.5 },
         }}
         fitView
-        fitViewOptions={{ padding: 0.16 }}
+        fitViewOptions={{ padding: 0.2 }}
       >
         <Background
           variant={BackgroundVariant.Dots}
-          gap={32}
-          size={3.2}
-          color="color-mix(in oklab, var(--base) 34%, transparent)"
+          gap={24}
+          size={1.8}
+          color="color-mix(in oklab, var(--base) 9.6%, transparent)"
         />
         <Panel position="bottom-right" className="m-3">
           <div className="flex items-center gap-px rounded-full border border-secondary bg-elevated p-0.5">
@@ -269,7 +395,7 @@ function CanvasInner({
               size="base"
               color="secondary"
               aria-label="Fit canvas"
-              onClick={() => void fitView({ padding: 0.16 })}
+              onClick={() => void fitView({ padding: 0.2 })}
             />
           </div>
         </Panel>

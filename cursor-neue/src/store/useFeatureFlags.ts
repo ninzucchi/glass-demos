@@ -80,16 +80,31 @@ export const PROJECT_ICON_SHAPE_LABEL: Record<ProjectIconShapeMode, string> = {
 /**
  * Create-project dialog.
  *  - Modal: compact form. Model and Create sit in the footer.
- *  - Rich: larger form. Model is a labeled select. Templates sit below a rule.
+ *  - Advanced: larger form. Model is a labeled select. Templates sit below a rule.
  *  - Suggestions: checkbox list of For You + Templates. Custom opens Modal.
+ *  - Composer: plus opens a New Project empty chat (same shell as New Agent).
  */
-export const PROJECT_CREATE_MODES = ["modal", "rich", "suggestions"] as const;
+export const PROJECT_CREATE_MODES = ["modal", "advanced", "suggestions", "composer"] as const;
 export type ProjectCreateMode = (typeof PROJECT_CREATE_MODES)[number];
 
 export const PROJECT_CREATE_LABEL: Record<ProjectCreateMode, string> = {
   modal: "Modal",
-  rich: "Rich",
+  advanced: "Advanced",
   suggestions: "Suggestions",
+  composer: "Composer",
+};
+
+/**
+ * Seeded projects vs empty onboarding.
+ *  - Off: three seed projects. The user is already onboarded.
+ *  - New: no seed projects. Four suggestion placeholders in the sidebar.
+ */
+export const PROJECT_ONBOARDING_MODES = ["off", "new"] as const;
+export type ProjectOnboardingMode = (typeof PROJECT_ONBOARDING_MODES)[number];
+
+export const PROJECT_ONBOARDING_LABEL: Record<ProjectOnboardingMode, string> = {
+  off: "Off",
+  new: "New",
 };
 
 interface FeatureFlagState {
@@ -104,12 +119,15 @@ interface FeatureFlagState {
   projectIconShape: ProjectIconShapeMode;
   /** Create-project dialog. Default is Modal. */
   projectCreate: ProjectCreateMode;
+  /** Seeded projects vs empty onboarding. Default is Off. */
+  projectOnboarding: ProjectOnboardingMode;
   toggleFlag: (flag: FeatureFlag) => void;
   setSidebarProjects: (mode: SidebarProjectsMode) => void;
   setProjectFolders: (mode: ProjectFoldersMode) => void;
   setEphemeralTabs: (mode: EphemeralTabsMode) => void;
   setProjectIconShape: (mode: ProjectIconShapeMode) => void;
   setProjectCreate: (mode: ProjectCreateMode) => void;
+  setProjectOnboarding: (mode: ProjectOnboardingMode) => void;
 }
 
 export const useFeatureFlags = create<FeatureFlagState>((set) => ({
@@ -121,12 +139,14 @@ export const useFeatureFlags = create<FeatureFlagState>((set) => ({
   ephemeralTabs: "crumbs",
   projectIconShape: "off",
   projectCreate: "modal",
+  projectOnboarding: "off",
   toggleFlag: (flag) => set((s) => ({ flags: { ...s.flags, [flag]: !s.flags[flag] } })),
   setSidebarProjects: (sidebarProjects) => set({ sidebarProjects }),
   setProjectFolders: (projectFolders) => set({ projectFolders }),
   setEphemeralTabs: (ephemeralTabs) => set({ ephemeralTabs }),
   setProjectIconShape: (projectIconShape) => set({ projectIconShape }),
   setProjectCreate: (projectCreate) => set({ projectCreate }),
+  setProjectOnboarding: (projectOnboarding) => set({ projectOnboarding }),
 }));
 
 /** Flag value outside React (store actions); components subscribe instead. */

@@ -11,7 +11,9 @@ import {
 import { PICKER_ICON_NAMES, pickerIconMatchesQuery } from "@/icons/pickerIcons";
 
 const CELL =
-  "relative flex aspect-square w-full items-center justify-center rounded-md hover:bg-quaternary";
+  "relative flex size-[34px] shrink-0 items-center justify-center rounded-lg hover:bg-quaternary";
+
+const PICKER_COLORS = PROJECT_COLORS.filter((id) => id !== "brand");
 
 /** Color swatches plus the Cursor icon grid. Clicks write through immediately
  *  and do not dismiss the menu. */
@@ -20,13 +22,11 @@ export function ProjectIconPicker({
   color,
   onPickIcon,
   onPickColor,
-  onBack,
 }: {
   icon: IconName;
   color: ProjectColor;
   onPickIcon: (icon: IconName) => void;
   onPickColor: (color: ProjectColor) => void;
-  onBack: () => void;
 }) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,24 +38,13 @@ export function ProjectIconPicker({
   }, [query]);
 
   return (
-    <div className="flex w-[360px] flex-col">
-      <div className="flex h-10 items-center gap-1 border-b border-quaternary px-2">
-        <button
-          type="button"
-          aria-label="Back"
-          onClick={onBack}
-          className="flex size-7 items-center justify-center rounded-md hover:bg-quaternary"
-        >
-          <Icon name="arrow-left" size="base" color="secondary" />
-        </button>
-        <span className="text-base text-secondary">Edit Icon</span>
-      </div>
+    <div className="flex w-[360px] flex-col overflow-hidden rounded-[12px]">
       <div
         role="group"
         aria-label="Icon color"
-        className="grid grid-cols-10 items-center gap-[2px] border-b border-quaternary px-2 py-2"
+        className="grid grid-cols-9 items-center justify-items-center gap-[2px] px-2 pt-2"
       >
-        {PROJECT_COLORS.map((id) => {
+        {PICKER_COLORS.map((id) => {
           const selected = id === color;
           return (
             <button
@@ -91,7 +80,7 @@ export function ProjectIconPicker({
           );
         })}
       </div>
-      <div className="border-b border-quaternary px-2 py-2">
+      <div className="px-2 py-2">
         <input
           ref={inputRef}
           value={query}
@@ -99,13 +88,17 @@ export function ProjectIconPicker({
           placeholder="Search icons..."
           aria-label="Search icons"
           autoFocus
-          className="w-full rounded-md bg-quaternary px-2 py-1.5 text-base text-primary outline-none placeholder:text-quaternary"
+          className="w-full rounded-lg border border-secondary bg-quaternary px-2 py-1.5 text-sm text-primary outline-none placeholder:text-tertiary"
           onKeyDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         />
       </div>
-      <div className="max-h-[312px] overflow-y-auto px-2 py-2">
-        <div role="listbox" aria-label="Project icons" className="grid grid-cols-10 gap-[2px]">
+      <div className="max-h-[312px] overflow-y-auto px-2 pb-2">
+        <div
+          role="listbox"
+          aria-label="Project icons"
+          className="grid grid-cols-9 justify-items-center gap-[2px]"
+        >
           {glyphs.map((name) => {
             const selected = name === icon;
             return (
@@ -119,7 +112,7 @@ export function ProjectIconPicker({
                 className={clsx(CELL, selected && "bg-quaternary")}
                 style={{ color: tint }}
               >
-                <Icon name={name} size="base" color="inherit" />
+                <Icon name={name} size="lg" color="inherit" />
               </button>
             );
           })}
