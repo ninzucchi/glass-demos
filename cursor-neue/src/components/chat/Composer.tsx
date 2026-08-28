@@ -4,7 +4,6 @@ import clsx from "clsx";
 import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
 import { ProjectIconPicker } from "@/components/sidebar/ProjectIconPicker";
-import { ThreadOriginCaption } from "@/components/chat/ThreadOrigin";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,31 +35,6 @@ const MAX_INPUT_H = INPUT_LINE_H * 10;
 /** Fades composer text at the mic edge; width matches composer padding (p-2). */
 const MIC_FADE_PX = 8;
 const MIC_FADE_GRADIENT = `linear-gradient(to right, transparent, var(--bg-elevated) ${MIC_FADE_PX}px)`;
-
-/** Static context-usage ring: 14x14, 2px stroke, track + partial progress arc. */
-function ContextUsageRing({ percent }: { percent: number }) {
-  const r = 6;
-  const c = 2 * Math.PI * r;
-  return (
-    <span className="flex h-5 w-5 items-center justify-center" aria-hidden="true">
-      <svg width="14" height="14" viewBox="0 0 14 14">
-        <circle cx="7" cy="7" r={r} fill="none" stroke="var(--border-secondary)" strokeWidth="2" />
-        <circle
-          cx="7"
-          cy="7"
-          r={r}
-          fill="none"
-          stroke="var(--icon-tertiary)"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - percent)}
-          transform="rotate(-90 7 7)"
-        />
-      </svg>
-    </span>
-  );
-}
 
 const TEXT_CHIP =
   "flex min-w-0 items-center gap-1 text-base text-secondary outline-none hover:text-primary";
@@ -230,18 +204,6 @@ function ComposerAction({ empty, onSend }: { empty: boolean; onSend: () => void 
         style={{ color: "var(--text-inverted)" }}
       />
     </button>
-  );
-}
-
-/** The accessory row under the followup composer: branch chip for regular
- *  chats, the thread-origin caption for threads (they inherit the parent's
- *  branch, so the caption takes the chip's slot), context ring on the right. */
-function AccessoryRow({ agent }: { agent?: Agent }) {
-  return (
-    <div className="flex items-center justify-between gap-2 px-2.5">
-      {agent?.thread ? <ThreadOriginCaption agent={agent} /> : <BranchChip agent={agent} />}
-      <ContextUsageRing percent={0.32} />
-    </div>
   );
 }
 
@@ -433,12 +395,11 @@ export type ComposerVariant = "followup" | "expanded";
  *  - "expanded" (an agent's empty state, centered): the two-story ComposerCard
  *    with a workspace/branch selector row on top.
  *  - "followup" for a FRESH thread (nothing sent yet): the same card with the
- *    highlighted excerpt quoted above the input and the thread-origin caption
- *    below — the reply's context lives in the composer, not a header.
- *  - "followup" otherwise: a fully-rounded single-line pill (input + mic-fade)
- *    with the accessory row (branch chip / thread caption + ring) below.
+ *    highlighted excerpt quoted above the input. The reply's context lives
+ *    in the composer, not a header.
+ *  - "followup" otherwise: a fully-rounded single-line pill (input + mic-fade).
  *
- *  The shared atoms (chips, buttons, card, accessory row) are factored out
+ *  The shared atoms (chips, buttons, card) are factored out
  *  above; only the layout shells differ, so each variant is its own return
  *  block rather than one tree riddled with per-element conditionals. The
  *  textarea autosize state lives here unconditionally (it no-ops for the pill,
@@ -568,7 +529,7 @@ export function Composer({
   // input. After the first send the thread drops to the normal pill below.
   if (agent?.thread && agent.messages.length === 0) {
     return (
-      <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2.5 pb-3 pl-3 pr-[calc(12px+var(--island-inset,0px))]">
+      <div className="mx-auto flex w-full max-w-[640px] flex-col pb-3 pl-3 pr-[calc(12px+var(--island-inset,0px))]">
         <ComposerCard
           inputRef={inputRef}
           empty={empty}
@@ -583,13 +544,12 @@ export function Composer({
           onSend={sendFromRef}
           onExpand={expand}
         />
-        <AccessoryRow agent={agent} />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2.5 pb-3 pl-3 pr-[calc(12px+var(--island-inset,0px))]">
+    <div className="mx-auto flex w-full max-w-[640px] flex-col pb-3 pl-3 pr-[calc(12px+var(--island-inset,0px))]">
       {/* Composer/Glass: elevated, 1px secondary ring, fully rounded */}
       <div className="flex items-center gap-2 rounded-full bg-elevated p-2 shadow-[0_0_0_1px_var(--border-secondary)]">
         <AddContextButton />
@@ -609,7 +569,6 @@ export function Composer({
         </div>
         <ComposerAction empty={empty} onSend={sendFromRef} />
       </div>
-      <AccessoryRow agent={agent} />
     </div>
   );
 }

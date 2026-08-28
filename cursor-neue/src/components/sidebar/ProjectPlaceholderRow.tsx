@@ -1,18 +1,15 @@
-import clsx from "clsx";
-import { Icon, type IconSize } from "@/components/ui/Icon";
+import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
 import { type ProjectTemplate } from "@/data/projectTemplates";
 import { useWindowId } from "@/components/window/WindowContext";
-import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useUiStore } from "@/store/useUiStore";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
-import { DEFAULT_WORKSPACE_ID, PROJECT_COLOR_STROKE, PROJECT_COLOR_WELL } from "@/types";
+import { DEFAULT_WORKSPACE_ID, PROJECT_COLOR_STROKE } from "@/types";
 
 /** Suggestion row under real projects. Create adds it; the rest of the row
  *  opens the create dialog with this template filled in. */
 export function ProjectPlaceholderRow({ item }: { item: ProjectTemplate }) {
   const windowId = useWindowId();
-  const shape = useFeatureFlags((s) => s.projectIconShape);
   const createProject = useWorkspaceStore((s) => s.createProject);
   const openNewProject = useUiStore((s) => s.openNewProject);
   const dismiss = useUiStore((s) => s.dismissProjectPlaceholder);
@@ -29,11 +26,10 @@ export function ProjectPlaceholderRow({ item }: { item: ProjectTemplate }) {
     dismiss(item.id);
   };
 
-  const iconSize: IconSize = shape === "circle" ? "sm" : "base";
   const glyph = (
     <Icon
       name={item.icon}
-      size={iconSize}
+      size="base"
       color="inherit"
       style={{
         color: `color-mix(in oklab, ${PROJECT_COLOR_STROKE[item.color]} 40%, var(--icon-quaternary))`,
@@ -60,19 +56,7 @@ export function ProjectPlaceholderRow({ item }: { item: ProjectTemplate }) {
       }}
       className="group/ph flex h-[30px] w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 text-left text-quaternary hover:bg-quaternary"
     >
-      {shape === "off" ? (
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center">{glyph}</span>
-      ) : (
-        <span
-          className={clsx(
-            "flex h-5 w-5 shrink-0 items-center justify-center",
-            PROJECT_COLOR_WELL[item.color],
-            shape === "circle" ? "rounded-full" : "rounded-[5px]",
-          )}
-        >
-          {glyph}
-        </span>
-      )}
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center">{glyph}</span>
       <span
         className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-base mix-blend-plus-darker"
         style={{

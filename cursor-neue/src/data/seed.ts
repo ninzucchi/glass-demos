@@ -106,7 +106,7 @@ export function createSeed(): WorkspaceData {
       "p-sidebar",
       "everysphere",
       "main",
-      "Sidebar redesign",
+      "Sidebar Redesign",
       "running",
       daysAgo(0, 15),
       [
@@ -121,7 +121,7 @@ export function createSeed(): WorkspaceData {
       "p-keyboard",
       "cursor-ios",
       "main",
-      "Keyboard accessibility",
+      "Keyboard Accessibility",
       "idle",
       daysAgo(0, 12),
       [
@@ -136,7 +136,7 @@ export function createSeed(): WorkspaceData {
       "p-base-ui",
       "everysphere",
       "main",
-      "Base UI migration",
+      "Base UI Migration",
       "running",
       daysAgo(0, 14),
       [
@@ -160,7 +160,7 @@ export function createSeed(): WorkspaceData {
       u("The unread badge clips the project title at compact density."),
       a("Moved the badge into the trailing slot so the title can truncate.", "Worked 9s"),
     ], "p-sidebar"),
-    agent("a-sb-4", "everysphere", "main", "Collapse Fixer", "idle", daysAgo(0, 8), [
+    agent("a-sb-4", "everysphere", "main", "Collapse fixer", "idle", daysAgo(0, 8), [
       u("The chevron overlaps the unread badge on hover."),
       a("Moved the chevron into the header so it no longer clips the unread badge.", "Worked 11s"),
     ], "p-sidebar"),
@@ -185,7 +185,7 @@ export function createSeed(): WorkspaceData {
       u("Escape should close the row menu and return focus."),
       a("Escape dismisses the menu and focuses the row that opened it.", "Worked 7s"),
     ], "p-keyboard"),
-    agent("a-kb-6", "cursor-ios", "main", "Tab Walker", "running", daysAgo(0, 7), [
+    agent("a-kb-6", "cursor-ios", "main", "Tab walker", "running", daysAgo(0, 7), [
       u("Tab should land on the active tab, then arrow between the rest."),
       a("The bar is one tab stop. Left and right move. Home and End jump ends.", "Worked 14s"),
     ], "p-keyboard"),
@@ -193,7 +193,7 @@ export function createSeed(): WorkspaceData {
       u("Focus rings disappear on glass fills."),
       a("Rings now use a luminous outline so they read on both themes.", "Worked 9s"),
     ], "p-keyboard"),
-    agent("a-kb-8", "cursor-ios", "main", "Status Announcer", "attention", daysAgo(2, 18), [
+    agent("a-kb-8", "cursor-ios", "main", "Status announcer", "attention", daysAgo(2, 18), [
       u("Status dots are color-only. VoiceOver never hears running or unread."),
       a("Each row exposes a status name. Live region still misses mid-run flips.", "Worked 16s"),
     ], "p-keyboard"),
@@ -206,7 +206,7 @@ export function createSeed(): WorkspaceData {
       a("Prefix match scrolls the row into view. Accented letters still miss.", "Worked 13s"),
     ], "p-keyboard"),
 
-    agent("a-bu-1", "everysphere", "main", "Menu Implementer", "running", daysAgo(0, 13), [
+    agent("a-bu-1", "everysphere", "main", "Menu implementer", "running", daysAgo(0, 13), [
       u("Port the dock and tab menus to Base Menu."),
       a("Triggers stay IconButton. Menu surface now uses Base Menu primitives.", "Worked 22s"),
     ], "p-base-ui"),
@@ -222,7 +222,7 @@ export function createSeed(): WorkspaceData {
       u("IconButton sizes should come from Base Button."),
       a("Mapped 2xs through lg onto Base Button. xl stays local for now.", "Worked 16s"),
     ], "p-base-ui"),
-    agent("a-bu-5", "everysphere", "main", "Token Expert", "unread", daysAgo(6), [
+    agent("a-bu-5", "everysphere", "main", "Token expert", "unread", daysAgo(6), [
       u("Base gray ramp should not leak past our semantic tokens."),
       a("Wired Base theme to --bg-*, --text-*, and --border-* only.", "Worked 19s"),
     ], "p-base-ui"),
@@ -332,7 +332,7 @@ export function createSeed(): WorkspaceData {
       a("Snapped strokes to the grid and stripped unused groups.", "Worked 23s"),
     ]),
 
-    agent("a-ios-3", "cursor-ios", "main", "App Intents integration", "attention", daysAgo(2), [
+    agent("a-ios-3", "cursor-ios", "main", "App intents integration", "attention", daysAgo(2), [
       u("Wire up App Intents so Siri can start a session."),
       a("Intent is registered, but the entitlement needs your Apple ID.", "Worked 12s"),
     ]),
@@ -406,6 +406,10 @@ export function createSeed(): WorkspaceData {
     };
   }
 
+  const chatLayout = makeTile([
+    makeTab("chat", { agentId: "a-icn-1", title: "Add missing sidebar icons" }),
+  ]);
+
   return {
     workspaces,
     workspaceOrder,
@@ -428,9 +432,8 @@ export function createSeed(): WorkspaceData {
         agentGroupBy: "workspace",
         contentByScope,
         // The chat pane's tree starts as a single tab showing the active agent.
-        chatLayout: makeTile([
-          makeTab("chat", { agentId: "a-icn-1", title: "Add missing sidebar icons" }),
-        ]),
+        chatLayout,
+        chatByOwner: { "a-icn-1": chatLayout },
         geo: null,
       },
     },

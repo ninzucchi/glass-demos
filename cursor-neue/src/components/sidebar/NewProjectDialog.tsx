@@ -13,8 +13,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/menu";
 import { NewProjectSuggestions } from "@/components/sidebar/NewProjectSuggestions";
+import { finishPendingMoveToProject } from "@/components/sidebar/sidebarAgentSelection";
 import { PROJECT_MODELS } from "@/data/models";
-import { DEFAULT_WORKSPACE_ID, PROJECT_COLOR_STROKE, type ProjectColor } from "@/types";
+import { DEFAULT_WORKSPACE_ID, PROJECT_COLOR_STROKE, primaryWorkspaceId, type ProjectColor } from "@/types";
 import type { IconName } from "@/icons/iconNames";
 import { useWindowId } from "@/components/window/WindowContext";
 import { useFeatureFlags } from "@/store/useFeatureFlags";
@@ -36,11 +37,13 @@ export function NewProjectDialog() {
   const open = useUiStore((s) => s.newProjectWindowId === windowId);
   const close = useUiStore((s) => s.closeNewProject);
   const draft = useUiStore((s) => s.newProjectDraft);
+  const pendingMoveAgentIds = useUiStore((s) => s.pendingMoveAgentIds);
   const dismissPlaceholder = useUiStore((s) => s.dismissProjectPlaceholder);
   const createMode = useFeatureFlags((s) => s.projectCreate);
   const advanced = createMode === "advanced";
   const [customForm, setCustomForm] = useState(false);
-  const showSuggestions = createMode === "suggestions" && !customForm && !draft;
+  const showSuggestions =
+    createMode === "suggestions" && !customForm && !draft && !pendingMoveAgentIds?.length;
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const workspaceOrder = useWorkspaceStore((s) => s.workspaceOrder);
   const createProject = useWorkspaceStore((s) => s.createProject);
@@ -74,10 +77,15 @@ export function NewProjectDialog() {
       setColor(draft.color);
       setCustomForm(true);
     }
-  }, [draft, open]);
+    const pendingId = pendingMoveAgentIds?.[0];
+    if (pendingId) {
+      const source = useWorkspaceStore.getState().agents[pendingId];
+      if (source) setWorkspaceId(primaryWorkspaceId(source));
+    }
+  }, [draft, open, pendingMoveAgentIds]);
 
   const submit = () => {
-    createProject(windowId, {
+    const projectId = createProject(windowId, {
       title,
       workspaceId,
       icon,
@@ -85,6 +93,7 @@ export function NewProjectDialog() {
       description: draft?.description,
       agents: draft?.agents,
     });
+    if (projectId) finishPendingMoveToProject(windowId, projectId);
     if (draft) dismissPlaceholder(draft.id);
     close();
     reset();
@@ -104,7 +113,7 @@ export function NewProjectDialog() {
       <div className="flex flex-col items-center gap-5 px-4 pb-4 pt-6">
         {advanced && (
           <Dialog.Title className="w-full text-3xl font-medium text-primary">
-            New Project
+            Create Project
           </Dialog.Title>
         )}
         {!advanced && (
@@ -229,9 +238,12 @@ export function NewProjectDialog() {
             </DropdownMenuRadioGroup>
           </SelectField>
         )}
+      </div>
 
-        {advanced && (
-          <div className="flex w-full items-center justify-between">
+      {advanced && (
+        <>
+          <div className="h-px w-full bg-[var(--border-quaternary)]" />
+          <div className="flex w-full items-center justify-between px-4 py-4">
             <Dialog.Close asChild>
               <button type="button" className={GHOST_BUTTON}>
                 Cancel
@@ -239,8 +251,8 @@ export function NewProjectDialog() {
             </Dialog.Close>
             <CreateButton />
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {!advanced && (
         <>

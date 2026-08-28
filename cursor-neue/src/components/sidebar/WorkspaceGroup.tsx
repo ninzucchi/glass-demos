@@ -1,18 +1,23 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
+import { SEED_PROJECT_IDS } from "@/data/seed";
 import {
   agentInWorkspace,
   isAgentPinned,
-  isChatsAgent,
+  isMainListItem,
+  isProject,
   type Workspace,
   workspaceFolderCollapsed,
 } from "@/types";
 import { useWindowId } from "@/components/window/WindowContext";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { SidebarCell } from "@/components/sidebar/SidebarCell";
 import { SidebarCollapse } from "@/components/sidebar/SidebarCollapse";
 import { AgentList } from "@/components/sidebar/AgentList";
 import { useDragWorkspaceOut } from "@/components/sidebar/useWorkspaceDrag";
+
+const SEED_PROJECT_ID_SET = new Set<string>(SEED_PROJECT_IDS);
 
 const VISIBLE = 3;
 
@@ -27,6 +32,8 @@ export function WorkspaceGroup({
   const agents = useWorkspaceStore((s) => s.agents);
   const agentOrder = useWorkspaceStore((s) => s.agentOrder);
   const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
+  const includeProjects = useFeatureFlags((s) => s.sidebarSections) === "one";
+  const hideSeedProjects = useFeatureFlags((s) => s.projectOnboarding) === "new";
   const windowId = useWindowId();
   const win = useWindow();
   // Collapse is per-window so toggling a folder here never reorders another
@@ -43,14 +50,16 @@ export function WorkspaceGroup({
     () =>
       agentOrder
         .map((id) => agents[id])
-        .filter(
-          (a) =>
-            !!a &&
-            agentInWorkspace(a, workspace.id) &&
-            isChatsAgent(a) &&
-            !isAgentPinned(pinnedAgents, a.id),
-        ),
-    [agentOrder, agents, pinnedAgents, workspace.id],
+        .filter((a) => {
+          if (!a || !agentInWorkspace(a, workspace.id)) return false;
+          if (isAgentPinned(pinnedAgents, a.id)) return false;
+          if (!isMainListItem(a, includeProjects)) return false;
+          if (hideSeedProjects && isProject(a) && SEED_PROJECT_ID_SET.has(a.id)) {
+            return false;
+          }
+          return true;
+        }),
+    [agentOrder, agents, hideSeedProjects, includeProjects, pinnedAgents, workspace.id],
   );
 
   const shown = expanded ? list : list.slice(0, VISIBLE);

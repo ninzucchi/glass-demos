@@ -2,23 +2,22 @@ import { IconButton } from "@/components/ui/IconButton";
 import { useWindowId } from "@/components/window/WindowContext";
 import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 
-/** Show/hide the chat (agent) panel, mirroring the sidebar toggle. Lives in the
- *  window-corner nav controls so the chat is reachable in every layout — most
- *  importantly as the entry point back when the Content pane is maximized. */
+/** Show/hide the chat (agent) panel. Lives left of the content split toggle
+ *  in the window's top-right. Expand hides the chat so content is fullscreen;
+ *  contract restores the chat. */
 export function ChatToggle() {
   const windowId = useWindowId();
   const chatCollapsed = useWindow()?.chatCollapsed ?? false;
   const toggleChat = useWorkspaceStore((s) => s.toggleChat);
-  const visible = !chatCollapsed;
+  const fullscreen = chatCollapsed;
   return (
     <IconButton
-      name="agents"
+      name={fullscreen ? "arrows-contract-simple" : "arrows-expand-simple"}
       size="lg"
       color="tertiary"
-      active={visible}
       onClick={() => toggleChat(windowId)}
-      aria-label={visible ? "Hide agent panel" : "Show agent panel"}
-      aria-pressed={visible}
+      aria-label={fullscreen ? "Show agent panel" : "Hide agent panel"}
+      aria-pressed={!fullscreen}
     />
   );
 }

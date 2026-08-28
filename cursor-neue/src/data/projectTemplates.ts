@@ -19,12 +19,12 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     icon: "code",
     color: "blue",
     agents: [
-      "Spec Writer",
-      "API Implementer",
-      "Test Runner",
-      "Docs Expert",
-      "Review Lead",
-      "Design Expert",
+      "Spec writer",
+      "API implementer",
+      "Test runner",
+      "Docs expert",
+      "Review lead",
+      "Design expert",
     ],
   },
   {
@@ -34,7 +34,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     icon: "code-simple",
     color: "purple",
     agents: [
-      "Token Expert",
+      "Token expert",
       "Port select",
       "Swap dialog",
       "Replace toggles",
@@ -48,7 +48,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     description: "Reproduce, fix, and verify a backlog of bugs.",
     icon: "bug",
     color: "green",
-    agents: ["Repro Hunter", "Fix Writer", "Verify Lead", "Flake Finder"],
+    agents: ["Repro hunter", "Fix writer", "Verify lead", "Flake finder"],
   },
   {
     id: "tpl-release",
@@ -84,7 +84,7 @@ export const PROJECT_SUGGESTIONS: ProjectTemplate[] = [
     description: "Rewrite guides, examples, and the changelog.",
     icon: "book-open",
     color: "orange",
-    agents: ["IA Planner", "Page Writer", "Link Checker", "Screenshot pass"],
+    agents: ["IA planner", "Page writer", "Link checker", "Screenshot pass"],
   },
   {
     id: "sug-design-system",
@@ -92,7 +92,7 @@ export const PROJECT_SUGGESTIONS: ProjectTemplate[] = [
     description: "Audit tokens, components, and contrast.",
     icon: "swatches",
     color: "cyan",
-    agents: ["Token Expert", "Component audit", "Icon pass", "Type scale", "Contrast check"],
+    agents: ["Token expert", "Component audit", "Icon pass", "Type scale", "Contrast check"],
   },
 ];
 

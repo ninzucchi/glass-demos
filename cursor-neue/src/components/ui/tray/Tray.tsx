@@ -9,9 +9,9 @@ export function Tray({ className, children, ...props }: HTMLAttributes<HTMLDivEl
     <div
       data-component="tray"
       className={clsx(
-        // Radius = row (8px) + side padding (8px). No bottom pad so a long list
-        // scrolls flush with the tray edge; ScrollArea fades that edge.
-        "flex w-full flex-col gap-0.5 overflow-hidden rounded-2xl bg-elevated px-2 pt-2 shadow-[0_0_0_1px_var(--border-secondary)]",
+        // Radius = row (8px) + pad (8px). Same pad on all sides so the last
+        // row highlight stays concentric with the tray corners.
+        "flex w-full flex-col gap-0.5 overflow-hidden rounded-2xl bg-elevated p-2 shadow-[0_0_0_1px_var(--border-secondary)]",
         className,
       )}
       {...props}
@@ -87,7 +87,7 @@ export function TrayRow({
           : undefined
       }
       className={clsx(
-        "flex h-7 w-full cursor-pointer items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-tertiary",
+        "flex h-7 w-full cursor-pointer items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-quaternary",
         className,
       )}
     >

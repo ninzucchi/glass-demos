@@ -9,8 +9,6 @@ import { useTabDragStore } from "@/store/tabDrag";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { ComposerSurface } from "@/components/chat/ComposerSurface";
 import { NewProjectDialog } from "@/components/sidebar/NewProjectDialog";
-import { ProjectsIntroDialog } from "@/components/sidebar/ProjectsIntroDialog";
-import { ProjectsNux } from "@/components/sidebar/ProjectsNux";
 import { CustomizeModal } from "@/components/ui/CustomizeModal";
 import { useDeferredPaneCollapse } from "@/components/layout/useDeferredPaneCollapse";
 import { useCrumbMouseNav } from "@/components/window/useCrumbMouseNav";
@@ -279,10 +277,8 @@ export function Window() {
           </div>
           {/* Scoped to this window's shell so the scrim is clipped to the window
               (rounded corners + overflow-hidden) rather than the whole desktop. */}
-          <ProjectsNux />
           <CustomizeModal />
           <NewProjectDialog />
-          <ProjectsIntroDialog />
           <ComposerSurface />
         </div>
       </SidebarCollapseChainProvider>

@@ -17,6 +17,7 @@ import {
 export const ContextMenu = ContextMenuPrimitive.Root;
 export const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
 export const ContextMenuRadioGroup = ContextMenuPrimitive.RadioGroup;
+export const ContextMenuSub = ContextMenuPrimitive.Sub;
 
 export const ContextMenuContent = forwardRef<
   HTMLDivElement,
@@ -39,6 +40,37 @@ export const ContextMenuItem = forwardRef<
   <ContextMenuPrimitive.Item ref={ref} className={clsx(menuItemClass, className)} {...props} />
 ));
 ContextMenuItem.displayName = "ContextMenuItem";
+
+export const ContextMenuSubTrigger = forwardRef<
+  HTMLDivElement,
+  ComponentPropsWithoutRef<typeof ContextMenuPrimitive.SubTrigger>
+>(({ className, children, ...props }, ref) => (
+  <ContextMenuPrimitive.SubTrigger
+    ref={ref}
+    className={clsx(menuItemClass, "justify-between", className)}
+    {...props}
+  >
+    <span className="flex min-w-0 flex-1 items-center gap-2">{children}</span>
+    <Icon name="chevron-right" size="base" color="tertiary" />
+  </ContextMenuPrimitive.SubTrigger>
+));
+ContextMenuSubTrigger.displayName = "ContextMenuSubTrigger";
+
+export const ContextMenuSubContent = forwardRef<
+  HTMLDivElement,
+  ComponentPropsWithoutRef<typeof ContextMenuPrimitive.SubContent>
+>(({ className, ...props }, ref) => (
+  <ContextMenuPrimitive.Portal>
+    <ContextMenuPrimitive.SubContent
+      ref={ref}
+      sideOffset={2}
+      alignOffset={-4}
+      className={clsx(menuContentClass, "max-h-64 overflow-y-auto", className)}
+      {...props}
+    />
+  </ContextMenuPrimitive.Portal>
+));
+ContextMenuSubContent.displayName = "ContextMenuSubContent";
 
 // Radio item: same row styling as a plain item, with a trailing check that only
 // renders for the selected value. `justify-between` pins the check to the right

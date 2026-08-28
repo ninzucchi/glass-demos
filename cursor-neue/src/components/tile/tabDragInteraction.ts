@@ -89,7 +89,7 @@ function enclosingSection(dropEl: HTMLElement, kind: string): SidebarSectionKind
   return null;
 }
 
-function sidebarDropTarget(
+function sidebarDropTargetForAgent(
   dropEl: HTMLElement,
   kind: string,
   agentId: string,
@@ -103,6 +103,7 @@ function sidebarDropTarget(
     const pinned = isAgentPinned(pinnedAgents, agent.id);
     if (dest === "pinned" && !pinned) return { scope: "sidebar-section", section: "pinned" };
     if (dest === "projects" && pinned) return { scope: "sidebar-section", section: "projects" };
+    if (dest === "chats" && pinned) return { scope: "sidebar-section", section: "chats" };
     return null;
   }
 
@@ -126,6 +127,20 @@ function sidebarDropTarget(
       return { scope: "sidebar-section", section: "chats" };
     }
     return null;
+  }
+  return null;
+}
+
+/** Valid if any dragged agent would move. Agents already in the destination
+ *  do not block the drop for the rest of the set. */
+function sidebarDropTarget(
+  dropEl: HTMLElement,
+  kind: string,
+  agentIds: string[],
+): TabDropTarget | null {
+  for (const id of agentIds) {
+    const hit = sidebarDropTargetForAgent(dropEl, kind, id);
+    if (hit) return hit;
   }
   return null;
 }
@@ -214,13 +229,14 @@ function targetAtPoint(x: number, y: number, source: TabDragSource): TabDropTarg
     }
   }
   // Sidebar agent-row CREATE drag. Innermost `[data-sidebar-drop]` wins so a
-  // project (or Pinned) nested inside Chats stays distinct. The source's current
-  // home is not a destination (no highlight, no drop).
+  // project (or Pinned) nested inside Chats stays distinct. A drop is valid
+  // when any dragged agent would move; agents already in that home are skipped.
   if (source.agentId && !source.tabId) {
     const dropEl = el.closest("[data-sidebar-drop]") as HTMLElement | null;
     const kind = dropEl?.getAttribute("data-sidebar-drop");
     if (dropEl && kind) {
-      const sidebar = sidebarDropTarget(dropEl, kind, source.agentId);
+      const ids = source.agentIds?.length ? source.agentIds : [source.agentId];
+      const sidebar = sidebarDropTarget(dropEl, kind, ids);
       if (sidebar) return sidebar;
     }
   }

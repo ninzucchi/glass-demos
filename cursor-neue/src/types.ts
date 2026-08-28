@@ -70,24 +70,37 @@ export type DropZone = SplitSide | "tab";
 export type AgentStatus = "idle" | "running" | "attention" | "unread";
 
 export const AGENT_STATUS_LABEL: Record<AgentStatus, string> = {
-  attention: "Needs Attention",
+  attention: "Blocked",
   unread: "Unread",
   running: "Working",
   idle: "Done",
 };
 
-/** Project board column order (left to right). */
+/** Project board column order (left to right). Done sits before Working.
+ *  Unread is not a column; those agents count as Done. */
 export const AGENT_BOARD_STATUSES: AgentStatus[] = [
   "attention",
-  "unread",
+  "idle",
   "running",
+];
+
+/** Project boards do not show Unread. Those agents sit in Done. */
+export function projectBoardAgentStatus(status: AgentStatus): AgentStatus {
+  return status === "unread" ? "idle" : status;
+}
+
+/** Composer Agents tray: Needs Attention, Working, Unread, Done. */
+export const AGENT_TRAY_STATUSES: AgentStatus[] = [
+  "attention",
+  "running",
+  "unread",
   "idle",
 ];
 
 // A single chat turn. `tool` is an agent-only status line (e.g. "Worked 12s")
 // rendered just above the message text.
 export interface ChatMessage {
-  role: "user" | "agent";
+  role: "user" | "agent" | "divider";
   text: string;
   tool?: string;
 }
@@ -232,6 +245,9 @@ export interface Agent {
   /** Unsent New Agent. Stays in the sidebar until the first message; leaving
    *  the chat without sending discards it. */
   draft?: boolean;
+  /** Folders mode: listed under the parent after a user message or a pinned
+   *  chat tab. Absent or false = anonymous, hidden from the sidebar. */
+  elevated?: boolean;
   /** Project-only: sidebar glyph. Stroke uses `color`; hover still shows the chevron. */
   icon?: IconName;
   /** Project-only: Cursor color-family token for the icon stroke. */
@@ -272,6 +288,13 @@ export const isProject = (a: Agent | undefined): boolean => !!a && agentKind(a) 
 export const isChatsAgent = (a: Agent): boolean =>
   !a.thread && !isProject(a) && !a.projectId;
 
+/** Row that belongs in the main Chats list. Projects join when `includeProjects`. */
+export const isMainListItem = (a: Agent, includeProjects: boolean): boolean => {
+  if (a.thread || a.projectId) return false;
+  if (isChatsAgent(a)) return true;
+  return includeProjects && isProject(a) && !a.draft;
+};
+
 /** New Agent that has not sent a message. Distinct from composer `drafts`
  *  (unsent text on any chat). */
 export const isDraftAgent = (a: Agent | undefined): boolean =>
@@ -305,6 +328,13 @@ export const agentsInProject = (
   agentOrder
     .map((id) => agents[id])
     .filter((a): a is Agent => !!a && a.projectId === projectId && !a.thread && !isProject(a));
+
+/** Sidebar list under a project in Folders mode. */
+export const elevatedAgentsInProject = (
+  agents: Record<string, Agent>,
+  agentOrder: string[],
+  projectId: string,
+): Agent[] => agentsInProject(agents, agentOrder, projectId).filter((a) => a.elevated);
 
 /** Union of child agents' workspaces, in first-seen order. When the project
  *  has no children, the project's own membership is the hover-card list. */
@@ -356,7 +386,7 @@ export const pinnedAgentsFor = (
     });
 
 /** How the sidebar lists agents. Workspace keeps folder groups; Updated
- *  splits chats into Today / Yesterday / Last 7 Days / Older. */
+ *  is one Chats list sorted by last message. */
 export type AgentGroupBy = "workspace" | "updated";
 
 /** Keys in `WindowState.collapsedSidebar` for section headers. Workspace and

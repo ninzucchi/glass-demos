@@ -1,27 +1,14 @@
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
-import { Icon, type IconName, type IconSize } from "@/components/ui/Icon";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { DISCLOSURE_GROUP, FolderDisclosureIcon } from "@/components/ui/FolderDisclosureIcon";
-import { useFeatureFlags } from "@/store/useFeatureFlags";
 import {
   PROJECT_COLOR_BG,
   PROJECT_COLOR_HOVER_BG,
   PROJECT_COLOR_STROKE,
-  PROJECT_COLOR_WELL,
   type AgentStatus,
   type ProjectColor,
 } from "@/types";
-
-// Row hover radii and the 20px leading slot. Square wells use
-// r_well = r_row − (rowHeight − slot) / 2 so corners stay concentric.
-const LEADING_SLOT = 20;
-const ROW_AGENT = { height: 30, radius: 8 };
-const ROW_FOLDER = { height: 28, radius: 6 };
-
-function concentricWellRadius(agentLike: boolean) {
-  const row = agentLike ? ROW_AGENT : ROW_FOLDER;
-  return row.radius - (row.height - LEADING_SLOT) / 2;
-}
 
 export type SidebarLeading =
   | { kind: "workspace"; collapsed: boolean }
@@ -44,13 +31,11 @@ function ProjectLeading({
 }: {
   leading: Extract<SidebarLeading, { kind: "project" }>;
 }) {
-  const shape = useFeatureFlags((s) => s.projectIconShape);
   const agentLike = leading.collapsible === false;
-  const iconSize: IconSize = shape === "circle" ? "sm" : "base";
   const glyph = agentLike ? (
     <Icon
       name={leading.icon}
-      size={iconSize}
+      size="base"
       color="inherit"
       style={{ color: PROJECT_COLOR_STROKE[leading.color] }}
     />
@@ -60,29 +45,13 @@ function ProjectLeading({
       hitTarget
       icon={leading.icon}
       iconColor={PROJECT_COLOR_STROKE[leading.color]}
-      iconSize={iconSize}
     />
   );
 
-  if (shape === "off") {
-    if (agentLike) {
-      return <span className="flex h-5 w-5 shrink-0 items-center justify-center">{glyph}</span>;
-    }
-    return glyph;
+  if (agentLike) {
+    return <span className="flex h-5 w-5 shrink-0 items-center justify-center">{glyph}</span>;
   }
-
-  return (
-    <span
-      className={clsx(
-        "flex h-5 w-5 shrink-0 items-center justify-center",
-        PROJECT_COLOR_WELL[leading.color],
-        shape === "circle" && "rounded-full",
-      )}
-      style={shape === "square" ? { borderRadius: concentricWellRadius(agentLike) } : undefined}
-    >
-      {glyph}
-    </span>
-  );
+  return glyph;
 }
 
 function Leading({ leading }: { leading: SidebarLeading }) {
@@ -124,11 +93,13 @@ interface SidebarCellProps {
   nested?: boolean;
   /** Nest depth. Each level adds the same 4px indent. */
   nestLevel?: number;
-  onClick?: () => void;
+  onClick?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
   /** Project folder chevron: expand/collapse without opening the project chat. */
   onLeadingClick?: () => void;
   /** Hover plus on a workspace or project row: create an agent in that group. */
   onAddClick?: () => void;
+  /** Hover X on an elevated project child: demote it from the sidebar. */
+  onHideClick?: () => void;
   /** Lets callers start a pointer drag from the row (e.g. drag a recent file
    *  into a tab) without owning the button markup. */
   onPointerDown?: (e: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -144,6 +115,7 @@ export function SidebarCell({
   onClick,
   onLeadingClick,
   onAddClick,
+  onHideClick,
   onPointerDown,
 }: SidebarCellProps) {
   // Every row: 20px leading slot, then 6px to the label. Each nest level adds
@@ -168,10 +140,14 @@ export function SidebarCell({
           onAddClick();
           return;
         }
-        onClick?.();
+        if (onHideClick && (e.target as HTMLElement).closest("[data-hide]")) {
+          onHideClick();
+          return;
+        }
+        onClick?.(e);
       }}
       onPointerDown={(e) => {
-        if ((e.target as HTMLElement).closest("[data-add]")) {
+        if ((e.target as HTMLElement).closest("[data-add], [data-hide]")) {
           e.stopPropagation();
           return;
         }
@@ -180,8 +156,9 @@ export function SidebarCell({
       className={clsx(
         DISCLOSURE_GROUP,
         "flex w-full items-center gap-1.5 px-1.5 text-left",
-        // Agent cells use rounded-lg (8px); Default (action/workspace) cells rounded-md (6px).
-        agentLike ? "h-[30px] rounded-lg" : "h-7 rounded-md",
+        "h-[30px]",
+        // Agent cells use rounded-lg (8px); folder/action cells use rounded-md (6px).
+        agentLike ? "rounded-lg" : "rounded-md",
         muted
           ? ["text-tertiary", projectHover]
           : selected
@@ -212,6 +189,15 @@ export function SidebarCell({
           className="relative flex h-3.5 w-0 shrink-0 items-center justify-center overflow-hidden opacity-0 group-hover/disclosure:w-3.5 group-hover/disclosure:opacity-100 before:absolute before:-inset-y-1.5 before:-left-3 before:-right-2 before:content-['']"
         >
           <Icon name="plus" size="base" color="secondary" />
+        </span>
+      )}
+      {onHideClick && (
+        <span
+          data-hide=""
+          aria-label="Hide from sidebar"
+          className="relative flex h-3.5 w-0 shrink-0 items-center justify-center overflow-hidden opacity-0 group-hover/disclosure:w-3.5 group-hover/disclosure:opacity-100 before:absolute before:-inset-y-1.5 before:-left-3 before:-right-2 before:content-['']"
+        >
+          <Icon name="eye-slash" size="base" color="secondary" />
         </span>
       )}
     </button>

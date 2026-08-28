@@ -1,8 +1,6 @@
-// The two surfaces that link a thread back to its originating chat share one
-// behavior: show the parent agent's status dot (sidebar read/unread coloring),
-// swap it for an up-left arrow on the row's hover, and activate the parent on
-// click. The shells differ (pinned bubble vs composer caption); the origin
-// lookup and glyph live here so the treatment can't drift between them.
+// The thread origin pin links a thread back to its originating chat: show
+// the parent agent's status dot (sidebar read/unread coloring), swap it for
+// an up-left arrow on hover, and activate the parent on click.
 
 import { Icon } from "@/components/ui/Icon";
 import type { Agent } from "@/types";
@@ -55,26 +53,6 @@ export function ThreadOriginPin({ agent }: { agent: Agent }) {
       className="group/origin flex w-full items-center gap-1 rounded-2xl bg-elevated px-2.5 py-2 text-left text-lg text-primary shadow-[0_0_0_1px_var(--border-tertiary)]"
     >
       <OriginGlyph parent={parent} boxClass="w-5" />
-      <span className="min-w-0 truncate">{parent?.title ?? DELETED_PARENT}</span>
-    </button>
-  );
-}
-
-/** "Thread in [glyph] {title}" caption. Sits under a thread's composer where
- *  the branch chip goes for regular chats (threads inherit the parent's
- *  branch anyway). */
-export function ThreadOriginCaption({ agent }: { agent: Agent }) {
-  const { parent, open } = useThreadOrigin(agent);
-  if (!agent.thread) return null;
-  return (
-    <button
-      type="button"
-      onClick={open}
-      disabled={!parent}
-      className="group/origin flex min-w-0 items-center gap-1 text-base text-secondary hover:text-primary"
-    >
-      <span className="shrink-0 text-tertiary">Thread in</span>
-      <OriginGlyph parent={parent} boxClass="w-4" />
       <span className="min-w-0 truncate">{parent?.title ?? DELETED_PARENT}</span>
     </button>
   );

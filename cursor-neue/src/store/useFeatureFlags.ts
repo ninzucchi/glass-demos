@@ -15,66 +15,64 @@ export const FLAG_DEFS: Record<string, FlagDef> = {};
 export type FeatureFlag = string;
 
 /**
- * One experiment, many treatments. The bottom DebugBar writes this flag.
- * Add a mode to the array — do not add a second flag for the next option.
- *
- * Seams:
- *  - Sidebar chrome: Today nests Pinned under Chats; Merged lifts Pinned and
- *    drops the Chats header (`Sidebar.tsx`)
+ * Where projects sit in the sidebar.
+ *  - Separate: dedicated Projects section, above repos and recents.
+ *  - Merged: no Projects section. Projects sit in the Chats list and follow
+ *    workspace or recents grouping like agents.
  */
-export const SIDEBAR_PROJECTS_MODES = ["off", "merged"] as const;
-export type SidebarProjectsMode = (typeof SIDEBAR_PROJECTS_MODES)[number];
+export const SIDEBAR_SECTIONS_MODES = ["two", "one"] as const;
+export type SidebarSectionsMode = (typeof SIDEBAR_SECTIONS_MODES)[number];
 
-export const SIDEBAR_PROJECTS_LABEL: Record<SidebarProjectsMode, string> = {
-  off: "Off",
-  merged: "Merged",
+export const SIDEBAR_SECTIONS_LABEL: Record<SidebarSectionsMode, string> = {
+  two: "Separate",
+  one: "Merged",
 };
 
 /**
- * Project folder chrome in the sidebar.
- *  - Off: hover chevron, nested agents, plus-to-create.
- *  - Compressed: project rows act like agents; they keep the colored leading icon.
+ * Project chrome in the sidebar.
+ *  - Folders: nest elevated children. Send a message or pin a temp tab to
+ *    elevate; X demotes. No chevron when the project has no elevated children.
+ *  - Agents: project rows act like agents; they keep the colored leading icon.
  */
-export const PROJECT_FOLDERS_MODES = ["off", "compressed"] as const;
+export const PROJECT_FOLDERS_MODES = ["folders", "agents"] as const;
 export type ProjectFoldersMode = (typeof PROJECT_FOLDERS_MODES)[number];
 
 export const PROJECT_FOLDERS_LABEL: Record<ProjectFoldersMode, string> = {
-  off: "Off",
-  compressed: "Compressed",
+  folders: "Folders",
+  agents: "Agents",
 };
+
+/** Whether a project row can expand and list children in the sidebar. */
+export function projectFolderCollapsible(
+  mode: ProjectFoldersMode,
+  elevatedCount: number,
+): boolean {
+  switch (mode) {
+    case "folders":
+      return elevatedCount > 0;
+    case "agents":
+      return false;
+    default: {
+      const _exhaustive: never = mode;
+      return _exhaustive;
+    }
+  }
+}
 
 /**
  * Extra chat tabs opened beside a project.
- *  - Off: every new tab is permanent.
- *  - Temp: one italic temporary slot; a later agent replaces it until the
+ *  - Tabs: one italic temporary slot; a later agent replaces it until the
  *    user double-clicks to keep the tab.
  *  - Crumbs: no tab bar. The header is a breadcrumb; a child rewrites the
  *    current chat. Parent crumb, Back pill, and mouse back/forward pop one
  *    level.
  */
-export const EPHEMERAL_TABS_MODES = ["off", "ephemeral", "crumbs"] as const;
+export const EPHEMERAL_TABS_MODES = ["tabs", "crumbs"] as const;
 export type EphemeralTabsMode = (typeof EPHEMERAL_TABS_MODES)[number];
 
 export const EPHEMERAL_TABS_LABEL: Record<EphemeralTabsMode, string> = {
-  off: "Off",
-  ephemeral: "Temp",
+  tabs: "Tabs",
   crumbs: "Crumbs",
-};
-
-/**
- * Project icon chrome in the sidebar leading slot.
- *  - Off: colored glyph only.
- *  - Square: glyph on a rounded well tinted with the project color. Radius
- *    stays concentric with the row hover.
- *  - Circle: same well as a circle; glyph shrinks 2px so it fits.
- */
-export const PROJECT_ICON_SHAPE_MODES = ["off", "square", "circle"] as const;
-export type ProjectIconShapeMode = (typeof PROJECT_ICON_SHAPE_MODES)[number];
-
-export const PROJECT_ICON_SHAPE_LABEL: Record<ProjectIconShapeMode, string> = {
-  off: "Off",
-  square: "Square",
-  circle: "Circle",
 };
 
 /**
@@ -107,51 +105,79 @@ export const PROJECT_ONBOARDING_LABEL: Record<ProjectOnboardingMode, string> = {
   new: "New",
 };
 
+/**
+ * 2D canvas on the project board.
+ *  - Off: columns and rows only. The map control is hidden.
+ *  - Map: the layout selector includes the canvas view.
+ */
+export const PROJECT_MAP_MODES = ["off", "map"] as const;
+export type ProjectMapMode = (typeof PROJECT_MAP_MODES)[number];
+
+export const PROJECT_MAP_LABEL: Record<ProjectMapMode, string> = {
+  off: "Off",
+  map: "Map",
+};
+
+/**
+ * Surfaces on the project right panel.
+ *  - All: Tasks / Agents / PRs segmented control.
+ *  - Tasks: tasks only. The control is replaced by the project title.
+ */
+export const PROJECT_SURFACE_MODES = ["all", "tasks"] as const;
+export type ProjectSurfaceMode = (typeof PROJECT_SURFACE_MODES)[number];
+
+export const PROJECT_SURFACE_LABEL: Record<ProjectSurfaceMode, string> = {
+  all: "All",
+  tasks: "Tasks",
+};
+
 interface FeatureFlagState {
   flags: Record<FeatureFlag, boolean>;
-  /** Treatments for the sidebar-projects experiment. Default is Merged. */
-  sidebarProjects: SidebarProjectsMode;
-  /** Project folder chrome. Default is Compressed. */
+  /** Dedicated Projects section vs one Chats list. Default is Two. */
+  sidebarSections: SidebarSectionsMode;
+  /** Project folder chrome. Default is Agents. */
   projectFolders: ProjectFoldersMode;
-  /** Extra project tabs. Default is Crumbs. */
+  /** Extra project tabs. Default is Tabs. */
   ephemeralTabs: EphemeralTabsMode;
-  /** Sidebar project icon well. Default is Off. */
-  projectIconShape: ProjectIconShapeMode;
   /** Create-project dialog. Default is Modal. */
   projectCreate: ProjectCreateMode;
   /** Seeded projects vs empty onboarding. Default is Off. */
   projectOnboarding: ProjectOnboardingMode;
+  /** Project board canvas. Default is Off. */
+  projectMap: ProjectMapMode;
+  /** Project board surfaces. Default is All. */
+  projectSurface: ProjectSurfaceMode;
   toggleFlag: (flag: FeatureFlag) => void;
-  setSidebarProjects: (mode: SidebarProjectsMode) => void;
+  setSidebarSections: (mode: SidebarSectionsMode) => void;
   setProjectFolders: (mode: ProjectFoldersMode) => void;
   setEphemeralTabs: (mode: EphemeralTabsMode) => void;
-  setProjectIconShape: (mode: ProjectIconShapeMode) => void;
   setProjectCreate: (mode: ProjectCreateMode) => void;
   setProjectOnboarding: (mode: ProjectOnboardingMode) => void;
+  setProjectMap: (mode: ProjectMapMode) => void;
+  setProjectSurface: (mode: ProjectSurfaceMode) => void;
 }
 
 export const useFeatureFlags = create<FeatureFlagState>((set) => ({
   flags: Object.fromEntries(
     Object.entries(FLAG_DEFS).map(([flag, def]) => [flag, def.default]),
   ),
-  sidebarProjects: "merged",
-  projectFolders: "compressed",
-  ephemeralTabs: "crumbs",
-  projectIconShape: "off",
+  sidebarSections: "two",
+  projectFolders: "agents",
+  ephemeralTabs: "tabs",
   projectCreate: "modal",
   projectOnboarding: "off",
+  projectMap: "off",
+  projectSurface: "all",
   toggleFlag: (flag) => set((s) => ({ flags: { ...s.flags, [flag]: !s.flags[flag] } })),
-  setSidebarProjects: (sidebarProjects) => set({ sidebarProjects }),
+  setSidebarSections: (sidebarSections) => set({ sidebarSections }),
   setProjectFolders: (projectFolders) => set({ projectFolders }),
   setEphemeralTabs: (ephemeralTabs) => set({ ephemeralTabs }),
-  setProjectIconShape: (projectIconShape) => set({ projectIconShape }),
   setProjectCreate: (projectCreate) => set({ projectCreate }),
   setProjectOnboarding: (projectOnboarding) => set({ projectOnboarding }),
+  setProjectMap: (projectMap) => set({ projectMap }),
+  setProjectSurface: (projectSurface) => set({ projectSurface }),
 }));
 
 /** Flag value outside React (store actions); components subscribe instead. */
 export const flagEnabled = (flag: FeatureFlag): boolean =>
   useFeatureFlags.getState().flags[flag];
-
-export const sidebarProjectsMode = (): SidebarProjectsMode =>
-  useFeatureFlags.getState().sidebarProjects;

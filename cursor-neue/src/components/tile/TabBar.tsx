@@ -27,6 +27,7 @@ import { AddTabMenu } from "@/components/tile/AddTabMenu";
 import { ProjectAgentsMenu } from "@/components/tile/ProjectAgentsMenu";
 import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { TileContextMenu } from "@/components/tile/TileContextMenu";
+import { ChatToggle } from "@/components/chat/ChatToggle";
 import { SplitToggle } from "@/components/layout/SplitToggle";
 import { SidebarReexpandCluster } from "@/components/sidebar/SidebarControls";
 import type { TileVariant } from "@/components/tile/Tile";
@@ -265,7 +266,8 @@ export function TabBar({
         <div className="h-full w-full" />
       </TileContextMenu>
       {topRight && (
-        <div className="flex shrink-0 items-center pr-[6px]">
+        <div className="flex shrink-0 items-center gap-0.5 pr-[6px]">
+          <ChatToggle />
           <SplitToggle />
         </div>
       )}

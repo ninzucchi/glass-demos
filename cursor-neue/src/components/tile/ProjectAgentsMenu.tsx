@@ -9,7 +9,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/menu";
 import { agentsInProject, isProject, type Agent, type TileNode } from "@/types";
-import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 /** Project that owns this chat strip: the active tab, the first tab, or the
@@ -35,10 +34,9 @@ const isUnread = (status: Agent["status"]) => status !== "idle";
 
 const ROW = "h-[30px] min-h-[30px] rounded-lg";
 
-/** Plus on the chat tab bar when project folders are Compressed and this
- *  strip is a project. Opens a searchable list of that project's agents. */
+/** Plus on the chat tab bar when this strip is a project. Opens a searchable
+ *  list of that project's agents. */
 export function ProjectAgentsMenu({ tile }: { tile: TileNode }) {
-  const foldersCompressed = useFeatureFlags((s) => s.projectFolders) === "compressed";
   const agents = useWorkspaceStore((s) => s.agents);
   const agentOrder = useWorkspaceStore((s) => s.agentOrder);
   const openAgentInTile = useWorkspaceStore((s) => s.openAgentInTile);
@@ -56,7 +54,7 @@ export function ProjectAgentsMenu({ tile }: { tile: TileNode }) {
     return children.filter((a) => a.title.toLowerCase().includes(q));
   }, [children, query]);
 
-  if (!foldersCompressed || !project) return null;
+  if (!project) return null;
 
   return (
     <DropdownMenu onOpenChange={(open) => !open && setQuery("")}>

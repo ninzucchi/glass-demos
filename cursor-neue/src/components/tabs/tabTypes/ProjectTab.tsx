@@ -41,15 +41,19 @@ import {
   AGENT_BOARD_STATUSES,
   AGENT_STATUS_LABEL,
   PROJECT_COLOR_STROKE,
+  PROJECT_COLOR_WELL,
   agentsInProject,
   contentProjectId,
   isProject,
   lastAgentReply,
+  projectBoardAgentStatus,
   type Agent,
   type AgentStatus,
   type ProjectColor,
 } from "@/types";
 import { useWindowId } from "@/components/window/WindowContext";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
+import { useUiStore } from "@/store/useUiStore";
 import { useActiveAgent, useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 type Surface = "tasks" | "agents" | "prs";
@@ -280,15 +284,23 @@ function AgentCard({
   const preview = lastAgentReply(agent);
   const time = formatRelativeTime(agent.updatedAt);
   const isRow = layout === "rows";
+  const pulsedAt = useUiStore((s) => s.joinedAgentPulseAt[agent.id]);
+  const project = useWorkspaceStore((s) =>
+    agent.projectId ? s.agents[agent.projectId] : undefined,
+  );
+  const wash =
+    project && isProject(project)
+      ? PROJECT_COLOR_STROKE[project.color ?? "blue"]
+      : PROJECT_COLOR_STROKE.blue;
   const className = clsx(
-    "flex w-full gap-[var(--board-lead-gap)] px-[var(--board-inset)] text-left",
+    "relative flex w-full gap-[var(--board-lead-gap)] overflow-hidden px-[var(--board-inset)] text-left",
     isRow
       ? "items-center rounded-lg py-[9px] hover:bg-quinary"
       : clsx("items-start py-2", CARD_SURFACE, CARD_HOVER_COLUMN),
   );
   const body = (
     <>
-      <AgentLeading status={agent.status} />
+      <AgentLeading status={projectBoardAgentStatus(agent.status)} />
       {isRow ? (
         <span className="flex min-w-0 flex-1 items-center gap-3">
           <span className="max-w-[45%] shrink-0 truncate text-base font-medium text-primary">
@@ -306,11 +318,24 @@ function AgentCard({
           <span className="text-sm text-tertiary">{time}</span>
         </span>
       )}
+      {pulsedAt != null && (
+        <span
+          key={pulsedAt}
+          aria-hidden
+          className="agent-join-wash pointer-events-none absolute inset-0 z-[1] rounded-[inherit]"
+          style={{ background: wash }}
+        />
+      )}
     </>
   );
-  if (asDiv) return <div className={className}>{body}</div>;
+  if (asDiv)
+    return (
+      <div className={className} data-agent-card={agent.id}>
+        {body}
+      </div>
+    );
   return (
-    <button type="button" onClick={onOpen} className={className}>
+    <button type="button" data-agent-card={agent.id} onClick={onOpen} className={className}>
       {body}
     </button>
   );
@@ -461,12 +486,14 @@ function BoardGroup({
   title,
   icon,
   iconColor,
+  lead,
   layout,
   children,
 }: {
   title: string;
-  icon: IconName;
+  icon?: IconName;
   iconColor?: string;
+  lead?: ReactNode;
   layout: BoardView;
   children: ReactNode;
 }) {
@@ -489,12 +516,15 @@ function BoardGroup({
         )}
       >
         <LeadSlot>
-          <Icon
-            name={icon}
-            size="sm"
-            color="inherit"
-            style={{ color: iconColor ?? "var(--icon-secondary)" }}
-          />
+          {lead ??
+            (icon ? (
+              <Icon
+                name={icon}
+                size="sm"
+                color="inherit"
+                style={{ color: iconColor ?? "var(--icon-secondary)" }}
+              />
+            ) : null)}
         </LeadSlot>
         <span className="text-base font-medium text-primary">{title}</span>
       </header>
@@ -516,8 +546,13 @@ export function ProjectContent() {
   const agents = useWorkspaceStore((s) => s.agents);
   const agentOrder = useWorkspaceStore((s) => s.agentOrder);
   const setActiveAgent = useWorkspaceStore((s) => s.setActiveAgent);
-  const [surface, setSurface] = useState<Surface>("tasks");
+  const surface = useUiStore((s) => s.projectBoardSurface);
+  const setSurface = useUiStore((s) => s.setProjectBoardSurface);
   const [view, setView] = useState<BoardView>("columns");
+  const mapEnabled = useFeatureFlags((s) => s.projectMap) === "map";
+  const tasksOnly = useFeatureFlags((s) => s.projectSurface) === "tasks";
+  const boardView: BoardView = view === "map" && !mapEnabled ? "columns" : view;
+  const boardSurface: Surface = tasksOnly ? "tasks" : surface;
 
   const projectId = agent ? contentProjectId(agent) : null;
   const project = projectId ? agents[projectId] : undefined;
@@ -526,7 +561,7 @@ export function ProjectContent() {
   const tasks = projectId ? tasksFor(projectId) : [];
 
   const agentsByStatus = (status: AgentStatus): Agent[] =>
-    children.filter((agent) => agent.status === status);
+    children.filter((agent) => projectBoardAgentStatus(agent.status) === status);
   const prsByState = (state: PrState): PullRequest[] =>
     prs.filter((item) => item.state === state);
   const tasksByStatus = (status: TaskStatus): Task[] =>
@@ -536,12 +571,13 @@ export function ProjectContent() {
   const taskStatuses = emptyToEnd(TASK_BOARD_STATUSES, (status) => tasksByStatus(status).length === 0);
 
   const mapGraph = useMemo(() => {
+    if (!mapEnabled) return { nodes: [], edges: [] };
     const openAgent = (agentId: string) => setActiveAgent(windowId, agentId);
     const mapChildren = projectId ? agentsInProject(agents, agentOrder, projectId) : [];
     const mapTasks = projectId ? tasksFor(projectId) : [];
     const mapPrs = projectId ? pullRequestsFor(projectId) : [];
     const mapAgentsByStatus = (status: AgentStatus) =>
-      mapChildren.filter((child) => child.status === status);
+      mapChildren.filter((child) => projectBoardAgentStatus(child.status) === status);
     const mapPrsByState = (state: PrState) => mapPrs.filter((item) => item.state === state);
     const mapTasksByStatus = (status: TaskStatus) =>
       mapTasks.filter((task) => task.status === status);
@@ -555,7 +591,7 @@ export function ProjectContent() {
       (status) => mapTasksByStatus(status).length === 0,
     );
     let clusters: CanvasCluster[] = [];
-    switch (surface) {
+    switch (boardSurface) {
       case "tasks":
         clusters = mapTaskStatuses.map((status) => ({
           id: status,
@@ -590,13 +626,13 @@ export function ProjectContent() {
         }));
         break;
       default: {
-        const _exhaustive: never = surface;
+        const _exhaustive: never = boardSurface;
         return _exhaustive;
       }
     }
     let nodes = nodesFromClusters(clusters);
     let pairs: { source: string; target: string }[] = [];
-    switch (surface) {
+    switch (boardSurface) {
       case "tasks":
         pairs = pairsFromDepends(TASK_DEPENDS, new Set(mapTasks.map((task) => task.id)));
         break;
@@ -628,24 +664,24 @@ export function ProjectContent() {
         break;
       }
       default: {
-        const _exhaustive: never = surface;
+        const _exhaustive: never = boardSurface;
         return _exhaustive;
       }
     }
     return { nodes, edges: routeEdges(canvasEdges(pairs), nodes) };
-  }, [agentOrder, agents, project, projectId, setActiveAgent, surface, windowId]);
+  }, [agentOrder, agents, boardSurface, mapEnabled, project, projectId, setActiveAgent, windowId]);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-editor">
-      {view === "map" && (
+      {boardView === "map" && (
         <div className="absolute inset-0">
           <ProjectBoardCanvas
-            key={`${projectId ?? "none"}-${surface}`}
+            key={`${projectId ?? "none"}-${boardSurface}`}
             nodes={mapGraph.nodes}
             edges={mapGraph.edges}
             nodeTypes={MAP_NODE_TYPES}
             onOpenNode={
-              surface === "agents"
+              boardSurface === "agents"
                 ? (id) => {
                     if (id.startsWith("hub:")) return;
                     setActiveAgent(windowId, id);
@@ -658,39 +694,63 @@ export function ProjectContent() {
       <div
         className={clsx(
           "flex items-center justify-between px-3 py-4",
-          view === "map" ? "pointer-events-none relative z-10" : "shrink-0",
+          boardView === "map" ? "pointer-events-none relative z-10" : "shrink-0",
         )}
       >
-        <div className={view === "map" ? "pointer-events-auto" : undefined}>
-          <Segmented
-            label="Project surface"
-            value={surface}
-            onSelect={setSurface}
-            options={[
-              { id: "tasks", label: "Tasks" },
-              { id: "agents", label: "Agents" },
-              { id: "prs", label: "PRs" },
-            ]}
-          />
+        <div className={boardView === "map" ? "pointer-events-auto" : undefined}>
+          {tasksOnly ? (
+            <div className="flex min-w-0 items-center gap-2">
+              {project && (
+                <span
+                  aria-hidden
+                  className={clsx(
+                    "flex size-[30px] shrink-0 items-center justify-center rounded-[6px]",
+                    PROJECT_COLOR_WELL[project.color ?? "blue"],
+                  )}
+                >
+                  <Icon
+                    name={project.icon ?? "pencil"}
+                    size="lg"
+                    color="inherit"
+                    style={{ color: PROJECT_COLOR_STROKE[project.color ?? "blue"] }}
+                  />
+                </span>
+              )}
+              <p className="min-w-0 truncate text-lg font-medium text-primary">
+                {project?.title ?? ""}
+              </p>
+            </div>
+          ) : (
+            <Segmented
+              label="Project surface"
+              value={surface}
+              onSelect={setSurface}
+              options={[
+                { id: "tasks", label: "Tasks" },
+                { id: "agents", label: "Agents" },
+                { id: "prs", label: "PRs" },
+              ]}
+            />
+          )}
         </div>
-        <div className={view === "map" ? "pointer-events-auto" : undefined}>
+        <div className={boardView === "map" ? "pointer-events-auto" : undefined}>
           <Segmented
             label="Board layout"
-            value={view}
+            value={boardView}
             onSelect={setView}
             options={[
               { id: "columns", icon: "menu", iconClassName: "rotate-90" },
               { id: "rows", icon: "menu" },
-              { id: "map", icon: "map" },
+              ...(mapEnabled ? [{ id: "map" as const, icon: "map" as const }] : []),
             ]}
           />
         </div>
       </div>
-      {view !== "map" && (
+      {boardView !== "map" && (
       <div
         className={clsx(
           "min-h-0 flex-1",
-          view === "rows"
+          boardView === "rows"
             ? "overflow-y-auto overflow-x-hidden"
             : "overflow-x-auto overflow-y-hidden",
         )}
@@ -698,12 +758,12 @@ export function ProjectContent() {
         <div
           className={clsx(
             "flex gap-2 px-3 pb-2",
-            view === "rows" ? "flex-col" : "h-full",
+            boardView === "rows" ? "flex-col" : "h-full",
           )}
         >
           {(() => {
-            const listView = view === "rows" ? "rows" : "columns";
-            switch (surface) {
+            const listView = boardView === "rows" ? "rows" : "columns";
+            switch (boardSurface) {
               case "tasks":
                 return taskStatuses.map((status) => (
                   <BoardGroup
@@ -730,6 +790,14 @@ export function ProjectContent() {
                     layout={listView}
                     title={AGENT_STATUS_LABEL[status]}
                     icon={AGENT_STATUS_ICON[status]}
+                    lead={
+                      status === "idle" ? (
+                        <span
+                          className="size-1.5 rounded-full"
+                          style={{ background: AGENT_DOT_COLOR.idle }}
+                        />
+                      ) : undefined
+                    }
                   >
                     {agentsByStatus(status).map((agent) => (
                       <AgentCard
@@ -755,7 +823,7 @@ export function ProjectContent() {
                   </BoardGroup>
                 ));
               default: {
-                const _exhaustive: never = surface;
+                const _exhaustive: never = boardSurface;
                 return _exhaustive;
               }
             }

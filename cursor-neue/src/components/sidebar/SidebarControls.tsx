@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import clsx from "clsx";
 import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
-import { ChatToggle } from "@/components/chat/ChatToggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,8 +52,8 @@ export function AgentGroupFilter() {
   );
 }
 
-/** Group-by filter plus a cosmetic new-folder control. Sits on Chats (Today)
- *  or on Workspaces / Recents (Merged). */
+/** Group-by filter plus a cosmetic new-folder control. Sits on Chats or
+ *  Workspaces. */
 export function AgentGroupControls() {
   return (
     <div className="flex items-center gap-4">
@@ -181,20 +180,18 @@ export function MainSidebarToggle() {
   );
 }
 
-/** Sidebar toggle + chat toggle, tightly grouped (own gap) so the pair can be
- *  placed as one unit: in the sidebar header when expanded, and in the window's
+/** Sidebar toggle. In the sidebar header when expanded, and in the window's
  *  top-left when collapsed. */
 export function SidebarNavControls() {
   return (
     <div className="flex items-center gap-0.5">
       <MainSidebarToggle />
-      <ChatToggle />
     </div>
   );
 }
 
 /** Window top-left cluster surfaced when the sidebar is collapsed: traffic
- *  lights + the sidebar re-expand/search controls. Self-gating (renders nothing
+ *  lights + the sidebar re-expand control. Self-gating (renders nothing
  *  while the sidebar is expanded) so it can be dropped into any corner host
  *  (chat panel or maximized content panel) without per-call-site conditions.
  *  Gates on the live visual-collapse signal (not the deferred store flag) so the

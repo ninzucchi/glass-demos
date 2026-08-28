@@ -22,7 +22,11 @@ export interface PullRequest {
   reviewStatus?: PrReviewStatus;
 }
 
-export const PR_BOARD_STATES: PrState[] = ["draft", "open", "merged", "closed"];
+/** Native order: Open, Merged, Drafts, Closed. Empty columns still go last. */
+export const PR_BOARD_STATES: PrState[] = ["open", "merged", "draft", "closed"];
+
+/** Composer PR tray: Open, Draft, Merged, Closed. */
+export const PR_TRAY_STATES: PrState[] = ["open", "draft", "merged", "closed"];
 
 export const PR_STATE_LABEL: Record<PrState, string> = {
   draft: "Drafts",

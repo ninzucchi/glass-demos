@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import {
-  agentsInProject,
+  elevatedAgentsInProject,
   isAgentPinned,
   isProject,
   primaryWorkspaceId,
@@ -11,7 +11,8 @@ import {
   type Agent,
 } from "@/types";
 import { useWindowId } from "@/components/window/WindowContext";
-import { useFeatureFlags } from "@/store/useFeatureFlags";
+import { projectFolderCollapsible, useFeatureFlags } from "@/store/useFeatureFlags";
+import { useUiStore } from "@/store/useUiStore";
 import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useTabDragStore } from "@/store/tabDrag";
 import { beginTabDrag } from "@/components/tile/tabDragInteraction";
@@ -72,7 +73,7 @@ export function ProjectGroup({
   const openAgentAtChatRoot = useWorkspaceStore((s) => s.openAgentAtChatRoot);
   const openAgentInNewWindow = useWorkspaceStore((s) => s.openAgentInNewWindow);
   const collapsed = sidebarCollapsed(project.id, win?.collapsedSidebar);
-  const collapsible = useFeatureFlags((s) => s.projectFolders) === "off";
+  const foldersMode = useFeatureFlags((s) => s.projectFolders);
   const pinned = isAgentPinned(pinnedAgents, project.id);
   const dragging = useTabDragStore((s) => s.source?.agentId === project.id);
   const didDragRef = useRef(false);
@@ -102,10 +103,15 @@ export function ProjectGroup({
             project.id,
           );
           if (target.section === "pinned" && !pinnedNow) togglePinnedAgent(project.id);
-          else if (target.section === "projects" && pinnedNow) {
+          else if (
+            (target.section === "projects" || target.section === "chats") &&
+            pinnedNow
+          ) {
             togglePinnedAgent(project.id);
-            const listIndex = useTabDragStore.getState().listIndex;
-            if (listIndex != null) moveProject(project.id, listIndex);
+            if (target.section === "projects") {
+              const listIndex = useTabDragStore.getState().listIndex;
+              if (listIndex != null) moveProject(project.id, listIndex);
+            }
           }
           return;
         }
@@ -130,13 +136,14 @@ export function ProjectGroup({
   );
 
   const children = useMemo(
-    () => agentsInProject(agents, agentOrder, project.id),
+    () => elevatedAgentsInProject(agents, agentOrder, project.id),
     [agents, agentOrder, project.id],
   );
   const list = useMemo(
     () => children.filter((a) => pinned || !isAgentPinned(pinnedAgents, a.id)),
     [children, pinned, pinnedAgents],
   );
+  const collapsible = projectFolderCollapsible(foldersMode, list.length);
 
   const shown = seeMore ? list : list.slice(0, VISIBLE);
   const showMore = !seeMore && list.length > VISIBLE;
@@ -183,6 +190,10 @@ export function ProjectGroup({
                       didDragRef.current = false;
                       return;
                     }
+                    useUiStore.getState().setSidebarAgentSelection(windowId, {
+                      ids: [],
+                      anchorId: project.id,
+                    });
                     setActiveAgent(windowId, project.id);
                   }}
                   onLeadingClick={
@@ -252,7 +263,11 @@ export function ProjectGroup({
       {collapsible && (
         <SidebarCollapse open={!collapsed} padded={padded}>
           <div className="flex flex-col gap-px">
-            <AgentList agents={shown} nestLevel={nestLevel + 1} />
+            <AgentList
+              agents={shown}
+              nestLevel={nestLevel + 1}
+              demoteOnHide
+            />
             {showMore && (
               <SidebarCell
                 muted

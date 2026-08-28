@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Composer } from "@/components/chat/Composer";
 import { ProjectTemplateStrip } from "@/components/chat/ProjectTemplateStrip";
 import { ProjectFollowUp } from "@/components/chat/ProjectFollowUp";
@@ -60,6 +60,7 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
   const activeAgent = useActiveAgent();
   const agent = tabAgent ?? activeAgent;
   const messages = agent?.messages ?? [];
+  const transcriptRef = useRef<HTMLDivElement>(null);
   const crumbs = useFeatureFlags((s) => s.ephemeralTabs === "crumbs");
   const showCrumbBack = crumbs && !!agent && !isProject(agent) && !!agent.projectId;
 
@@ -82,6 +83,13 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
     }
     return map;
   }, [agents, drafts, agent]);
+
+  useEffect(() => {
+    const n = messages.length;
+    if (n < 2 || messages[n - 2]?.role !== "divider") return;
+    const el = transcriptRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [agent?.id, messages]);
 
   // Empty non-thread conversation (a freshly created agent): center the
   // expanded composer. An empty THREAD falls through to the standard layout —
@@ -115,7 +123,7 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
           <ThreadOriginPin agent={agent} />
         </div>
       )}
-      <div className="flex-1 overflow-auto pb-4 pt-2">
+      <div ref={transcriptRef} className="flex-1 overflow-auto pb-4 pt-2">
         <div className={`${COLUMN} flex flex-col`}>
           {isProject(agent) && (
             <div className="my-12">
@@ -125,23 +133,46 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
           <div className="flex flex-col gap-3">
             {messages.map((m, i) => {
               const threads = threadsByMessage.get(i);
-              const body =
-                m.role === "user" ? (
+              let body: ReactNode;
+              switch (m.role) {
+                case "user":
                   // Ring (not border) so the 1px doesn't push text inward.
                   // Bubble hugs content up to 500px and sits on the right;
                   // copy stays left-aligned.
-                  <div className="ml-auto w-fit max-w-[500px] rounded-2xl bg-elevated px-3.5 py-3 text-left text-lg text-primary shadow-[0_0_0_1px_var(--border-tertiary)]">
-                    {m.text}
-                  </div>
-                ) : (
+                  body = (
+                    <div className="ml-auto w-fit max-w-[500px] rounded-2xl bg-elevated px-3.5 py-3 text-left text-lg text-primary shadow-[0_0_0_1px_var(--border-tertiary)]">
+                      {m.text}
+                    </div>
+                  );
+                  break;
+                case "agent":
                   // Agent turn: optional tool line + message grouped with no gap; tool
                   // py-[3px] (6px total), message py-1. px-2.5 matches the bubble inset
                   // so every chat line shares one 22px left margin.
-                  <div className="flex flex-col px-2.5">
-                    {m.tool && <div className="py-[3px] text-lg text-tertiary">{m.tool}</div>}
-                    <div className="py-1 text-lg text-primary">{m.text}</div>
-                  </div>
-                );
+                  body = (
+                    <div className="flex flex-col px-2.5">
+                      {m.tool && <div className="py-[3px] text-lg text-tertiary">{m.tool}</div>}
+                      <div className="py-1 text-lg text-primary">{m.text}</div>
+                    </div>
+                  );
+                  break;
+                case "divider":
+                  body = (
+                    <div
+                      role="separator"
+                      className="flex items-center gap-3 px-2.5 py-1"
+                    >
+                      <span className="h-px min-w-4 flex-1 bg-[var(--border-tertiary)]" />
+                      <span className="shrink-0 text-sm text-tertiary">{m.text}</span>
+                      <span className="h-px min-w-4 flex-1 bg-[var(--border-tertiary)]" />
+                    </div>
+                  );
+                  break;
+                default: {
+                  const _exhaustive: never = m.role;
+                  return _exhaustive;
+                }
+              }
               if (!threads?.length) return <div key={i}>{body}</div>;
               return (
                 <div key={i} className="flex flex-col gap-1">

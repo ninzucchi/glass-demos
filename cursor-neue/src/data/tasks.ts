@@ -10,18 +10,19 @@ export interface Task {
   prId?: string;
 }
 
+/** Native order: Not Started is last. Empty columns still go after filled ones. */
 export const TASK_BOARD_STATUSES: TaskStatus[] = [
-  "not-started",
   "in-progress",
   "for-review",
   "completed",
+  "not-started",
 ];
 
 export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   "not-started": "Not Started",
   "in-progress": "In Progress",
-  "for-review": "For Review",
-  completed: "Completed",
+  "for-review": "Ready for Review",
+  completed: "Done",
 };
 
 const STATUS_ICON: Record<TaskStatus, IconName> = {

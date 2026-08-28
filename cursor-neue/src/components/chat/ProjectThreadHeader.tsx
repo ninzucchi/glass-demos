@@ -26,7 +26,6 @@ export function ProjectThreadHeader({ project }: { project: Agent }) {
       <OutlineButton
         aria-pressed={contentOpen}
         aria-label={contentOpen ? "Hide project overview" : "Show project overview"}
-        className={contentOpen ? "bg-quaternary" : undefined}
         onClick={() => {
           if (contentOpen) setContentOpen(windowId, false);
           else openPinnedTab(windowId, "project");

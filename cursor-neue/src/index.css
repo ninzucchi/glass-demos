@@ -115,11 +115,29 @@
   }
 }
 
+@keyframes agent-join-wash {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.agent-join-wash {
+  animation: agent-join-wash 2.5s ease-out forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+
+  /* Opacity-only wash: keep the 2.5s fade so the join still reads. */
+  .agent-join-wash {
+    animation-duration: 2.5s !important;
   }
 }

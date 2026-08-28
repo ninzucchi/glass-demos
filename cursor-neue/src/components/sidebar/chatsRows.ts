@@ -1,9 +1,13 @@
+import { SEED_PROJECT_IDS } from "@/data/seed";
 import {
   isAgentPinned,
-  isChatsAgent,
+  isMainListItem,
+  isProject,
   type Agent,
   type Workspace,
 } from "@/types";
+
+const SEED_PROJECT_ID_SET = new Set<string>(SEED_PROJECT_IDS);
 
 /** One row in the Workspaces list. Built before render so grouping shares
  *  one padded-last-child rule. */
@@ -19,47 +23,27 @@ export interface WorkspaceRowsInput {
   workspaces: Record<string, Workspace>;
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-export const RECENTS_BUCKETS = ["today", "yesterday", "week", "older"] as const;
-export type RecentsBucketId = (typeof RECENTS_BUCKETS)[number];
-
-export const RECENTS_BUCKET_LABEL: Record<RecentsBucketId, string> = {
-  today: "Today",
-  yesterday: "Yesterday",
-  week: "Last 7 Days",
-  older: "Older",
+export type MainListOptions = {
+  includeProjects?: boolean;
+  hideSeedProjects?: boolean;
 };
-
-export const recentsSectionId = (id: RecentsBucketId): string => `sec:recents:${id}`;
-
-export type RecentsBucket = { id: RecentsBucketId; agents: Agent[] };
-
-function startOfLocalDay(ms: number): number {
-  const d = new Date(ms);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-function recentsBucketId(updatedAt: number, now: number): RecentsBucketId {
-  const today = startOfLocalDay(now);
-  if (updatedAt >= today) return "today";
-  if (updatedAt >= today - DAY_MS) return "yesterday";
-  if (updatedAt >= today - 7 * DAY_MS) return "week";
-  return "older";
-}
 
 function chatsAgents(
   agents: Record<string, Agent>,
   agentOrder: string[],
   pinnedAgents: string[],
+  options: MainListOptions = {},
 ): Agent[] {
+  const includeProjects = options.includeProjects === true;
+  const hideSeed = options.hideSeedProjects === true;
   return agentOrder
     .map((id) => agents[id])
-    .filter(
-      (a): a is Agent =>
-        !!a && isChatsAgent(a) && !isAgentPinned(pinnedAgents, a.id),
-    );
+    .filter((a): a is Agent => {
+      if (!a || isAgentPinned(pinnedAgents, a.id)) return false;
+      if (!isMainListItem(a, includeProjects)) return false;
+      if (hideSeed && isProject(a) && SEED_PROJECT_ID_SET.has(a.id)) return false;
+      return true;
+    });
 }
 
 /** Folders that are not the last row keep 8px of open-body padding. */
@@ -78,27 +62,14 @@ export function chatsRows(input: WorkspaceRowsInput): ChatsRow[] {
   return withLastUnpadded(rows);
 }
 
-/** Recents list, newest first, split by local calendar day. Empty buckets
- *  are omitted. Agents older than a week land in Older. */
-export function recentsBuckets(
+/** Recents list, newest first. One flat section — no date buckets. */
+export function recentsList(
   agents: Record<string, Agent>,
   agentOrder: string[],
   pinnedAgents: string[],
-  now = Date.now(),
-): RecentsBucket[] {
-  const lists: Record<RecentsBucketId, Agent[]> = {
-    today: [],
-    yesterday: [],
-    week: [],
-    older: [],
-  };
-  const chats = chatsAgents(agents, agentOrder, pinnedAgents).sort(
+  options: MainListOptions = {},
+): Agent[] {
+  return chatsAgents(agents, agentOrder, pinnedAgents, options).sort(
     (a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id),
-  );
-  for (const agent of chats) {
-    lists[recentsBucketId(agent.updatedAt, now)].push(agent);
-  }
-  return RECENTS_BUCKETS.map((id) => ({ id, agents: lists[id] })).filter(
-    (bucket) => bucket.agents.length > 0,
   );
 }

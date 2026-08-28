@@ -3,8 +3,13 @@ import { AnimatePresence, motion } from "motion/react";
 import { FollowUpPill } from "@/components/ui/FollowUpPill";
 import { Icon } from "@/components/ui/Icon";
 import { Tray, TrayHeader, TrayRow, TrayRows } from "@/components/ui/tray/Tray";
-import { prStateColor, prStateIcon, pullRequestsFor } from "@/data/pullRequests";
-import { AGENT_BOARD_STATUSES, agentsInProject, type Agent } from "@/types";
+import {
+  PR_TRAY_STATES,
+  prStateColor,
+  prStateIcon,
+  pullRequestsFor,
+} from "@/data/pullRequests";
+import { AGENT_TRAY_STATUSES, agentsInProject, type Agent } from "@/types";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 type TrayKind = "prs" | "subagents";
@@ -18,9 +23,13 @@ const TRAY_MOTION = {
 
 const isUnread = (status: Agent["status"]) => status !== "idle";
 
-const STATUS_RANK: Record<Agent["status"], number> = Object.fromEntries(
-  AGENT_BOARD_STATUSES.map((status, i) => [status, i]),
+const AGENT_TRAY_RANK = Object.fromEntries(
+  AGENT_TRAY_STATUSES.map((status, i) => [status, i]),
 ) as Record<Agent["status"], number>;
+
+const PR_TRAY_RANK = Object.fromEntries(
+  PR_TRAY_STATES.map((state, i) => [state, i]),
+) as Record<(typeof PR_TRAY_STATES)[number], number>;
 
 /** PRs + Subagents pills above the project composer. Open trays pin above
  *  the pill row, same width as the composer. */
@@ -37,9 +46,11 @@ export function ProjectFollowUp({
   const [open, setOpen] = useState<TrayKind | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
 
-  const prs = pullRequestsFor(project.id);
+  const prs = [...pullRequestsFor(project.id)].sort(
+    (a, b) => PR_TRAY_RANK[a.state] - PR_TRAY_RANK[b.state],
+  );
   const subagents = [...agentsInProject(agents, agentOrder, project.id)].sort(
-    (a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status],
+    (a, b) => AGENT_TRAY_RANK[a.status] - AGENT_TRAY_RANK[b.status],
   );
 
   const showAgents = subagents.length > 0;

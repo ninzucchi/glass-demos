@@ -20,6 +20,9 @@ export interface TabDragSource {
   /** Set for a sidebar agent-row drag (a CREATE drag with no source tab); lets
    *  the row render its own dragging state. */
   agentId?: string;
+  /** Sidebar multi-select: every agent riding this drag. `agentId` is the
+   *  grabbed row. Absent means a single-agent drag. */
+  agentIds?: string[];
   /** True when the tab's type is pinned in its workspace: strip slots clamp so
    *  it stays inside the pinned leading group (and plain tabs stay out). */
   pinnedType?: boolean;

@@ -67,7 +67,7 @@ export function TabHandle({
   );
   const togglePinnedTab = useWorkspaceStore((s) => s.togglePinnedTab);
   const pinEphemeralTab = useWorkspaceStore((s) => s.pinEphemeralTab);
-  const ephemeralTabsOn = useFeatureFlags((s) => s.ephemeralTabs === "ephemeral");
+  const ephemeralTabsOn = useFeatureFlags((s) => s.ephemeralTabs === "tabs");
   const isEphemeralChat = variant === "chat" && ephemeralTabsOn && !!tab.ephemeral;
   const content = useActiveContent();
   const isPinnedType = !!pinnedSet?.includes(tab.type);

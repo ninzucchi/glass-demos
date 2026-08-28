@@ -14,15 +14,9 @@ import { useTabDragStore } from "@/store/tabDrag";
 import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useUiStore } from "@/store/useUiStore";
 import { AgentList } from "@/components/sidebar/AgentList";
-import {
-  chatsRows,
-  recentsBuckets,
-  recentsSectionId,
-  RECENTS_BUCKET_LABEL,
-} from "@/components/sidebar/chatsRows";
+import { chatsRows, recentsList } from "@/components/sidebar/chatsRows";
 import { ProjectGroup } from "@/components/sidebar/ProjectGroup";
 import { ProjectPlaceholderRow } from "@/components/sidebar/ProjectPlaceholderRow";
-import { ProjectSuggestionsCard } from "@/components/sidebar/ProjectSuggestionsCard";
 import { SidebarCell } from "@/components/sidebar/SidebarCell";
 import { SidebarCollapse } from "@/components/sidebar/SidebarCollapse";
 import { SidebarDropOutline } from "@/components/sidebar/SidebarDropOutline";
@@ -97,13 +91,27 @@ function NewProjectButton() {
   const createMode = useFeatureFlags((s) => s.projectCreate);
   const openNewProject = useUiStore((s) => s.openNewProject);
   const createDraftProject = useWorkspaceStore((s) => s.createDraftProject);
+  const onClick = () => {
+    switch (createMode) {
+      case "composer":
+        createDraftProject(windowId);
+        return;
+      case "advanced":
+      case "modal":
+      case "suggestions":
+        openNewProject(windowId);
+        return;
+      default: {
+        const _exhaustive: never = createMode;
+        return _exhaustive;
+      }
+    }
+  };
   return (
     <button
       type="button"
       aria-label="New project"
-      onClick={() =>
-        createMode === "composer" ? createDraftProject(windowId) : openNewProject(windowId)
-      }
+      onClick={onClick}
       className="flex size-4 shrink-0 items-center justify-center text-[color:var(--icon-tertiary)] hover:text-[color:var(--icon-secondary)]"
     >
       <Icon name="plus" size="base" color="inherit" />
@@ -113,26 +121,11 @@ function NewProjectButton() {
 
 const SEED_PROJECT_ID_SET = new Set<string>(SEED_PROJECT_IDS);
 
-function ProjectsSection() {
+function useProjectPlaceholders() {
   const agents = useWorkspaceStore((s) => s.agents);
-  const projectOrder = useWorkspaceStore((s) => s.projectOrder);
-  const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
-  const onboarding = useFeatureFlags((s) => s.projectOnboarding);
-  const onboardingNew = onboarding === "new";
+  const onboardingNew = useFeatureFlags((s) => s.projectOnboarding) === "new";
   const dismissed = useUiStore((s) => s.dismissedProjectPlaceholders);
-  const hintDismissed = useUiStore((s) => s.projectSuggestionsCardDismissed);
-  const projects = useMemo(
-    () =>
-      projectOrder
-        .map((pid) => agents[pid])
-        .filter((a): a is Agent => {
-          if (!a || !isProject(a) || a.draft || isAgentPinned(pinnedAgents, a.id)) return false;
-          if (onboardingNew && SEED_PROJECT_ID_SET.has(a.id)) return false;
-          return true;
-        }),
-    [agents, onboardingNew, pinnedAgents, projectOrder],
-  );
-  const placeholders = useMemo(() => {
+  return useMemo(() => {
     if (!onboardingNew) return [];
     const existing = new Set(
       Object.values(agents)
@@ -144,6 +137,26 @@ function ProjectsSection() {
       (item) => !hidden.has(item.id) && !existing.has(item.title.toLowerCase()),
     );
   }, [agents, dismissed, onboardingNew]);
+}
+
+function ProjectsSection() {
+  const agents = useWorkspaceStore((s) => s.agents);
+  const projectOrder = useWorkspaceStore((s) => s.projectOrder);
+  const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
+  const onboarding = useFeatureFlags((s) => s.projectOnboarding);
+  const onboardingNew = onboarding === "new";
+  const placeholders = useProjectPlaceholders();
+  const projects = useMemo(
+    () =>
+      projectOrder
+        .map((pid) => agents[pid])
+        .filter((a): a is Agent => {
+          if (!a || !isProject(a) || a.draft || isAgentPinned(pinnedAgents, a.id)) return false;
+          if (onboardingNew && SEED_PROJECT_ID_SET.has(a.id)) return false;
+          return true;
+        }),
+    [agents, onboardingNew, pinnedAgents, projectOrder],
+  );
   const draggingProject = useTabDragStore((s) => {
     const id = s.source?.agentId;
     if (!id || s.source?.tabId) return false;
@@ -157,9 +170,6 @@ function ProjectsSection() {
       dropKind="projects"
       trailing={<NewProjectButton />}
     >
-      {onboardingNew && !hintDismissed && placeholders.length > 0 && (
-        <ProjectSuggestionsCard />
-      )}
       {(projects.length > 0 || draggingProject) && <ProjectSortList projects={projects} />}
       {placeholders.map((item) => (
         <ProjectPlaceholderRow key={item.id} item={item} />
@@ -192,30 +202,23 @@ function PinnedSection() {
   );
 }
 
-function RecentsSections({ trailing }: { trailing?: ReactNode }) {
+function RecentsList() {
   const agents = useWorkspaceStore((s) => s.agents);
   const agentOrder = useWorkspaceStore((s) => s.agentOrder);
   const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
-  const buckets = useMemo(
-    () => recentsBuckets(agents, agentOrder, pinnedAgents),
-    [agentOrder, agents, pinnedAgents],
+  const includeProjects = useFeatureFlags((s) => s.sidebarSections) === "one";
+  const hideSeedProjects = useFeatureFlags((s) => s.projectOnboarding) === "new";
+  const list = useMemo(
+    () =>
+      recentsList(agents, agentOrder, pinnedAgents, {
+        includeProjects,
+        hideSeedProjects,
+      }),
+    [agentOrder, agents, hideSeedProjects, includeProjects, pinnedAgents],
   );
-  const shown =
-    buckets.length > 0 ? buckets : trailing ? [{ id: "today" as const, agents: [] }] : [];
-  if (shown.length === 0) return null;
   return (
-    <div className="flex flex-col gap-3">
-      {shown.map((bucket, i) => (
-        <SidebarSection
-          key={bucket.id}
-          id={recentsSectionId(bucket.id)}
-          label={RECENTS_BUCKET_LABEL[bucket.id]}
-          trailing={i === 0 ? trailing : undefined}
-          dropKind="chats"
-        >
-          <AgentList agents={bucket.agents} />
-        </SidebarSection>
-      ))}
+    <div className="flex flex-col gap-px">
+      <AgentList agents={list} />
     </div>
   );
 }
@@ -233,24 +236,45 @@ function WorkspaceChats() {
 function GroupSection({
   groupBy,
   trailing,
+  oneList,
 }: {
   groupBy: AgentGroupBy;
   trailing?: ReactNode;
+  oneList?: boolean;
 }) {
+  const placeholders = useProjectPlaceholders();
+  const extras =
+    oneList && placeholders.length > 0
+      ? placeholders.map((item) => <ProjectPlaceholderRow key={item.id} item={item} />)
+      : null;
   switch (groupBy) {
     case "workspace":
       return (
         <SidebarSection
           id={SIDEBAR_SECTION.group}
-          label="Workspaces"
+          label={oneList ? "Chats" : "Workspaces"}
           trailing={trailing}
           dropKind="chats"
         >
+          {extras}
           <WorkspaceChats />
         </SidebarSection>
       );
     case "updated":
-      return <RecentsSections trailing={trailing} />;
+      if (trailing || oneList) {
+        return (
+          <SidebarSection
+            id={SIDEBAR_SECTION.group}
+            label="Chats"
+            trailing={trailing}
+            dropKind="chats"
+          >
+            {extras}
+            <RecentsList />
+          </SidebarSection>
+        );
+      }
+      return <RecentsList />;
     default: {
       const _exhaustive: never = groupBy;
       return _exhaustive;
@@ -263,11 +287,16 @@ export function Sidebar() {
   const groupBy = useWindow()?.agentGroupBy ?? "workspace";
   const createAgent = useWorkspaceStore((s) => s.createAgent);
   const openCustomize = useUiStore((s) => s.openCustomize);
-  const mode = useFeatureFlags((s) => s.sidebarProjects);
-  const merged = mode === "merged";
+  const oneList = useFeatureFlags((s) => s.sidebarSections) === "one";
   const groupControls = <AgentGroupControls />;
+  const listTrailing = (
+    <div className="flex items-center gap-4">
+      {oneList && <NewProjectButton />}
+      {groupControls}
+    </div>
+  );
   const group = (
-    <GroupSection groupBy={groupBy} trailing={merged ? groupControls : undefined} />
+    <GroupSection groupBy={groupBy} oneList={oneList} trailing={listTrailing} />
   );
 
   return (
@@ -289,20 +318,9 @@ export function Sidebar() {
       </div>
 
       <ScrollArea className="min-h-0 flex-1" contentClassName="gap-3 px-2 pb-3 pt-3">
-        <ProjectsSection />
-        {merged ? (
-          <>
-            <PinnedSection />
-            {group}
-          </>
-        ) : (
-          <SidebarSection id={SIDEBAR_SECTION.chats} label="Chats" trailing={groupControls}>
-            <div className="flex flex-col gap-3">
-              <PinnedSection />
-              {group}
-            </div>
-          </SidebarSection>
-        )}
+        {!oneList && <ProjectsSection />}
+        <PinnedSection />
+        {group}
       </ScrollArea>
       <SidebarFooter />
     </aside>
