@@ -18,7 +18,6 @@ import { useTabDragStore } from "@/store/tabDrag";
 import { beginTabDrag } from "@/components/tile/tabDragInteraction";
 import { isOutsideWindows, newWindowGeo } from "@/components/desktop/geometry";
 import { AgentList } from "@/components/sidebar/AgentList";
-import { ProjectIconPicker } from "@/components/sidebar/ProjectIconPicker";
 import { SidebarCell } from "@/components/sidebar/SidebarCell";
 import { SidebarCollapse } from "@/components/sidebar/SidebarCollapse";
 import { SidebarDropOutline } from "@/components/sidebar/SidebarDropOutline";
@@ -78,9 +77,8 @@ export function ProjectGroup({
   const dragging = useTabDragStore((s) => s.source?.agentId === project.id);
   const didDragRef = useRef(false);
   const [seeMore, setSeeMore] = useState(false);
-  const [menuPanel, setMenuPanel] = useState<"main" | "icons">("main");
   const hostRef = useRef<HTMLDivElement>(null);
-  const updateProjectAppearance = useWorkspaceStore((s) => s.updateProjectAppearance);
+  const openEditProject = useUiStore((s) => s.openEditProject);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) =>
     beginTabDrag(e, {
@@ -164,11 +162,7 @@ export function ProjectGroup({
       data-sidebar-drop="project"
       data-sidebar-project-id={project.id}
     >
-      <ContextMenu
-        onOpenChange={(open) => {
-          if (open) setMenuPanel("main");
-        }}
-      >
+      <ContextMenu>
         <ContextMenuTrigger asChild>
           <div>
             <SidebarWorkspaceTooltip names={workspaceNames}>
@@ -218,46 +212,24 @@ export function ProjectGroup({
             </SidebarWorkspaceTooltip>
           </div>
         </ContextMenuTrigger>
-        <ContextMenuContent
-          className={
-            menuPanel === "icons"
-              ? "!min-w-0 overflow-hidden !rounded-[12px] border border-tertiary p-0"
-              : undefined
-          }
-        >
-          {menuPanel === "icons" ? (
-            <ProjectIconPicker
-              icon={project.icon ?? "pencil"}
-              color={project.color ?? "blue"}
-              onPickIcon={(icon) => updateProjectAppearance(project.id, { icon })}
-              onPickColor={(color) => updateProjectAppearance(project.id, { color })}
-            />
-          ) : (
-            <>
-              <ContextMenuSection>
-                <ContextMenuItem onSelect={() => togglePinnedAgent(project.id)}>
-                  <Icon name={pinned ? "pin-slash" : "pin"} size="base" color="tertiary" />
-                  {pinned ? "Unpin" : "Pin"}
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setMenuPanel("icons");
-                  }}
-                >
-                  <Icon name="smiley-happy" size="base" color="tertiary" />
-                  Edit Icon
-                </ContextMenuItem>
-              </ContextMenuSection>
-              <ContextMenuSeparator />
-              <ContextMenuSection>
-                <ContextMenuItem onSelect={() => archiveAgent(project.id)}>
-                  <Icon name="trash" size="base" color="tertiary" />
-                  Delete
-                </ContextMenuItem>
-              </ContextMenuSection>
-            </>
-          )}
+        <ContextMenuContent>
+          <ContextMenuSection>
+            <ContextMenuItem onSelect={() => togglePinnedAgent(project.id)}>
+              <Icon name={pinned ? "pin-slash" : "pin"} size="base" color="tertiary" />
+              {pinned ? "Unpin" : "Pin"}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => openEditProject(windowId, project.id)}>
+              <Icon name="pencil" size="base" color="tertiary" />
+              Edit
+            </ContextMenuItem>
+          </ContextMenuSection>
+          <ContextMenuSeparator />
+          <ContextMenuSection>
+            <ContextMenuItem onSelect={() => archiveAgent(project.id)}>
+              <Icon name="trash" size="base" color="tertiary" />
+              Delete
+            </ContextMenuItem>
+          </ContextMenuSection>
         </ContextMenuContent>
       </ContextMenu>
       {collapsible && (

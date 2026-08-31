@@ -15,7 +15,13 @@ import {
 import { NewProjectSuggestions } from "@/components/sidebar/NewProjectSuggestions";
 import { finishPendingMoveToProject } from "@/components/sidebar/sidebarAgentSelection";
 import { PROJECT_MODELS } from "@/data/models";
-import { DEFAULT_WORKSPACE_ID, PROJECT_COLOR_STROKE, primaryWorkspaceId, type ProjectColor } from "@/types";
+import {
+  DEFAULT_WORKSPACE_ID,
+  PROJECT_COLOR_STROKE,
+  isProject,
+  primaryWorkspaceId,
+  type ProjectColor,
+} from "@/types";
 import type { IconName } from "@/icons/iconNames";
 import { useWindowId } from "@/components/window/WindowContext";
 import { useFeatureFlags } from "@/store/useFeatureFlags";
@@ -37,22 +43,34 @@ export function NewProjectDialog() {
   const open = useUiStore((s) => s.newProjectWindowId === windowId);
   const close = useUiStore((s) => s.closeNewProject);
   const draft = useUiStore((s) => s.newProjectDraft);
+  const editingProjectId = useUiStore((s) => s.editingProjectId);
   const pendingMoveAgentIds = useUiStore((s) => s.pendingMoveAgentIds);
   const dismissPlaceholder = useUiStore((s) => s.dismissProjectPlaceholder);
   const createMode = useFeatureFlags((s) => s.projectCreate);
   const advanced = createMode === "advanced";
   const [customForm, setCustomForm] = useState(false);
   const showSuggestions =
-    createMode === "suggestions" && !customForm && !draft && !pendingMoveAgentIds?.length;
+    createMode === "suggestions" &&
+    !customForm &&
+    !draft &&
+    !editingProjectId &&
+    !pendingMoveAgentIds?.length;
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const workspaceOrder = useWorkspaceStore((s) => s.workspaceOrder);
   const createProject = useWorkspaceStore((s) => s.createProject);
+  const saveProject = useWorkspaceStore((s) => s.saveProject);
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState<IconName>("agent");
   const [color, setColor] = useState<ProjectColor>("default");
   const [workspaceId, setWorkspaceId] = useState(DEFAULT_WORKSPACE_ID);
   const [model, setModel] = useState<(typeof PROJECT_MODELS)[number]>(PROJECT_MODELS[0]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [baseline, setBaseline] = useState<{
+    title: string;
+    icon: IconName;
+    color: ProjectColor;
+    workspaceId: string;
+  } | null>(null);
   const reduceMotion = useReducedMotion();
   const dialogTransition = {
     duration: reduceMotion ? 0 : 0.2,
@@ -67,10 +85,32 @@ export function NewProjectDialog() {
     setModel(PROJECT_MODELS[0]);
     setPickerOpen(false);
     setCustomForm(false);
+    setBaseline(null);
   };
 
   useEffect(() => {
     if (!open) return;
+    if (editingProjectId) {
+      const project = useWorkspaceStore.getState().agents[editingProjectId];
+      if (project && isProject(project)) {
+        const next = {
+          title: project.title,
+          icon: (project.icon ?? "pencil") as IconName,
+          color: project.color ?? "blue",
+          workspaceId: primaryWorkspaceId(project),
+        };
+        setTitle(next.title);
+        setIcon(next.icon);
+        setColor(next.color);
+        setWorkspaceId(next.workspaceId);
+        setModel(PROJECT_MODELS[0]);
+        setPickerOpen(false);
+        setCustomForm(true);
+        setBaseline(next);
+      }
+      return;
+    }
+    setBaseline(null);
     if (draft) {
       setTitle(draft.title);
       setIcon(draft.icon);
@@ -82,9 +122,23 @@ export function NewProjectDialog() {
       const source = useWorkspaceStore.getState().agents[pendingId];
       if (source) setWorkspaceId(primaryWorkspaceId(source));
     }
-  }, [draft, open, pendingMoveAgentIds]);
+  }, [draft, editingProjectId, open, pendingMoveAgentIds]);
+
+  const dirty =
+    !!baseline &&
+    (title !== baseline.title ||
+      icon !== baseline.icon ||
+      color !== baseline.color ||
+      workspaceId !== baseline.workspaceId);
 
   const submit = () => {
+    if (editingProjectId) {
+      if (!dirty) return;
+      saveProject(editingProjectId, { title, workspaceId, icon, color });
+      close();
+      reset();
+      return;
+    }
     const projectId = createProject(windowId, {
       title,
       workspaceId,
@@ -109,11 +163,15 @@ export function NewProjectDialog() {
         submit();
       }}
     >
-      {!advanced && <Dialog.Title className="sr-only">Create project</Dialog.Title>}
+      {!advanced && (
+        <Dialog.Title className="sr-only">
+          {editingProjectId ? "Edit project" : "Create project"}
+        </Dialog.Title>
+      )}
       <div className="flex flex-col items-center gap-5 px-4 pb-4 pt-6">
         {advanced && (
           <Dialog.Title className="w-full text-3xl font-medium text-primary">
-            Create Project
+            {editingProjectId ? "Edit Project" : "Create Project"}
           </Dialog.Title>
         )}
         {!advanced && (
@@ -249,7 +307,10 @@ export function NewProjectDialog() {
                 Cancel
               </button>
             </Dialog.Close>
-            <CreateButton />
+            <CreateButton
+              label={editingProjectId ? "Save" : "Create"}
+              disabled={!!editingProjectId && !dirty}
+            />
           </div>
         </>
       )}
@@ -290,7 +351,10 @@ export function NewProjectDialog() {
                 </DropdownMenuSection>
               </DropdownMenuContent>
             </DropdownMenu>
-            <CreateButton />
+            <CreateButton
+              label={editingProjectId ? "Save" : "Create"}
+              disabled={!!editingProjectId && !dirty}
+            />
           </div>
         </>
       )}
@@ -364,13 +428,20 @@ export function NewProjectDialog() {
   );
 }
 
-function CreateButton() {
+function CreateButton({
+  label = "Create",
+  disabled = false,
+}: {
+  label?: string;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="submit"
-      className="flex h-8 shrink-0 items-center justify-center rounded-lg bg-neutral px-3 text-lg font-medium text-inverted hover:bg-neutral-hover"
+      disabled={disabled}
+      className="flex h-8 shrink-0 items-center justify-center rounded-lg bg-neutral px-3 text-lg font-medium text-inverted hover:bg-neutral-hover disabled:pointer-events-none disabled:opacity-40"
     >
-      Create
+      {label}
     </button>
   );
 }

@@ -19,9 +19,12 @@ interface UiState {
   newProjectWindowId: string | null;
   /** Prefill for the create dialog when a sidebar placeholder opens it. */
   newProjectDraft: ProjectTemplate | null;
+  /** Existing project the dialog is editing, or null for create. */
+  editingProjectId: string | null;
   /** Agents to re-parent after Move to → New Project finishes. */
   pendingMoveAgentIds: string[] | null;
   openNewProject: (windowId: string, draft?: ProjectTemplate) => void;
+  openEditProject: (windowId: string, projectId: string) => void;
   closeNewProject: () => void;
   setPendingMoveAgentIds: (ids: string[] | null) => void;
   /** Sidebar suggestion ids the user dismissed in this session. */
@@ -53,11 +56,27 @@ export const useUiStore = create<UiState>((set) => ({
   closeCustomize: () => set({ customizeWindowId: null }),
   newProjectWindowId: null,
   newProjectDraft: null,
+  editingProjectId: null,
   pendingMoveAgentIds: null,
   openNewProject: (windowId, draft) =>
-    set({ newProjectWindowId: windowId, newProjectDraft: draft ?? null }),
+    set({
+      newProjectWindowId: windowId,
+      newProjectDraft: draft ?? null,
+      editingProjectId: null,
+    }),
+  openEditProject: (windowId, projectId) =>
+    set({
+      newProjectWindowId: windowId,
+      newProjectDraft: null,
+      editingProjectId: projectId,
+    }),
   closeNewProject: () =>
-    set({ newProjectWindowId: null, newProjectDraft: null, pendingMoveAgentIds: null }),
+    set({
+      newProjectWindowId: null,
+      newProjectDraft: null,
+      editingProjectId: null,
+      pendingMoveAgentIds: null,
+    }),
   setPendingMoveAgentIds: (ids) => set({ pendingMoveAgentIds: ids }),
   dismissedProjectPlaceholders: [],
   dismissProjectPlaceholder: (id) =>

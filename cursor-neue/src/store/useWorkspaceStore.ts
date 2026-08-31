@@ -21,6 +21,7 @@ import {
   agentInWorkspace,
   contentScopeId,
   DEFAULT_WORKSPACE_ID,
+  agentsInProject,
   isAgentPinned,
   isBlankDraft,
   isChatsAgent,
@@ -178,6 +179,11 @@ interface WorkspaceActions {
   updateProjectAppearance: (
     id: string,
     patch: { icon?: IconName; color?: ProjectColor },
+  ) => void;
+  /** Save title, workspace, icon, and color from the edit dialog. */
+  saveProject: (
+    id: string,
+    patch: { title: string; workspaceId: string; icon: IconName; color: ProjectColor },
   ) => void;
   /** Re-parent an agent under a project, or `null` to return it to Chats.
    *  A project drop also unpins so the row appears under that folder. */
@@ -1548,6 +1554,33 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           set({
             agents: { ...state.agents, [id]: { ...agent, ...patch } },
           });
+        },
+
+        saveProject: (id, patch) => {
+          const state = get();
+          const project = state.agents[id];
+          if (!project || !isProject(project)) return;
+          const workspaceId = state.workspaces[patch.workspaceId]
+            ? patch.workspaceId
+            : primaryWorkspaceId(project);
+          const workspaceIds = normalizeWorkspaceIds(workspaceId);
+          const title = patch.title.trim() || project.title;
+          const next = {
+            ...state.agents,
+            [id]: {
+              ...project,
+              title,
+              workspaceIds,
+              icon: patch.icon,
+              color: patch.color,
+            },
+          };
+          if (primaryWorkspaceId(project) !== workspaceId) {
+            for (const child of agentsInProject(state.agents, state.agentOrder, id)) {
+              next[child.id] = { ...child, workspaceIds };
+            }
+          }
+          set({ agents: next });
         },
 
         togglePinnedAgent: (id) => {
