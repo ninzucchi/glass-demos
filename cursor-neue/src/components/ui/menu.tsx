@@ -39,18 +39,34 @@ export const menuSeparatorClass = "h-px bg-[var(--border-quaternary)]";
 
 export const DropdownMenuContent = forwardRef<
   HTMLDivElement,
-  ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 6, align = "start", ...props }, ref) => (
-  <DropdownMenuPrimitive.Portal>
-    <DropdownMenuPrimitive.Content
-      ref={ref}
-      align={align}
-      sideOffset={sideOffset}
-      className={clsx(menuContentClass, className)}
-      {...props}
-    />
-  </DropdownMenuPrimitive.Portal>
-));
+  ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
+    /** When false, skip the body portal. Needed inside a modal dialog so the
+     *  menu stays in the dialog's pointer-events and stacking context. */
+    portalled?: boolean;
+    container?: HTMLElement | null;
+  }
+>(
+  (
+    { className, sideOffset = 6, align = "start", portalled = true, container, ...props },
+    ref,
+  ) => {
+    const content = (
+      <DropdownMenuPrimitive.Content
+        ref={ref}
+        align={align}
+        sideOffset={sideOffset}
+        className={clsx(menuContentClass, className)}
+        {...props}
+      />
+    );
+    if (!portalled) return content;
+    return (
+      <DropdownMenuPrimitive.Portal container={container ?? undefined}>
+        {content}
+      </DropdownMenuPrimitive.Portal>
+    );
+  },
+);
 DropdownMenuContent.displayName = "DropdownMenuContent";
 
 export const DropdownMenuItem = forwardRef<

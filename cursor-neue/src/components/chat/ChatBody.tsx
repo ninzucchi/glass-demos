@@ -5,6 +5,7 @@ import { ProjectFollowUp } from "@/components/chat/ProjectFollowUp";
 import { ProjectThreadHeader } from "@/components/chat/ProjectThreadHeader";
 import { ThreadOriginPin } from "@/components/chat/ThreadOrigin";
 import { FollowUpPill } from "@/components/ui/FollowUpPill";
+import { ScrollArea } from "@/components/ui/ScrollArea";
 import { isDraftProject, isProject, type Agent, type Tab } from "@/types";
 import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useWindowId } from "@/components/window/WindowContext";
@@ -123,14 +124,17 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
           <ThreadOriginPin agent={agent} />
         </div>
       )}
-      <div ref={transcriptRef} className="flex-1 overflow-auto pb-4 pt-2">
-        <div className={`${COLUMN} flex flex-col`}>
-          {isProject(agent) && (
-            <div className="my-12">
-              <ProjectThreadHeader project={agent} />
-            </div>
-          )}
-          <div className="flex flex-col gap-3">
+      <ScrollArea
+        className="min-h-0 flex-1"
+        contentClassName={`${COLUMN} pb-4 pt-2`}
+        viewportRef={transcriptRef}
+      >
+        {isProject(agent) && (
+          <div className="my-12">
+            <ProjectThreadHeader project={agent} />
+          </div>
+        )}
+        <div className="flex flex-col gap-3">
             {messages.map((m, i) => {
               const threads = threadsByMessage.get(i);
               let body: ReactNode;
@@ -185,9 +189,8 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
                 </div>
               );
             })}
-          </div>
         </div>
-      </div>
+      </ScrollArea>
       {agent && isProject(agent) && (
         <div className={`${COLUMN} pb-2`}>
           <ProjectFollowUp project={agent} tileId={tileId} />

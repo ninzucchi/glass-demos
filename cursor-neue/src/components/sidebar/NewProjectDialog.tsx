@@ -182,6 +182,7 @@ export function NewProjectDialog() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
+              portalled={false}
               align="center"
               side="bottom"
               className="z-[700] !min-w-0 overflow-hidden !rounded-[12px] border border-tertiary p-0"
@@ -227,6 +228,7 @@ export function NewProjectDialog() {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
+                  portalled={false}
                   align="start"
                   side="bottom"
                   className="z-[700] !min-w-0 overflow-hidden !rounded-[12px] border border-tertiary p-0"
@@ -331,6 +333,7 @@ export function NewProjectDialog() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
+                portalled={false}
                 align="start"
                 className="z-[700] w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]"
               >
@@ -477,6 +480,7 @@ function SelectField({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
+          portalled={false}
           align="start"
           className="z-[700] w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]"
         >

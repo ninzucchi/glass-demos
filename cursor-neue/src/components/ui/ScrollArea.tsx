@@ -1,6 +1,22 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react";
 import clsx from "clsx";
 import { useDragScroll } from "@/hooks/useDragScroll";
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T) {
+  if (!ref) return;
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
+  ref.current = value;
+}
 
 /** Same edge threshold as packages/ui ScrollArea — swallows sub-pixel rounding. */
 const SCROLL_FADE_THRESHOLD_PX = 5;
@@ -40,6 +56,7 @@ export function ScrollArea({
   className,
   contentClassName,
   orientation = "vertical",
+  viewportRef: viewportRefProp,
   topFadeSize = DEFAULT_FADE_PX,
   bottomFadeSize = DEFAULT_FADE_PX,
   topFadeStartOpacity = 0,
@@ -53,6 +70,7 @@ export function ScrollArea({
   className?: string;
   contentClassName?: string;
   orientation?: ScrollOrientation;
+  viewportRef?: Ref<HTMLDivElement>;
   topFadeSize?: number;
   bottomFadeSize?: number;
   topFadeStartOpacity?: number;
@@ -63,6 +81,10 @@ export function ScrollArea({
   rightFadeStartOpacity?: number;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const setViewportRef = (node: HTMLDivElement | null) => {
+    viewportRef.current = node;
+    assignRef(viewportRefProp, node);
+  };
   const contentRef = useRef<HTMLDivElement>(null);
   const drag = useDragScroll(viewportRef);
   const [hasContentBefore, setHasContentBefore] = useState(false);
@@ -155,7 +177,7 @@ export function ScrollArea({
       className={clsx("relative grid min-h-0 grid-cols-1 grid-rows-1 overflow-hidden", className)}
     >
       <div
-        ref={viewportRef}
+        ref={setViewportRef}
         className={
           orientation === "vertical"
             ? "no-scrollbar min-h-0 overflow-y-auto overscroll-y-contain [grid-area:1/1]"
