@@ -1,3 +1,5 @@
+import { formatRelativeTime } from "@/lib/relativeTime";
+
 const COUNT_WORD = [
   "",
   "A",
@@ -15,6 +17,11 @@ const COUNT_WORD = [
 /** Header in the project transcript after agents join. */
 export function projectJoinDividerText(count: number): string {
   return count === 1 ? "Added 1 agent" : `Added ${count} agents`;
+}
+
+/** First divider under Project Overview. */
+export function projectCreatedDividerText(createdAt: number, now = Date.now()): string {
+  return `Project Created ∙ ${formatRelativeTime(createdAt, now)}`;
 }
 
 function joinNames(names: string[]): string {

@@ -9,7 +9,13 @@
 
 import type { PointerEvent as ReactPointerEvent, MutableRefObject } from "react";
 import type { DropZone, LayoutNode, PaneKind, SplitSide } from "@/types";
-import { canDropInPane, isAgentPinned, isProject } from "@/types";
+import {
+  canDropInPane,
+  canNestGroup,
+  isAgentPinned,
+  isTrackerOwner,
+  resolvedGroupParentId,
+} from "@/types";
 import { useTabDragStore, type TabDragSource, type TabDropTarget } from "@/store/tabDrag";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import * as tree from "@/store/layoutTree";
@@ -98,12 +104,20 @@ function sidebarDropTargetForAgent(
   const agent = agents[agentId];
   if (!agent || agent.thread) return null;
 
-  if (isProject(agent)) {
+  if (isTrackerOwner(agent)) {
+    if (kind === "project") {
+      const destId = dropEl.getAttribute("data-sidebar-project-id");
+      if (destId && destId !== agent.id && canNestGroup(agent.id, destId, agents)) {
+        return { scope: "sidebar-project", projectId: destId };
+      }
+    }
     const dest = enclosingSection(dropEl, kind);
     const pinned = isAgentPinned(pinnedAgents, agent.id);
     if (dest === "pinned" && !pinned) return { scope: "sidebar-section", section: "pinned" };
     if (dest === "projects" && pinned) return { scope: "sidebar-section", section: "projects" };
-    if (dest === "chats" && pinned) return { scope: "sidebar-section", section: "chats" };
+    if (dest === "chats" && (pinned || resolvedGroupParentId(agent) !== null)) {
+      return { scope: "sidebar-section", section: "chats" };
+    }
     return null;
   }
 
@@ -116,6 +130,9 @@ function sidebarDropTargetForAgent(
     if (projectId && !home) return { scope: "sidebar-project", projectId };
     return null;
   }
+  if (kind === "projects") {
+    return { scope: "sidebar-section", section: "projects" };
+  }
   if (kind === "pinned") {
     if (!isAgentPinned(pinnedAgents, agent.id)) {
       return { scope: "sidebar-section", section: "pinned" };
@@ -123,7 +140,11 @@ function sidebarDropTargetForAgent(
     return null;
   }
   if (kind === "chats") {
-    if (isAgentPinned(pinnedAgents, agent.id) || !!agent.projectId) {
+    if (
+      isAgentPinned(pinnedAgents, agent.id) ||
+      !!agent.projectId ||
+      resolvedGroupParentId(agent) !== null
+    ) {
       return { scope: "sidebar-section", section: "chats" };
     }
     return null;

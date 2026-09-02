@@ -1,16 +1,12 @@
 import {
-  EPHEMERAL_TABS_LABEL,
-  EPHEMERAL_TABS_MODES,
-  PROJECT_CREATE_LABEL,
-  PROJECT_CREATE_MODES,
+  AGENT_NAMES_LABEL,
+  AGENT_NAMES_MODES,
+  DOC_IDS_LABEL,
+  DOC_IDS_MODES,
   PROJECT_FOLDERS_LABEL,
   PROJECT_FOLDERS_MODES,
-  PROJECT_MAP_LABEL,
-  PROJECT_MAP_MODES,
   PROJECT_SURFACE_LABEL,
   PROJECT_SURFACE_MODES,
-  PROJECT_ONBOARDING_LABEL,
-  PROJECT_ONBOARDING_MODES,
   SIDEBAR_SECTIONS_LABEL,
   SIDEBAR_SECTIONS_MODES,
   useFeatureFlags,
@@ -27,16 +23,12 @@ export function DebugBar() {
   const setSectionsMode = useFeatureFlags((s) => s.setSidebarSections);
   const foldersMode = useFeatureFlags((s) => s.projectFolders);
   const setFoldersMode = useFeatureFlags((s) => s.setProjectFolders);
-  const ephemeralMode = useFeatureFlags((s) => s.ephemeralTabs);
-  const setEphemeralMode = useFeatureFlags((s) => s.setEphemeralTabs);
-  const createMode = useFeatureFlags((s) => s.projectCreate);
-  const setCreateMode = useFeatureFlags((s) => s.setProjectCreate);
-  const onboarding = useFeatureFlags((s) => s.projectOnboarding);
-  const setOnboarding = useFeatureFlags((s) => s.setProjectOnboarding);
-  const projectMap = useFeatureFlags((s) => s.projectMap);
-  const setProjectMap = useFeatureFlags((s) => s.setProjectMap);
   const projectSurface = useFeatureFlags((s) => s.projectSurface);
   const setProjectSurface = useFeatureFlags((s) => s.setProjectSurface);
+  const docIds = useFeatureFlags((s) => s.docIds);
+  const setDocIds = useFeatureFlags((s) => s.setDocIds);
+  const agentNames = useFeatureFlags((s) => s.agentNames);
+  const setAgentNames = useFeatureFlags((s) => s.setAgentNames);
   return (
     <div
       data-debug-bar=""
@@ -57,39 +49,25 @@ export function DebugBar() {
         onSelect={setFoldersMode}
       />
       <Segmented
-        label="Chat tabs"
-        options={EPHEMERAL_TABS_MODES}
-        labels={EPHEMERAL_TABS_LABEL}
-        value={ephemeralMode}
-        onSelect={setEphemeralMode}
-      />
-      <Segmented
-        label="Create project"
-        options={PROJECT_CREATE_MODES}
-        labels={PROJECT_CREATE_LABEL}
-        value={createMode}
-        onSelect={setCreateMode}
-      />
-      <Segmented
-        label="Onboarding"
-        options={PROJECT_ONBOARDING_MODES}
-        labels={PROJECT_ONBOARDING_LABEL}
-        value={onboarding}
-        onSelect={setOnboarding}
-      />
-      <Segmented
-        label="Project map"
-        options={PROJECT_MAP_MODES}
-        labels={PROJECT_MAP_LABEL}
-        value={projectMap}
-        onSelect={setProjectMap}
-      />
-      <Segmented
         label="Surfaces"
         options={PROJECT_SURFACE_MODES}
         labels={PROJECT_SURFACE_LABEL}
         value={projectSurface}
         onSelect={setProjectSurface}
+      />
+      <Segmented
+        label="Document IDs"
+        options={DOC_IDS_MODES}
+        labels={DOC_IDS_LABEL}
+        value={docIds}
+        onSelect={setDocIds}
+      />
+      <Segmented
+        label="Agent names"
+        options={AGENT_NAMES_MODES}
+        labels={AGENT_NAMES_LABEL}
+        value={agentNames}
+        onSelect={setAgentNames}
       />
     </div>
   );

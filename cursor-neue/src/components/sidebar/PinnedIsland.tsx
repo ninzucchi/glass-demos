@@ -10,12 +10,17 @@ import { menuItemButtonClass } from "@/components/ui/menu";
 import { TAB_REGISTRY, tabIcon } from "@/components/tabs/registry";
 import { SidebarSectionHeader } from "@/components/sidebar/SidebarControls";
 import {
+  contextTabHasOpenFile,
   filesTabHasOpenFile,
   pinnedTabsFor,
   TAB_LABEL,
   workspaceIdOfScope,
+  type Tab,
   type TabType,
 } from "@/types";
+import { projectBoardIcon, tabTypeLabel } from "@/lib/mergedLabels";
+import { prTabTitle, pullRequestById } from "@/data/pullRequests";
+import { useMergedSidebar } from "@/store/useFeatureFlags";
 import { useWindowId } from "@/components/window/WindowContext";
 import {
   useActiveContent,
@@ -26,6 +31,17 @@ import { allTabs } from "@/store/layoutTree";
 
 // Stable empty set so the zustand selector never fabricates a new reference.
 const NO_PINS: TabType[] = [];
+
+function islandTabLabel(tab: Tab, merged: boolean): string {
+  if (tab.type === "files" && !filesTabHasOpenFile(tab)) return TAB_LABEL.files;
+  if (tab.type === "context" && !contextTabHasOpenFile(tab)) return TAB_LABEL.context;
+  if (tab.type === "project") return tabTypeLabel("project", merged);
+  if (tab.type === "pr" && tab.prId) {
+    const pr = pullRequestById(tab.prId);
+    if (pr) return prTabTitle(pr);
+  }
+  return tab.title;
+}
 
 /** Island row: menu-item look (height, hover fill) on a plain button — or, in
  *  the compact rail, a square icon-only button (label moves to the tooltip).
@@ -48,6 +64,8 @@ function IslandRow({
   onClick: () => void;
 }) {
   const togglePinnedTab = useWorkspaceStore((s) => s.togglePinnedTab);
+  const merged = useMergedSidebar();
+  const pinLabel = tabTypeLabel(type, merged);
   const row = compact ? (
     <button
       type="button"
@@ -64,7 +82,7 @@ function IslandRow({
       <span className="truncate">{label}</span>
     </button>
   );
-  if (!workspaceId) return row;
+  if (!workspaceId || type === "pr") return row;
   const isPinned = pinned.includes(type);
   return (
     <ContextMenu>
@@ -73,7 +91,7 @@ function IslandRow({
         <ContextMenuSection>
           <ContextMenuItem onSelect={() => togglePinnedTab(workspaceId, type)}>
             <Icon name={isPinned ? "pin-slash" : "pin"} size="base" color="tertiary" />
-            {isPinned ? `Unpin ${TAB_LABEL[type]}` : `Pin ${TAB_LABEL[type]}`}
+            {isPinned ? `Unpin ${pinLabel}` : `Pin ${pinLabel}`}
           </ContextMenuItem>
         </ContextMenuSection>
       </ContextMenuContent>
@@ -100,6 +118,7 @@ export function PinnedIsland({ compact = false }: { compact?: boolean }) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
   const setContentOpen = useWorkspaceStore((s) => s.setContentOpen);
   const openPinnedTab = useWorkspaceStore((s) => s.openPinnedTab);
+  const merged = useMergedSidebar();
 
   // The island is an entry point into the (closed) content pane; once that
   // pane is open its own tab bar shows the same surfaces, so the island hides.
@@ -145,16 +164,18 @@ export function PinnedIsland({ compact = false }: { compact?: boolean }) {
         // Files row shows the open file's name + file-type icon.
         const absorbed = openTabs.find(({ tab }) => tab.type === type)?.tab;
         // Files home uses the canonical label even if the stored title is stale.
-        const absorbedLabel =
-          absorbed &&
-          (absorbed.type === "files" && !filesTabHasOpenFile(absorbed)
-            ? TAB_LABEL.files
-            : absorbed.title);
+        const absorbedLabel = absorbed ? islandTabLabel(absorbed, merged) : undefined;
         return (
           <IslandRow
             key={type}
-            icon={absorbed ? tabIcon(absorbed) : TAB_REGISTRY[type].icon}
-            label={absorbedLabel ?? TAB_LABEL[type]}
+            icon={
+              absorbed
+                ? tabIcon(absorbed, merged)
+                : type === "project"
+                  ? projectBoardIcon(merged)
+                  : TAB_REGISTRY[type].icon
+            }
+            label={absorbedLabel ?? tabTypeLabel(type, merged)}
             type={type}
             workspaceId={workspaceId}
             pinned={pinned}
@@ -173,10 +194,8 @@ export function PinnedIsland({ compact = false }: { compact?: boolean }) {
       {otherTabs.map(({ tile, tab }) => (
         <IslandRow
           key={tab.id}
-          icon={tabIcon(tab)}
-          label={
-            tab.type === "files" && !filesTabHasOpenFile(tab) ? TAB_LABEL.files : tab.title
-          }
+          icon={tabIcon(tab, merged)}
+          label={islandTabLabel(tab, merged)}
           type={tab.type}
           workspaceId={workspaceId}
           pinned={pinned}

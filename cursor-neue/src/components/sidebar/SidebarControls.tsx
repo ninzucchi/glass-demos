@@ -11,19 +11,25 @@ import {
   DropdownMenuSection,
   DropdownMenuTrigger,
 } from "@/components/ui/menu";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 import { useSidebarChromeCollapsed, useWindowId } from "@/components/window/WindowContext";
+import { blankProjectTitle } from "@/lib/mergedLabels";
+import { useMergedSidebar } from "@/store/useFeatureFlags";
 import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 const TRAFFIC = ["#ff5f57", "#febc2e", "#28c840"];
 
-/** Funnel next to the agent-list header. Picks workspace folders vs recency. */
+/** Funnel next to the agent-list header. Picks Repositories, Projects, or Updated. */
 export function AgentGroupFilter() {
   const windowId = useWindowId();
-  const groupBy = useWindow()?.agentGroupBy ?? "workspace";
+  const storedGroupBy = useWindow()?.agentGroupBy ?? "workspace";
   const setAgentGroupBy = useWorkspaceStore((s) => s.setAgentGroupBy);
+  const merged = useMergedSidebar();
+  const groupBy =
+    !merged && storedGroupBy === "projects" ? "workspace" : storedGroupBy;
 
   const onGroupBy = (value: string) => {
-    if (value === "workspace" || value === "updated") {
+    if (value === "workspace" || value === "updated" || value === "projects") {
       setAgentGroupBy(windowId, value);
     }
   };
@@ -43,7 +49,10 @@ export function AgentGroupFilter() {
         <DropdownMenuSection>
           <DropdownMenuLabel>Group by</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={groupBy} onValueChange={onGroupBy}>
-            <DropdownMenuRadioItem value="workspace">Workspace</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="workspace">Repositories</DropdownMenuRadioItem>
+            {merged && (
+              <DropdownMenuRadioItem value="projects">Projects</DropdownMenuRadioItem>
+            )}
             <DropdownMenuRadioItem value="updated">Updated</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuSection>
@@ -55,12 +64,23 @@ export function AgentGroupFilter() {
 /** Group-by filter plus a cosmetic new-folder control. Sits on Chats or
  *  Workspaces. */
 export function AgentGroupControls() {
+  const windowId = useWindowId();
+  const createProject = useWorkspaceStore((s) => s.createProject);
   return (
     <div className="flex items-center gap-4">
       <AgentGroupFilter />
       <button
         type="button"
         aria-label="New folder"
+        onClick={() =>
+          createProject(windowId, {
+            title: blankProjectTitle(),
+            workspaceId: DEFAULT_WORKSPACE_ID,
+            icon: "folder",
+            color: "default",
+            groupParentId: null,
+          })
+        }
         className="flex size-4 shrink-0 items-center justify-center text-[color:var(--icon-tertiary)] hover:text-[color:var(--icon-secondary)]"
       >
         <Icon name="folder-plus" size="base" color="inherit" />

@@ -15,9 +15,10 @@ interface AppearanceState {
 
 /** Global, in-memory appearance preferences (theme, per-tab sidebar placement,
  *  and desktop wallpaper). Deliberately not persisted: every load starts fresh
- *  in light / left, which also sidesteps any reload theme flash. */
+ *  in dark / left. `index.html` ships the `dark` class so the first paint
+ *  matches. */
 export const useAppearanceStore = create<AppearanceState>((set) => ({
-  theme: "light",
+  theme: "dark",
   sidebarPlacement: "left",
   wallpaper: 0,
   setTheme: (theme) => set({ theme }),

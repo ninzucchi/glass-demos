@@ -68,7 +68,7 @@ export function Tile({
             tab content (e.g. the browser mock) sets a min-content floor that
             overflows the tile and pushes a right-docked toolbar toggle off-edge. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {activeTab.type !== "project" && (
+          {activeTab.type !== "project" && activeTab.type !== "pr" && (
             <SecondaryToolbar tile={tile} tab={activeTab} showToggle={!!sidebar && !sidebarOpen} />
           )}
           <div

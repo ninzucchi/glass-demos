@@ -85,7 +85,7 @@ export function ProjectSortList({ projects }: { projects: Agent[] }) {
     const from = captured.ids.indexOf(draggingId);
     if (from >= 0) {
       const to = sortInsertionIndex(y, captured.tops, captured.heights);
-      useTabDragStore.getState().setListIndex(to);
+      useTabDragStore.getState().setListIndex(to, "project-order");
       setShifts(sortBlockShifts(captured, from, to));
       return;
     }
@@ -93,7 +93,7 @@ export function ProjectSortList({ projects }: { projects: Agent[] }) {
       document.querySelector<HTMLElement>(`[data-sidebar-project-id="${draggingId}"]`);
     const insertHeight = incoming?.getBoundingClientRect().height ?? 28;
     const to = sortInsertIndex(y, captured.tops, captured.heights);
-    useTabDragStore.getState().setListIndex(to);
+    useTabDragStore.getState().setListIndex(to, "project-order");
     setShifts(sortInsertShifts(captured, to, insertHeight));
   }, [draggingProject, draggingId, pointer.x, pointer.y, scrollTick]);
 

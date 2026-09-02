@@ -18,7 +18,7 @@ export function SidebarFooter() {
           <div className="truncate text-base text-secondary mix-blend-plus-darker">
             Nick Inzucchi
           </div>
-          <div className="truncate text-sm text-tertiary">Anysphere</div>
+          <div className="truncate text-sm text-tertiary">Everysphere</div>
         </div>
         <IconButton name="cog" size="sm" color="tertiary" aria-label="Settings" />
       </div>

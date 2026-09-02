@@ -3,7 +3,6 @@ import type { KeyboardEvent, RefObject } from "react";
 import clsx from "clsx";
 import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
-import { ProjectIconPicker } from "@/components/sidebar/ProjectIconPicker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,12 +14,7 @@ import {
 import { PROJECT_BRANCHES, PROJECT_MODELS, type ProjectModel } from "@/data/models";
 import type { IconName } from "@/icons/iconNames";
 import { useWindowId } from "@/components/window/WindowContext";
-import {
-  isDraftProject,
-  PROJECT_COLOR_STROKE,
-  type Agent,
-  type ProjectColor,
-} from "@/types";
+import type { Agent } from "@/types";
 import { useUiStore } from "@/store/useUiStore";
 import { useActiveAgent, useWorkspaceStore } from "@/store/useWorkspaceStore";
 
@@ -224,7 +218,6 @@ function ComposerCard({
   onKeyDown,
   onSend,
   onExpand,
-  extraInputPx = 0,
 }: {
   inputRef: RefObject<HTMLTextAreaElement>;
   empty: boolean;
@@ -240,7 +233,6 @@ function ComposerCard({
   /** Opens the expanded writing surface. Omitted where there's no agent to
    *  attach the surface's text and shapes to. */
   onExpand?: () => void;
-  extraInputPx?: number;
 }) {
   return (
     <div className="flex flex-col rounded-2xl bg-elevated shadow-[0_0_0_1px_var(--border-secondary)]">
@@ -261,8 +253,8 @@ function ComposerCard({
           onKeyDown={onKeyDown}
           aria-label={placeholder}
           style={{
-            minHeight: RESTING_INPUT_H + extraInputPx,
-            maxHeight: MAX_INPUT_H + extraInputPx,
+            minHeight: RESTING_INPUT_H,
+            maxHeight: MAX_INPUT_H,
           }}
           className={clsx(
             "w-full min-w-0 resize-none overflow-y-auto bg-transparent text-lg leading-[20px] text-primary outline-none",
@@ -297,93 +289,6 @@ function ComposerCard({
         </div>
         <ComposerAction empty={empty} onSend={onSend} />
       </div>
-    </div>
-  );
-}
-
-function iconWellFill(color: ProjectColor): CSSProperties {
-  const key = PROJECT_COLOR_STROKE[color];
-  const fillFrom = `color-mix(in oklab, ${key} 18%, var(--bg-chrome))`;
-  const fillTo = `color-mix(in oklab, ${key} 8%, var(--bg-chrome))`;
-  return {
-    backgroundImage: `linear-gradient(var(--badge-angle), ${fillFrom}, ${fillTo})`,
-  };
-}
-
-/** Icon stacked over a large name field. Used on the New Project empty state. */
-function ProjectNameRow({ agent }: { agent: Agent }) {
-  const updateAgentMeta = useWorkspaceStore((s) => s.updateAgentMeta);
-  const updateProjectAppearance = useWorkspaceStore((s) => s.updateProjectAppearance);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [name, setName] = useState(() =>
-    agent.title === "New Project" ? "" : agent.title,
-  );
-  const icon = (agent.icon ?? "agent") as IconName;
-  const color = (agent.color ?? "default") as ProjectColor;
-
-  return (
-    <div className="flex w-full flex-col items-start gap-3 py-px">
-      <DropdownMenu modal={false} open={pickerOpen} onOpenChange={setPickerOpen}>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label="Edit project icon"
-            className="-mt-1 flex size-8 shrink-0 items-center justify-center rounded-[6px] [--badge-angle:0deg] dark:[--badge-angle:180deg]"
-            style={iconWellFill(color)}
-          >
-            <Icon
-              name={icon}
-              size="sm"
-              color="inherit"
-              style={{ color: PROJECT_COLOR_STROKE[color] }}
-            />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          side="bottom"
-          className="z-menu !min-w-0 overflow-hidden !rounded-[12px] border border-tertiary p-0"
-          onCloseAutoFocus={(e) => e.preventDefault()}
-        >
-          <ProjectIconPicker
-            icon={icon}
-            color={color}
-            onPickIcon={(next) => updateProjectAppearance(agent.id, { icon: next })}
-            onPickColor={(next) => updateProjectAppearance(agent.id, { color: next })}
-          />
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <input
-        value={name}
-        onChange={(e) => {
-          setName(e.target.value);
-          updateAgentMeta(agent.id, { title: e.target.value });
-        }}
-        placeholder="New Project"
-        aria-label="Project name"
-        autoComplete="off"
-        data-1p-ignore
-        data-lpignore="true"
-        className="w-full bg-transparent text-[26px] leading-8 tracking-[-0.26px] text-primary outline-none placeholder:text-primary placeholder:opacity-20"
-      />
-    </div>
-  );
-}
-
-/** Repo, branch, and a disabled environment pill under the New Project composer. */
-function OnboardingPickers({ agent }: { agent: Agent }) {
-  return (
-    <div className="flex flex-wrap items-center" style={{ marginTop: 8, gap: 8 }}>
-      <WorkspaceChip agent={agent} look="pill" />
-      <BranchChip agent={agent} look="pill" />
-      <span
-        aria-disabled
-        className="flex shrink-0 items-center rounded-full border border-secondary bg-elevated text-sm leading-none text-tertiary"
-        style={PILL_STYLE}
-      >
-        <Icon name="cloud" size="sm" color="tertiary" />
-        <span>Cloud</span>
-      </span>
     </div>
   );
 }
@@ -489,38 +394,25 @@ export function Composer({
   };
 
   if (variant === "expanded") {
-    const projectOnboarding = !!agent && isDraftProject(agent);
     return (
       <div className="mx-auto flex w-full max-w-[640px] flex-col gap-4 pl-3 pr-[calc(12px+var(--island-inset,0px))]">
-        {projectOnboarding ? (
-          <ProjectNameRow agent={agent} />
-        ) : (
-          hasContext && (
-            <div className="flex min-w-0 items-center gap-2 px-2.5">
-              <WorkspaceChip agent={agent} />
-              <BranchChip agent={agent} />
-            </div>
-          )
+        {hasContext && (
+          <div className="flex min-w-0 items-center gap-2 px-2.5">
+            <WorkspaceChip agent={agent} />
+            <BranchChip agent={agent} />
+          </div>
         )}
-        <div className="flex flex-col">
-          <ComposerCard
-            inputRef={inputRef}
-            empty={empty}
-            placeholder={
-              projectOnboarding
-                ? "What should we work on?"
-                : "Plan, @ for context, / for commands"
-            }
-            defaultValue={draft}
-            model={model}
-            onModelChange={setModel}
-            onInput={onCardInput}
-            onKeyDown={onSendKeyDown}
-            onSend={sendFromRef}
-            extraInputPx={projectOnboarding ? 40 : 0}
-          />
-          {projectOnboarding && <OnboardingPickers agent={agent} />}
-        </div>
+        <ComposerCard
+          inputRef={inputRef}
+          empty={empty}
+          placeholder="Plan, @ for context, / for commands"
+          defaultValue={draft}
+          model={model}
+          onModelChange={setModel}
+          onInput={onCardInput}
+          onKeyDown={onSendKeyDown}
+          onSend={sendFromRef}
+        />
       </div>
     );
   }

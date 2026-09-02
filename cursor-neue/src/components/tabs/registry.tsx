@@ -3,15 +3,20 @@
 import type { ComponentType } from "react";
 import type { IconName } from "@/components/ui/Icon";
 import type { Tab, TabType } from "@/types";
-import { filesTabHasOpenFile } from "@/types";
+import { treeTabHasOpenFile } from "@/types";
 import { FilesContent, FilesSidebar } from "@/components/tabs/tabTypes/FilesTab";
+import { ContextContent, ContextSidebar } from "@/components/tabs/tabTypes/ContextTab";
 import { BrowserContent, BrowserSidebar } from "@/components/tabs/tabTypes/BrowserTab";
 import { TerminalContent, TerminalSidebar } from "@/components/tabs/tabTypes/TerminalTab";
 import { CanvasContent, CanvasSidebar } from "@/components/tabs/tabTypes/CanvasTab";
 import { ReviewContent, ReviewSidebar } from "@/components/tabs/tabTypes/ReviewTab";
 import { ProjectContent, ProjectSidebar } from "@/components/tabs/tabTypes/ProjectTab";
+import { PrContent, PrSidebar } from "@/components/tabs/tabTypes/PrTab";
 import { ChatBody } from "@/components/chat/ChatBody";
 import { fileIconFor } from "@/data/files";
+import { pullRequestById, prStateIcon } from "@/data/pullRequests";
+import { projectBoardIcon } from "@/lib/mergedLabels";
+import { sidebarIsMerged } from "@/store/useFeatureFlags";
 
 // Display label lives in TAB_LABEL (see @/types) as the single source of truth.
 // `tileId` lets a tab's content/sidebar address its own tab for layout actions
@@ -25,9 +30,14 @@ export interface TabTypeDef {
 }
 
 /** Tab chrome icon: specific open files use file-type icons; generic tabs use the registry default. */
-export function tabIcon(tab: Tab): IconName {
-  if (filesTabHasOpenFile(tab)) {
+export function tabIcon(tab: Tab, merged = sidebarIsMerged()): IconName {
+  if (treeTabHasOpenFile(tab)) {
     return fileIconFor(tab.title);
+  }
+  if (tab.type === "project") return projectBoardIcon(merged);
+  if (tab.type === "pr" && tab.prId) {
+    const pr = pullRequestById(tab.prId);
+    if (pr) return prStateIcon(pr.state);
   }
   return TAB_REGISTRY[tab.type].icon;
 }
@@ -45,9 +55,21 @@ export const TAB_REGISTRY: Record<TabType, TabTypeDef> = {
   canvas: { icon: "brush", hasSidebar: true, Content: CanvasContent, Sidebar: CanvasSidebar },
   review: { icon: "plus-minus", hasSidebar: true, Content: ReviewContent, Sidebar: ReviewSidebar },
   project: {
-    icon: "board-kanban",
+    icon: "chevrons-right-dotted-left",
     hasSidebar: false,
     Content: ProjectContent,
     Sidebar: ProjectSidebar,
+  },
+  pr: {
+    icon: "git-pull-request",
+    hasSidebar: false,
+    Content: PrContent,
+    Sidebar: PrSidebar,
+  },
+  context: {
+    icon: "brain",
+    hasSidebar: true,
+    Content: ContextContent,
+    Sidebar: ContextSidebar,
   },
 };

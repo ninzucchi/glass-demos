@@ -3,8 +3,16 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import { Icon } from "@/components/ui/Icon";
 import type { Tab } from "@/types";
-import { TAB_LABEL, filesTabHasOpenFile, pinnedTabsFor, workspaceIdOfScope } from "@/types";
+import {
+  TAB_LABEL,
+  contextTabHasOpenFile,
+  filesTabHasOpenFile,
+  pinnedTabsFor,
+  workspaceIdOfScope,
+} from "@/types";
+import { tabTypeLabel } from "@/lib/mergedLabels";
 import { tabIcon } from "@/components/tabs/registry";
+import { prStateColor, prTabTitle, pullRequestById } from "@/data/pullRequests";
 import { useTabDragStore } from "@/store/tabDrag";
 import {
   useActiveAgent,
@@ -16,7 +24,8 @@ import { allTabs } from "@/store/layoutTree";
 import { isOutsideWindows, newWindowGeo } from "@/components/desktop/geometry";
 import { beginTabDrag } from "@/components/tile/tabDragInteraction";
 import type { TileVariant } from "@/components/tile/Tile";
-import { useFeatureFlags } from "@/store/useFeatureFlags";
+import { agentDisplayTitle } from "@/lib/agentDisplayName";
+import { useFeatureFlags, useMergedSidebar } from "@/store/useFeatureFlags";
 
 interface TabHandleProps {
   tab: Tab;
@@ -52,12 +61,24 @@ export function TabHandle({
   const openTabInNewWindow = useWorkspaceStore((s) => s.openTabInNewWindow);
   // Chat tab titles derive from the agent at render time, so renames stay live.
   // Files home always shows the canonical label (not a stale stored title).
-  const agentTitle = useWorkspaceStore((s) =>
-    tab.agentId ? s.agents[tab.agentId]?.title : undefined,
+  const tabAgent = useWorkspaceStore((s) =>
+    tab.agentId ? s.agents[tab.agentId] : undefined,
   );
+  const namesMode = useFeatureFlags((s) => s.agentNames);
+  const agentTitle = tabAgent ? agentDisplayTitle(tabAgent, namesMode) : undefined;
+  const pr = tab.type === "pr" && tab.prId ? pullRequestById(tab.prId) : undefined;
+  const merged = useMergedSidebar();
   const title =
     agentTitle ??
-    (tab.type === "files" && !filesTabHasOpenFile(tab) ? TAB_LABEL.files : tab.title);
+    (pr
+      ? prTabTitle(pr)
+      : tab.type === "project"
+        ? tabTypeLabel("project", merged)
+        : tab.type === "files" && !filesTabHasOpenFile(tab)
+          ? TAB_LABEL.files
+          : tab.type === "context" && !contextTabHasOpenFile(tab)
+            ? TAB_LABEL.context
+            : tab.title);
   // THE pinned tab of its type — the strip's first, the one the island row
   // stands in for — swaps the hover × for an unpin control (further tabs of the
   // same type keep their regular close). Matches the island's absorbed-tab rule.
@@ -67,8 +88,7 @@ export function TabHandle({
   );
   const togglePinnedTab = useWorkspaceStore((s) => s.togglePinnedTab);
   const pinEphemeralTab = useWorkspaceStore((s) => s.pinEphemeralTab);
-  const ephemeralTabsOn = useFeatureFlags((s) => s.ephemeralTabs === "tabs");
-  const isEphemeralChat = variant === "chat" && ephemeralTabsOn && !!tab.ephemeral;
+  const isEphemeralChat = variant === "chat" && !!tab.ephemeral;
   const content = useActiveContent();
   const isPinnedType = !!pinnedSet?.includes(tab.type);
   const isPinnedTab =
@@ -84,7 +104,7 @@ export function TabHandle({
         tileId,
         tabId: tab.id,
         title,
-        icon: tabIcon(tab),
+        icon: tabIcon(tab, merged),
         pane: variant,
         tabType: tab.type,
         // Carried so the drag layer can reject splitting/tabbing a chat against
@@ -181,9 +201,10 @@ export function TabHandle({
       {/* Chat pills are text-only; content tabs keep their type/file icon. */}
       {!isChat && (
         <Icon
-          name={tabIcon(tab)}
+          name={tabIcon(tab, merged)}
           size="base"
           color={active && paneFocused ? "secondary" : "tertiary"}
+          style={pr ? { color: prStateColor(pr.state) } : undefined}
         />
       )}
       {/* Chat: fade the label's right edge under the close x via a mask (the

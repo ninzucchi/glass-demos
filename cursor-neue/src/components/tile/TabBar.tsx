@@ -11,7 +11,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import type { TileNode } from "@/types";
-import { isProjectScope, pinnedTabsFor, workspaceIdOfScope } from "@/types";
+import { pinnedTabsFor, workspaceIdOfScope } from "@/types";
 import {
   useActiveContent,
   useActiveScopeId,
@@ -21,11 +21,9 @@ import {
 import { hasNode } from "@/store/layoutTree";
 import { useTabDragStore } from "@/store/tabDrag";
 import { newWindowGeo } from "@/components/desktop/geometry";
-import { ChatCrumbs } from "@/components/chat/ChatCrumbs";
 import { TabHandle } from "@/components/tile/TabHandle";
 import { AddTabMenu } from "@/components/tile/AddTabMenu";
 import { ProjectAgentsMenu } from "@/components/tile/ProjectAgentsMenu";
-import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { TileContextMenu } from "@/components/tile/TileContextMenu";
 import { ChatToggle } from "@/components/chat/ChatToggle";
 import { SplitToggle } from "@/components/layout/SplitToggle";
@@ -112,7 +110,6 @@ export function TabBar({
   }, [tile.tabs.length]);
 
   const isChat = variant === "chat";
-  const crumbs = isChat && useFeatureFlags((s) => s.ephemeralTabs === "crumbs");
 
   // Whether this content pane is the window's focused one: its active tab keeps
   // full-strength chrome while resting panes dim theirs. Chat panes track focus
@@ -154,10 +151,6 @@ export function TabBar({
           className={clsx("pl-3.5 pr-2", !isChat && "border-r border-tertiary")}
         />
       )}
-      {crumbs ? (
-        <ChatCrumbs tile={tile} />
-      ) : (
-        <>
       <div
         ref={scrollRef}
         data-tab-strip=""
@@ -213,7 +206,7 @@ export function TabBar({
                 </ContextMenuItem>
                 {/* Pin the tab's TYPE to the workspace (chat and standalone
                     scopes have no workspace to pin to). */}
-                {!isChat && workspaceId && pinned && (
+                {!isChat && tab.type !== "pr" && workspaceId && pinned && (
                   <ContextMenuItem onSelect={() => togglePinnedTab(workspaceId, tab.type)}>
                     <Icon
                       name={pinned.includes(tab.type) ? "pin-slash" : "pin"}
@@ -257,10 +250,8 @@ export function TabBar({
           <InsertionCaret index={dropIndex} stripRef={scrollRef} isChat={isChat} />
         )}
       </div>
-      {!isChat && !isProjectScope(scopeId) && <AddTabMenu tileId={tile.id} />}
+      {!isChat && <AddTabMenu tileId={tile.id} />}
       {isChat && <ProjectAgentsMenu tile={tile} />}
-        </>
-      )}
       {/* Empty bar area also opens the split / close menu (chat hides split). */}
       <TileContextMenu tileId={tile.id} className="flex-1" showSplit={!isChat}>
         <div className="h-full w-full" />

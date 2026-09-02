@@ -10,18 +10,18 @@ export interface Task {
   prId?: string;
 }
 
-/** Native order: Not Started is last. Empty columns still go after filled ones. */
+/** Native order: Done is last. Empty columns still go after filled ones. */
 export const TASK_BOARD_STATUSES: TaskStatus[] = [
   "in-progress",
   "for-review",
-  "completed",
   "not-started",
+  "completed",
 ];
 
 export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
-  "not-started": "Not Started",
+  "not-started": "Up Next",
   "in-progress": "In Progress",
-  "for-review": "Ready for Review",
+  "for-review": "For Review",
   completed: "Done",
 };
 
@@ -46,9 +46,9 @@ const task = (
   ...links,
 });
 
-/** Seed tasks keyed by project id. Counts track each project's agents and PRs.
- *  Not started may have an agent. In progress PRs are drafts.
- *  For review PRs are open. Completed always has both. */
+/** Seed tasks keyed by project id. Up Next has no agent. In Progress agents
+ *  are running. For Review agents are unread or idle, and PRs are open.
+ *  Completed lists a merged or closed PR only. */
 export const TASKS_BY_PROJECT: Record<string, Task[]> = {
   "p-sidebar": [
     task(
@@ -117,12 +117,7 @@ export const TASKS_BY_PROJECT: Record<string, Task[]> = {
       "completed",
       { agentId: "a-kb-9", prId: "pr-kb-8" },
     ),
-    task(
-      "t-kb-10",
-      "Typeahead in the project agents menu",
-      "not-started",
-      { agentId: "a-kb-10" },
-    ),
+    task("t-kb-10", "Typeahead in the project agents menu", "not-started"),
   ],
   "p-base-ui": [
     task(
@@ -137,12 +132,7 @@ export const TASKS_BY_PROJECT: Record<string, Task[]> = {
       "completed",
       { agentId: "a-bu-2", prId: "pr-bu-2" },
     ),
-    task(
-      "t-bu-3",
-      "Share one Base Dialog for customize and composer",
-      "not-started",
-      { agentId: "a-bu-3" },
-    ),
+    task("t-bu-3", "Share one Base Dialog for customize and composer", "not-started"),
     task("t-bu-4", "Map Base color ramps onto glass tokens", "not-started"),
     task(
       "t-bu-5",
@@ -174,12 +164,7 @@ export const TASKS_BY_PROJECT: Record<string, Task[]> = {
       "in-progress",
       { agentId: "a-bu-9", prId: "pr-bu-9" },
     ),
-    task(
-      "t-bu-10",
-      "Turn the wallpaper picker into Base Radio",
-      "not-started",
-      { agentId: "a-bu-10" },
-    ),
+    task("t-bu-10", "Turn the wallpaper picker into Base Radio", "not-started"),
     task(
       "t-bu-11",
       "Switch light and dark with Base Switch",
@@ -210,7 +195,6 @@ export const TASKS_BY_PROJECT: Record<string, Task[]> = {
       "t-bu-17",
       "Share one segmented primitive for Agents, PRs, and debug chips",
       "not-started",
-      { agentId: "a-bu-17" },
     ),
     task("t-bu-18", "Build the new-project name field on Base Field", "not-started"),
     task(

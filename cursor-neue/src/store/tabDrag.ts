@@ -46,8 +46,8 @@ export type TabDropTarget =
   // content and appends the tab.
   | { scope: "open"; windowId: string; scopeId: string }
   // Sidebar agent-row CREATE drag: drop on Pinned pins, drop on Chats unpins
-  // or un-parents, drop on Projects unpins a project, drop on a project folder
-  // re-parents an agent (never a project).
+  // or lifts a group to the top level, drop on Projects unpins a project, drop
+  // on a group folder re-parents an agent or nests a group (two levels max).
   | { scope: "sidebar-section"; section: "pinned" | "chats" | "projects" }
   | { scope: "sidebar-project"; projectId: string };
 
@@ -81,10 +81,15 @@ interface TabDragState {
   pointer: { x: number; y: number };
   /** Live insertion slot while reordering a project in the Projects list. */
   listIndex: number | null;
+  /** Which sidebar list owns `listIndex`. */
+  listScope: "project-order" | "group-folder-order" | null;
 
   begin: (source: TabDragSource, pointer: { x: number; y: number }) => void;
   move: (pointer: { x: number; y: number }, target: TabDropTarget | null, outside: boolean) => void;
-  setListIndex: (listIndex: number | null) => void;
+  setListIndex: (
+    listIndex: number | null,
+    listScope?: "project-order" | "group-folder-order" | null,
+  ) => void;
   end: () => void;
 }
 
@@ -94,8 +99,16 @@ export const useTabDragStore = create<TabDragState>((set) => ({
   outside: false,
   pointer: { x: 0, y: 0 },
   listIndex: null,
+  listScope: null,
   begin: (source, pointer) =>
-    set({ source, target: null, outside: false, pointer, listIndex: null }),
+    set({
+      source,
+      target: null,
+      outside: false,
+      pointer,
+      listIndex: null,
+      listScope: null,
+    }),
   move: (pointer, target, outside) =>
     set((s) =>
       // Avoid churning `target`/`outside` (which subscribers read) when only the
@@ -104,6 +117,18 @@ export const useTabDragStore = create<TabDragState>((set) => ({
         ? { pointer }
         : { pointer, target, outside },
     ),
-  setListIndex: (listIndex) => set((s) => (s.listIndex === listIndex ? s : { listIndex })),
-  end: () => set({ source: null, target: null, outside: false, listIndex: null }),
+  setListIndex: (listIndex, listScope) =>
+    set((s) => {
+      const nextScope = listIndex == null ? null : (listScope ?? s.listScope);
+      if (s.listIndex === listIndex && s.listScope === nextScope) return s;
+      return { listIndex, listScope: nextScope };
+    }),
+  end: () =>
+    set({
+      source: null,
+      target: null,
+      outside: false,
+      listIndex: null,
+      listScope: null,
+    }),
 }));

@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import type { ProjectTemplate } from "@/data/projectTemplates";
 import { JOIN_PULSE_MS } from "@/lib/projectJoinNotice";
 
 export interface SidebarAgentSelection {
@@ -17,19 +16,14 @@ interface UiState {
   closeCustomize: () => void;
   /** Window id whose create-project dialog is open, or null. */
   newProjectWindowId: string | null;
-  /** Prefill for the create dialog when a sidebar placeholder opens it. */
-  newProjectDraft: ProjectTemplate | null;
   /** Existing project the dialog is editing, or null for create. */
   editingProjectId: string | null;
   /** Agents to re-parent after Move to → New Project finishes. */
   pendingMoveAgentIds: string[] | null;
-  openNewProject: (windowId: string, draft?: ProjectTemplate) => void;
+  openNewProject: (windowId: string) => void;
   openEditProject: (windowId: string, projectId: string) => void;
   closeNewProject: () => void;
   setPendingMoveAgentIds: (ids: string[] | null) => void;
-  /** Sidebar suggestion ids the user dismissed in this session. */
-  dismissedProjectPlaceholders: string[];
-  dismissProjectPlaceholder: (id: string) => void;
   /** The composer whose expanded writing surface is open. Scoped to a window
    *  for the same reason as Customize; the agent id says whose text it edits. */
   composerSurface: { windowId: string; agentId: string } | null;
@@ -43,6 +37,12 @@ interface UiState {
   /** Active surface on the project board (Tasks / Agents / PRs). */
   projectBoardSurface: "tasks" | "agents" | "prs";
   setProjectBoardSurface: (surface: "tasks" | "agents" | "prs") => void;
+  /** Board layout. Lives here so leaving the Tracker tab does not reset it. */
+  projectBoardView: "columns" | "rows" | "doc" | "map";
+  setProjectBoardView: (view: "columns" | "rows" | "doc" | "map") => void;
+  /** Composer follow-up tray on a project chat (Agents / PRs). */
+  projectFollowUpTray: "prs" | "subagents" | null;
+  setProjectFollowUpTray: (tray: "prs" | "subagents" | null) => void;
   /** Agent ids that just joined a project, keyed by start time for the wash. */
   joinedAgentPulseAt: Record<string, number>;
   pulseJoinedAgents: (ids: string[]) => void;
@@ -55,36 +55,25 @@ export const useUiStore = create<UiState>((set) => ({
   openCustomize: (windowId) => set({ customizeWindowId: windowId }),
   closeCustomize: () => set({ customizeWindowId: null }),
   newProjectWindowId: null,
-  newProjectDraft: null,
   editingProjectId: null,
   pendingMoveAgentIds: null,
-  openNewProject: (windowId, draft) =>
+  openNewProject: (windowId) =>
     set({
       newProjectWindowId: windowId,
-      newProjectDraft: draft ?? null,
       editingProjectId: null,
     }),
   openEditProject: (windowId, projectId) =>
     set({
       newProjectWindowId: windowId,
-      newProjectDraft: null,
       editingProjectId: projectId,
     }),
   closeNewProject: () =>
     set({
       newProjectWindowId: null,
-      newProjectDraft: null,
       editingProjectId: null,
       pendingMoveAgentIds: null,
     }),
   setPendingMoveAgentIds: (ids) => set({ pendingMoveAgentIds: ids }),
-  dismissedProjectPlaceholders: [],
-  dismissProjectPlaceholder: (id) =>
-    set((s) =>
-      s.dismissedProjectPlaceholders.includes(id)
-        ? s
-        : { dismissedProjectPlaceholders: [...s.dismissedProjectPlaceholders, id] },
-    ),
   composerSurface: null,
   openComposerSurface: (windowId, agentId) => set({ composerSurface: { windowId, agentId } }),
   closeComposerSurface: () => set({ composerSurface: null }),
@@ -95,6 +84,10 @@ export const useUiStore = create<UiState>((set) => ({
     })),
   projectBoardSurface: "tasks",
   setProjectBoardSurface: (surface) => set({ projectBoardSurface: surface }),
+  projectBoardView: "columns",
+  setProjectBoardView: (view) => set({ projectBoardView: view }),
+  projectFollowUpTray: null,
+  setProjectFollowUpTray: (tray) => set({ projectFollowUpTray: tray }),
   joinedAgentPulseAt: {},
   pulseJoinedAgents: (ids) => {
     if (ids.length === 0) return;

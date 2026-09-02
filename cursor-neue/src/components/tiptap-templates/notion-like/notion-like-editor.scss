@@ -1,0 +1,227 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap");
+
+.notion-like-editor-wrapper {
+  --tt-toolbar-height: 44px;
+  --tt-theme-text: var(--text-primary);
+  /* Secondary is faded primary, not a gray mixed onto chrome. */
+  --text-secondary: color-mix(in oklab, var(--text-primary) 70%, transparent);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--tt-theme-text);
+}
+
+.notion-like-editor-wrapper .tiptap.ProseMirror {
+  --doc-after-h2: 0.675rem;
+  font-family: "DM Sans", var(--font-sans, sans-serif);
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.6;
+
+  // Tailwind preflight sets h1–h6 to inherit size/weight. Restore document type.
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0 0 0.75em;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 650;
+    margin: 1.75em 0 var(--doc-after-h2, 0.45em);
+  }
+
+  h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 1.5em 0 0.35em;
+  }
+
+  [data-type="horizontalRule"] {
+    margin-block: 32px;
+    padding-block: 0;
+  }
+
+  ul:has(+ [data-type="horizontalRule"]),
+  ol:has(+ [data-type="horizontalRule"]),
+  p:has(+ [data-type="horizontalRule"]) {
+    margin-bottom: 0;
+  }
+
+  [data-type="horizontalRule"] + h1,
+  [data-type="horizontalRule"] + h2,
+  [data-type="horizontalRule"] + h3,
+  [data-type="horizontalRule"] + h4 {
+    margin-top: 0;
+  }
+
+  p {
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.6;
+  }
+
+  a:not(.agent-link-node__link):not(.pr-link-node__link) {
+    color: var(--text-primary);
+    text-decoration: none;
+
+    code {
+      color: var(--text-secondary);
+    }
+
+    &:has(code) {
+      color: var(--text-secondary);
+
+      code {
+        color: inherit;
+      }
+    }
+
+    &:hover {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      text-decoration-color: inherit;
+    }
+  }
+
+  // Newer TaskItem hides the checkbox in an sr-only span. Draw the box on the label.
+  ul[data-type="taskList"] li {
+    gap: 12px;
+  }
+
+  ul[data-type="taskList"] li label {
+    position: relative;
+    flex: 0 0 1em;
+    width: 1em;
+    padding-right: 0;
+
+    &::after {
+      content: "";
+      display: block;
+      width: 1em;
+      height: 1em;
+      border: 1px solid var(--tt-checklist-border-color);
+      border-radius: var(--tt-radius-xs, 0.25rem);
+      background-color: transparent;
+    }
+  }
+
+  ul[data-type="taskList"] li[data-checked="true"] label::after {
+    background-color: var(--tt-checklist-bg-color);
+  }
+
+  ul[data-type="taskList"] li[data-checked="true"] label::before {
+    content: "";
+    position: absolute;
+    top: 0.375rem;
+    left: 0;
+    width: 1em;
+    height: 1em;
+    pointer-events: none;
+    background-color: var(--icon-secondary);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M21.4142 4.58579C22.1953 5.36683 22.1953 6.63317 21.4142 7.41421L10.4142 18.4142C9.63317 19.1953 8.36684 19.1953 7.58579 18.4142L2.58579 13.4142C1.80474 12.6332 1.80474 11.3668 2.58579 10.5858C3.36683 9.80474 4.63317 9.80474 5.41421 10.5858L9 14.1716L18.5858 4.58579C19.3668 3.80474 20.6332 3.80474 21.4142 4.58579Z'/%3E%3C/svg%3E")
+      center / 0.7em 0.7em no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M21.4142 4.58579C22.1953 5.36683 22.1953 6.63317 21.4142 7.41421L10.4142 18.4142C9.63317 19.1953 8.36684 19.1953 7.58579 18.4142L2.58579 13.4142C1.80474 12.6332 1.80474 11.3668 2.58579 10.5858C3.36683 9.80474 4.63317 9.80474 5.41421 10.5858L9 14.1716L18.5858 4.58579C19.3668 3.80474 20.6332 3.80474 21.4142 4.58579Z'/%3E%3C/svg%3E")
+      center / 0.7em 0.7em no-repeat;
+  }
+}
+
+.notion-like-editor-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.notion-like-editor-content {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.notion-like-editor-cover {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+  padding: 1rem 12px 8px;
+}
+
+.notion-like-editor-layout.has-cover .notion-like-editor-content .tiptap.ProseMirror.notion-like-editor {
+  padding-top: 0.75rem;
+}
+
+.notion-like-editor-content .tiptap.ProseMirror.notion-like-editor {
+  box-sizing: border-box;
+  flex: 1 0 auto;
+  width: 100%;
+  /* Same cap and side pad as ChatBody COLUMN (max-w 640, px 12). */
+  max-width: 640px;
+  padding: 3rem 12px 30vh;
+}
+
+@media screen and (max-width: 480px) {
+  .notion-like-editor-content .tiptap.ProseMirror.notion-like-editor {
+    padding: 1.5rem 12px 30vh;
+  }
+}
+
+// Spinner
+.spinner-container {
+  min-height: 100vh;
+  width: 100%;
+  height: 100%;
+  flex-grow: 1;
+  flex-shrink: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  .spinner-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+
+    svg {
+      animation: spin 1s linear infinite;
+      height: 1.25rem;
+      width: 1.25rem;
+
+      circle {
+        opacity: 0.25;
+        stroke: currentColor;
+        stroke-width: 4;
+      }
+
+      path {
+        opacity: 0.75;
+        fill: currentColor;
+      }
+    }
+
+    .spinner-loading-text {
+      text-align: center;
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import { isProject, type Agent } from "@/types";
+import { isTrackerOwner, type Agent } from "@/types";
 import { useWindowId } from "@/components/window/WindowContext";
 import { useWindow } from "@/store/useWorkspaceStore";
 import { useUiStore } from "@/store/useUiStore";
@@ -26,7 +26,7 @@ export function AgentList({
   return (
     <>
       {agents.map((a, i) =>
-        isProject(a) ? (
+        isTrackerOwner(a) ? (
           <ProjectGroup
             key={a.id}
             project={a}

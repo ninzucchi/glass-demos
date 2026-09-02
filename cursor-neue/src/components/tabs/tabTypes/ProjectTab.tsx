@@ -1,7 +1,8 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, type CSSProperties, type ReactNode } from "react";
 import clsx from "clsx";
 import type { Node, NodeProps, NodeTypes } from "@xyflow/react";
-import { Icon, type IconName } from "@/components/ui/Icon";
+import { Icon } from "@/components/ui/Icon";
+import { AgentStatusIcon } from "@/components/ui/AgentStatusIcon";
 import { EmptyTabSidebar } from "./placeholder";
 import {
   CardHandles,
@@ -36,7 +37,9 @@ import {
   type Task,
   type TaskStatus,
 } from "@/data/tasks";
+import { agentDisplayTitle } from "@/lib/agentDisplayName";
 import { formatRelativeTime } from "@/lib/relativeTime";
+import { taskTicketId } from "@/lib/taskTicketId";
 import {
   AGENT_BOARD_STATUSES,
   AGENT_STATUS_LABEL,
@@ -45,6 +48,7 @@ import {
   agentsInProject,
   contentProjectId,
   isProject,
+  isWorkspace,
   lastAgentReply,
   projectBoardAgentStatus,
   type Agent,
@@ -55,9 +59,17 @@ import { useWindowId } from "@/components/window/WindowContext";
 import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useUiStore } from "@/store/useUiStore";
 import { useActiveAgent, useWorkspaceStore } from "@/store/useWorkspaceStore";
+import { ProjectBoardDoc } from "@/components/tabs/tabTypes/ProjectBoardDoc";
+import { ProjectBoardEmpty } from "@/components/tabs/tabTypes/ProjectBoardEmpty";
+import {
+  workspaceBoardAgents,
+  workspaceBoardPrs,
+  workspaceBoardTasks,
+  type BoardTask,
+} from "@/lib/workspaceBoard";
 
 type Surface = "tasks" | "agents" | "prs";
-type BoardView = "columns" | "rows" | "map";
+type BoardView = "columns" | "rows" | "doc" | "map";
 
 /** Keep filled groups in their original order; send empty ones to the end. */
 function emptyToEnd<T>(items: readonly T[], empty: (item: T) => boolean): T[] {
@@ -67,19 +79,14 @@ function emptyToEnd<T>(items: readonly T[], empty: (item: T) => boolean): T[] {
   return [...filled, ...vacant];
 }
 
-const AGENT_STATUS_ICON: Record<AgentStatus, IconName> = {
-  attention: "exclamation-circle",
-  unread: "bell",
-  running: "spinner",
-  idle: "check-circle",
-};
-
-const AGENT_DOT_COLOR: Record<AgentStatus, string> = {
-  attention: "var(--orange)",
-  unread: "var(--blue)",
-  running: "var(--icon-secondary)",
-  idle: "var(--icon-quaternary)",
-};
+/** Empty columns move last, but `pinned` stays at the end (Done). */
+function emptyToEndPinned<T>(
+  items: readonly T[],
+  empty: (item: T) => boolean,
+  pinned: T,
+): T[] {
+  return [...emptyToEnd(items.filter((item) => item !== pinned), empty), pinned];
+}
 
 function Segmented<T extends string>({
   label,
@@ -164,11 +171,7 @@ function LeadSlot({ children }: { children: ReactNode }) {
 function AgentLeading({ status }: { status: AgentStatus }) {
   return (
     <LeadSlot>
-      {status === "running" ? (
-        <Icon name="spinner" size="sm" color="secondary" />
-      ) : (
-        <span className="size-1.5 rounded-full" style={{ background: AGENT_DOT_COLOR[status] }} />
-      )}
+      <AgentStatusIcon status={status} />
     </LeadSlot>
   );
 }
@@ -187,6 +190,9 @@ function TaskChips({
   onOpenAgent: (agentId: string) => void;
   className?: string;
 }) {
+  const windowId = useWindowId();
+  const openPrTab = useWorkspaceStore((s) => s.openPrTab);
+  const namesMode = useFeatureFlags((s) => s.agentNames);
   const agent = useWorkspaceStore((s) => (task.agentId ? s.agents[task.agentId] : undefined));
   const pr = task.prId
     ? pullRequestsFor(projectId).find((item) => item.id === task.prId)
@@ -205,11 +211,19 @@ function TaskChips({
           onPointerDown={(e) => e.stopPropagation()}
         >
           <Icon name="agent" size="sm" color="inherit" />
-          <span className="min-w-0 truncate">{agent.title}</span>
+          <span className="min-w-0 truncate">{agentDisplayTitle(agent, namesMode)}</span>
         </button>
       )}
       {pr && (
-        <span className={CHIP}>
+        <button
+          type="button"
+          className={clsx(CHIP, "nodrag nopan hover:bg-quaternary hover:text-primary")}
+          onClick={(e) => {
+            e.stopPropagation();
+            openPrTab(windowId, pr.id);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <Icon
             name={prStateIcon(pr.state)}
             size="sm"
@@ -217,11 +231,16 @@ function TaskChips({
             style={{ color: prStateColor(pr.state) }}
           />
           <span className="min-w-0 truncate">#{pr.number}</span>
-        </span>
+        </button>
       )}
     </span>
   );
 }
+
+const TASK_ID_ROW =
+  "w-[56px] shrink-0 truncate text-base font-normal tabular-nums text-tertiary";
+const TASK_ID_CARD =
+  "pl-[calc(var(--board-lead)+var(--board-lead-gap))] text-sm font-medium text-tertiary";
 
 function TaskCard({
   task,
@@ -234,7 +253,11 @@ function TaskCard({
   layout: BoardView;
   onOpenAgent: (agentId: string) => void;
 }) {
+  const windowId = useWindowId();
+  const openContextFile = useWorkspaceStore((s) => s.openContextFile);
   const isRow = layout === "rows";
+  const ticketId =
+    useFeatureFlags((s) => s.docIds) === "ids" ? taskTicketId(projectId, task) : null;
   const done = task.status === "completed";
   const titleClass = clsx(
     "line-clamp-3 text-base",
@@ -242,30 +265,44 @@ function TaskCard({
   );
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={() => openContextFile(windowId, projectId, task.id)}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        openContextFile(windowId, projectId, task.id);
+      }}
       className={clsx(
-        "flex w-full gap-[var(--board-lead-gap)] px-[var(--board-inset)]",
-        isRow ? "items-start rounded-lg py-[9px]" : clsx("items-start py-2", CARD_SURFACE),
+        "flex w-full shrink-0 cursor-pointer px-[var(--board-inset)] text-left nodrag nopan",
+        isRow
+          ? "items-start gap-[var(--board-lead-gap)] rounded-lg py-[9px] hover:bg-quinary"
+          : clsx("flex-col gap-1.5 py-2", CARD_SURFACE, CARD_HOVER_COLUMN),
       )}
     >
-      <LeadSlot>
-        <Icon name={taskStatusIcon(task.status)} size="sm" color="tertiary" />
-      </LeadSlot>
-      {isRow ? (
-        <span className="flex min-w-0 flex-1 items-start gap-3">
-          <span className={clsx("min-w-0 flex-1", titleClass)}>{task.title}</span>
-          <TaskChips
-            task={task}
-            projectId={projectId}
-            onOpenAgent={onOpenAgent}
-            className="max-w-[45%] shrink-0 justify-end"
-          />
-        </span>
-      ) : (
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className={titleClass}>{task.title}</span>
-          <TaskChips task={task} projectId={projectId} onOpenAgent={onOpenAgent} className="mt-1" />
-        </span>
-      )}
+      {ticketId && !isRow && <span className={TASK_ID_CARD}>{ticketId}</span>}
+      <div className="flex w-full min-w-0 items-start gap-[var(--board-lead-gap)]">
+        <LeadSlot>
+          <Icon name={taskStatusIcon(task.status)} size="sm" color="tertiary" />
+        </LeadSlot>
+        {isRow ? (
+          <span className="flex min-w-0 flex-1 items-start gap-3">
+            {ticketId && <span className={TASK_ID_ROW}>{ticketId}</span>}
+            <span className={clsx("min-w-0 flex-1", titleClass)}>{task.title}</span>
+            <TaskChips
+              task={task}
+              projectId={projectId}
+              onOpenAgent={onOpenAgent}
+              className="max-w-[45%] shrink-0 justify-end"
+            />
+          </span>
+        ) : (
+          <span className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className={titleClass}>{task.title}</span>
+            <TaskChips task={task} projectId={projectId} onOpenAgent={onOpenAgent} className="mt-1" />
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -281,6 +318,8 @@ function AgentCard({
   onOpen: () => void;
   asDiv?: boolean;
 }) {
+  const namesMode = useFeatureFlags((s) => s.agentNames);
+  const title = agentDisplayTitle(agent, namesMode);
   const preview = lastAgentReply(agent);
   const time = formatRelativeTime(agent.updatedAt);
   const isRow = layout === "rows";
@@ -293,18 +332,18 @@ function AgentCard({
       ? PROJECT_COLOR_STROKE[project.color ?? "blue"]
       : PROJECT_COLOR_STROKE.blue;
   const className = clsx(
-    "relative flex w-full gap-[var(--board-lead-gap)] overflow-hidden px-[var(--board-inset)] text-left",
+    "relative flex w-full shrink-0 gap-[var(--board-lead-gap)] overflow-hidden px-[var(--board-inset)] text-left",
     isRow
       ? "items-center rounded-lg py-[9px] hover:bg-quinary"
       : clsx("items-start py-2", CARD_SURFACE, CARD_HOVER_COLUMN),
   );
   const body = (
     <>
-      <AgentLeading status={projectBoardAgentStatus(agent.status)} />
+      <AgentLeading status={agent.status} />
       {isRow ? (
         <span className="flex min-w-0 flex-1 items-center gap-3">
           <span className="max-w-[45%] shrink-0 truncate text-base font-medium text-primary">
-            {agent.title}
+            {title}
           </span>
           {preview && (
             <span className="min-w-0 flex-1 truncate text-base text-secondary">{preview}</span>
@@ -313,7 +352,7 @@ function AgentCard({
         </span>
       ) : (
         <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="truncate text-base font-medium text-primary">{agent.title}</span>
+          <span className="truncate text-base font-medium text-primary">{title}</span>
           {preview && <span className="line-clamp-2 text-sm text-secondary">{preview}</span>}
           <span className="text-sm text-tertiary">{time}</span>
         </span>
@@ -381,11 +420,17 @@ function PrMeta({
 
 function PrCard({ item, layout }: { item: PullRequest; layout: BoardView }) {
   const isRow = layout === "rows";
+  const windowId = useWindowId();
+  const openPrTab = useWorkspaceStore((s) => s.openPrTab);
   return (
-    <div
+    <button
+      type="button"
+      onClick={() => openPrTab(windowId, item.id)}
       className={clsx(
-        "flex w-full gap-[var(--board-lead-gap)] px-[var(--board-inset)]",
-        isRow ? "items-start rounded-lg py-[9px]" : clsx("items-start py-2", CARD_SURFACE),
+        "flex w-full shrink-0 gap-[var(--board-lead-gap)] px-[var(--board-inset)] text-left nodrag nopan",
+        isRow
+          ? "items-start rounded-lg py-[9px] hover:bg-quinary"
+          : clsx("items-start py-2", CARD_SURFACE, CARD_HOVER_COLUMN),
       )}
     >
       <LeadSlot>
@@ -409,7 +454,7 @@ function PrCard({ item, layout }: { item: PullRequest; layout: BoardView }) {
           <PrMeta item={item} size="sm" />
         </span>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -504,7 +549,7 @@ function BoardGroup({
         "flex flex-col pt-0.5",
         isRow
           ? "w-full gap-0.5"
-          : "h-full w-[300px] shrink-0 rounded-xl bg-quinary dark:bg-chrome",
+          : "h-full w-[280px] shrink-0 rounded-xl bg-quinary dark:bg-chrome",
       )}
       style={boardMetrics()}
     >
@@ -548,47 +593,72 @@ export function ProjectContent() {
   const setActiveAgent = useWorkspaceStore((s) => s.setActiveAgent);
   const surface = useUiStore((s) => s.projectBoardSurface);
   const setSurface = useUiStore((s) => s.setProjectBoardSurface);
-  const [view, setView] = useState<BoardView>("columns");
-  const mapEnabled = useFeatureFlags((s) => s.projectMap) === "map";
+  const view = useUiStore((s) => s.projectBoardView);
+  const setView = useUiStore((s) => s.setProjectBoardView);
   const tasksOnly = useFeatureFlags((s) => s.projectSurface) === "tasks";
-  const boardView: BoardView = view === "map" && !mapEnabled ? "columns" : view;
+  const merged = useFeatureFlags((s) => s.sidebarSections) === "one";
   const boardSurface: Surface = tasksOnly ? "tasks" : surface;
 
-  const projectId = agent ? contentProjectId(agent) : null;
-  const project = projectId ? agents[projectId] : undefined;
-  const children = projectId ? agentsInProject(agents, agentOrder, projectId) : [];
-  const prs = projectId ? pullRequestsFor(projectId) : [];
-  const tasks = projectId ? tasksFor(projectId) : [];
+  const workspaceOwner = agent && isWorkspace(agent) ? agent : undefined;
+  const projectId = workspaceOwner ? null : agent ? contentProjectId(agent) : null;
+  const project = workspaceOwner ?? (projectId ? agents[projectId] : undefined);
+  const boardId = workspaceOwner?.id ?? projectId;
+  const children = workspaceOwner
+    ? workspaceBoardAgents(agents, agentOrder, workspaceOwner.id)
+    : projectId
+      ? agentsInProject(agents, agentOrder, projectId)
+      : [];
+  const prs = workspaceOwner
+    ? workspaceBoardPrs(agents, agentOrder, workspaceOwner.id)
+    : projectId
+      ? pullRequestsFor(projectId)
+      : [];
+  const tasks: BoardTask[] = workspaceOwner
+    ? workspaceBoardTasks(agents, agentOrder, workspaceOwner.id)
+    : projectId
+      ? tasksFor(projectId).map((task) => ({ ...task, projectId }))
+      : [];
 
   const agentsByStatus = (status: AgentStatus): Agent[] =>
     children.filter((agent) => projectBoardAgentStatus(agent.status) === status);
   const prsByState = (state: PrState): PullRequest[] =>
     prs.filter((item) => item.state === state);
-  const tasksByStatus = (status: TaskStatus): Task[] =>
+  const tasksByStatus = (status: TaskStatus): BoardTask[] =>
     tasks.filter((item) => item.status === status);
-  const agentStatuses = emptyToEnd(AGENT_BOARD_STATUSES, (status) => agentsByStatus(status).length === 0);
+  const agentStatuses = emptyToEndPinned(
+    AGENT_BOARD_STATUSES,
+    (status) => agentsByStatus(status).length === 0,
+    "idle",
+  );
   const prStates = emptyToEnd(PR_BOARD_STATES, (state) => prsByState(state).length === 0);
-  const taskStatuses = emptyToEnd(TASK_BOARD_STATUSES, (status) => tasksByStatus(status).length === 0);
+  const taskStatuses = emptyToEndPinned(
+    TASK_BOARD_STATUSES,
+    (status) => tasksByStatus(status).length === 0,
+    "completed",
+  );
+
+  const tasksEmpty = boardSurface === "tasks" && tasks.length === 0;
 
   const mapGraph = useMemo(() => {
-    if (!mapEnabled) return { nodes: [], edges: [] };
     const openAgent = (agentId: string) => setActiveAgent(windowId, agentId);
-    const mapChildren = projectId ? agentsInProject(agents, agentOrder, projectId) : [];
-    const mapTasks = projectId ? tasksFor(projectId) : [];
-    const mapPrs = projectId ? pullRequestsFor(projectId) : [];
+    const mapChildren = children;
+    const mapTasks = tasks;
+    const mapPrs = prs;
     const mapAgentsByStatus = (status: AgentStatus) =>
       mapChildren.filter((child) => projectBoardAgentStatus(child.status) === status);
     const mapPrsByState = (state: PrState) => mapPrs.filter((item) => item.state === state);
     const mapTasksByStatus = (status: TaskStatus) =>
       mapTasks.filter((task) => task.status === status);
-    const mapAgentStatuses = emptyToEnd(
+    const mapAgentStatuses = emptyToEndPinned(
       AGENT_BOARD_STATUSES,
       (status) => mapAgentsByStatus(status).length === 0,
+      "idle",
     );
     const mapPrStates = emptyToEnd(PR_BOARD_STATES, (state) => mapPrsByState(state).length === 0);
-    const mapTaskStatuses = emptyToEnd(
+    const mapTaskStatuses = emptyToEndPinned(
       TASK_BOARD_STATUSES,
       (status) => mapTasksByStatus(status).length === 0,
+      "completed",
     );
     let clusters: CanvasCluster[] = [];
     switch (boardSurface) {
@@ -599,7 +669,7 @@ export function ProjectContent() {
           items: mapTasksByStatus(status).map((task) => ({
             id: task.id,
             type: "task",
-            data: { task, projectId: projectId ?? "", onOpenAgent: openAgent },
+            data: { task, projectId: task.projectId, onOpenAgent: openAgent },
           })),
         }));
         break;
@@ -640,7 +710,7 @@ export function ProjectContent() {
         pairs = pairsFromDepends(PR_DEPENDS, new Set(mapPrs.map((item) => item.id)));
         break;
       case "agents": {
-        if (project && isProject(project)) {
+        if (project && (isProject(project) || isWorkspace(project))) {
           const hubId = `hub:${project.id}`;
           nodes = placeHubNode(nodes, {
             id: hubId,
@@ -669,14 +739,14 @@ export function ProjectContent() {
       }
     }
     return { nodes, edges: routeEdges(canvasEdges(pairs), nodes) };
-  }, [agentOrder, agents, boardSurface, mapEnabled, project, projectId, setActiveAgent, windowId]);
+  }, [boardSurface, children, prs, project, setActiveAgent, tasks, windowId]);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-editor">
-      {boardView === "map" && (
+      {!tasksEmpty && view === "map" && (
         <div className="absolute inset-0">
           <ProjectBoardCanvas
-            key={`${projectId ?? "none"}-${boardSurface}`}
+            key={`${boardId ?? "none"}-${boardSurface}`}
             nodes={mapGraph.nodes}
             edges={mapGraph.edges}
             nodeTypes={MAP_NODE_TYPES}
@@ -694,11 +764,14 @@ export function ProjectContent() {
       <div
         className={clsx(
           "flex items-center justify-between px-3 py-4",
-          boardView === "map" ? "pointer-events-none relative z-10" : "shrink-0",
+          view === "map" ? "pointer-events-none relative z-10" : "shrink-0",
         )}
       >
-        <div className={boardView === "map" ? "pointer-events-auto" : undefined}>
+        <div className={view === "map" ? "pointer-events-auto" : undefined}>
           {tasksOnly ? (
+            view === "doc" ? (
+              <div />
+            ) : (
             <div className="flex min-w-0 items-center gap-2">
               {project && (
                 <span
@@ -720,9 +793,10 @@ export function ProjectContent() {
                 {project?.title ?? ""}
               </p>
             </div>
+            )
           ) : (
             <Segmented
-              label="Project surface"
+              label={merged ? "Tracker surface" : "Project surface"}
               value={surface}
               onSelect={setSurface}
               options={[
@@ -733,24 +807,51 @@ export function ProjectContent() {
             />
           )}
         </div>
-        <div className={boardView === "map" ? "pointer-events-auto" : undefined}>
-          <Segmented
-            label="Board layout"
-            value={boardView}
-            onSelect={setView}
-            options={[
-              { id: "columns", icon: "menu", iconClassName: "rotate-90" },
-              { id: "rows", icon: "menu" },
-              ...(mapEnabled ? [{ id: "map" as const, icon: "map" as const }] : []),
-            ]}
-          />
-        </div>
+        {!tasksEmpty && (
+          <div className={view === "map" ? "pointer-events-auto" : undefined}>
+            <Segmented
+              label="Board layout"
+              value={view}
+              onSelect={setView}
+              options={[
+                { id: "columns", icon: "menu", iconClassName: "rotate-90" },
+                { id: "rows", icon: "menu" },
+                { id: "doc", icon: "file-text" },
+                { id: "map", icon: "map" },
+              ]}
+            />
+          </div>
+        )}
       </div>
-      {boardView !== "map" && (
+      {tasksEmpty ? (
+        <ProjectBoardEmpty title={project?.title} />
+      ) : view === "doc" ? (
+        <ProjectBoardDoc
+          sourceKey={`${boardId ?? "none"}-${boardSurface}-code-ids`}
+          surface={boardSurface}
+          projectId={boardId ?? undefined}
+          projectTitle={project?.title ?? ""}
+          projectBrief={project?.description}
+          projectIcon={
+            project
+              ? isWorkspace(project)
+                ? "folder"
+                : (project.icon ?? "pencil")
+              : undefined
+          }
+          projectColor={
+            project && !isWorkspace(project) ? (project.color ?? "blue") : "default"
+          }
+          tasks={tasks}
+          agents={children}
+          prs={prs}
+        />
+      ) : null}
+      {!tasksEmpty && view !== "map" && view !== "doc" && (
       <div
         className={clsx(
-          "min-h-0 flex-1",
-          boardView === "rows"
+          "min-h-0 flex-1 select-none",
+          view === "rows"
             ? "overflow-y-auto overflow-x-hidden"
             : "overflow-x-auto overflow-y-hidden",
         )}
@@ -758,11 +859,11 @@ export function ProjectContent() {
         <div
           className={clsx(
             "flex gap-2 px-3 pb-2",
-            boardView === "rows" ? "flex-col" : "h-full",
+            view === "rows" ? "flex-col" : "h-full",
           )}
         >
           {(() => {
-            const listView = boardView === "rows" ? "rows" : "columns";
+            const listView = view === "rows" ? "rows" : "columns";
             switch (boardSurface) {
               case "tasks":
                 return taskStatuses.map((status) => (
@@ -776,7 +877,7 @@ export function ProjectContent() {
                       <TaskCard
                         key={item.id}
                         task={item}
-                        projectId={projectId ?? ""}
+                        projectId={item.projectId}
                         layout={listView}
                         onOpenAgent={(agentId) => setActiveAgent(windowId, agentId)}
                       />
@@ -789,15 +890,7 @@ export function ProjectContent() {
                     key={status}
                     layout={listView}
                     title={AGENT_STATUS_LABEL[status]}
-                    icon={AGENT_STATUS_ICON[status]}
-                    lead={
-                      status === "idle" ? (
-                        <span
-                          className="size-1.5 rounded-full"
-                          style={{ background: AGENT_DOT_COLOR.idle }}
-                        />
-                      ) : undefined
-                    }
+                    lead={<AgentStatusIcon status={status} />}
                   >
                     {agentsByStatus(status).map((agent) => (
                       <AgentCard

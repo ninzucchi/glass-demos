@@ -1,10 +1,12 @@
 import { Fragment } from "react";
 import { Icon } from "@/components/ui/Icon";
 import type { Tab, TileNode } from "@/types";
-import { TAB_LABEL, filesTabHasOpenFile } from "@/types";
+import { TAB_LABEL, contextTabHasOpenFile, filesTabHasOpenFile } from "@/types";
+import { tabTypeLabel } from "@/lib/mergedLabels";
+import { useMergedSidebar } from "@/store/useFeatureFlags";
 import { TAB_REGISTRY } from "@/components/tabs/registry";
 import { TileSidebarToggle } from "@/components/tile/TileSidebarToggle";
-import { useActiveWorkspaceName } from "@/store/useWorkspaceStore";
+import { useActiveContextRootName, useActiveWorkspaceName } from "@/store/useWorkspaceStore";
 import { useAppearanceStore } from "@/store/useAppearanceStore";
 
 // Realistic parent folder for a file when one isn't set explicitly (e.g. for
@@ -30,14 +32,20 @@ export function SecondaryToolbar({
 }) {
   const def = TAB_REGISTRY[tab.type];
   const workspaceName = useActiveWorkspaceName();
+  const contextRootName = useActiveContextRootName();
   const isRight = useAppearanceStore((s) => s.sidebarPlacement === "right");
+  const merged = useMergedSidebar();
 
   // Files get a path-style breadcrumb: a "raw" Files tab (no specific file
   // open) collapses to just the workspace name, while a specific file reads
-  // "<folder> > <filename>". Every other tab type is just its label.
+  // "<folder> > <filename>". Context is the same, but the raw title is the
+  // active agent or project. Every other tab type is just its label.
   const isRawFiles = tab.type === "files" && !filesTabHasOpenFile(tab);
+  const isRawContext = tab.type === "context" && !contextTabHasOpenFile(tab);
   const fileFolder =
-    tab.type === "files" && !isRawFiles ? tab.folder ?? folderForFile(tab.title) : null;
+    (tab.type === "files" && !isRawFiles) || (tab.type === "context" && !isRawContext)
+      ? tab.folder ?? (tab.type === "files" ? folderForFile(tab.title) : "")
+      : null;
   // Each path segment is its own crumb, separated by chevrons (e.g.
   // "Sources > Views > Composer.swift") rather than a slash-joined string.
   const segments = fileFolder ? fileFolder.split("/").filter(Boolean) : [];
@@ -70,6 +78,8 @@ export function SecondaryToolbar({
       >
         {isRawFiles ? (
           <span className="truncate text-base text-primary">{workspaceName}</span>
+        ) : isRawContext ? (
+          <span className="truncate text-base text-primary">{contextRootName}</span>
         ) : fileFolder !== null ? (
           <>
             {segments.map((seg, i) => (
@@ -83,7 +93,9 @@ export function SecondaryToolbar({
         ) : browserUrl ? (
           <span className="truncate text-base text-primary">{browserUrl}</span>
         ) : (
-          <span className="shrink-0 text-base text-secondary">{TAB_LABEL[tab.type]}</span>
+          <span className="shrink-0 text-base text-secondary">
+            {tabTypeLabel(tab.type, merged)}
+          </span>
         )}
       </div>
     </div>

@@ -4,20 +4,20 @@ import clsx from "clsx";
 import {
   isAgentPinned,
   isProject,
-  primaryWorkspaceId,
   PROJECT_COLOR_STROKE,
   type Agent,
 } from "@/types";
-import { SEED_PROJECT_IDS } from "@/data/seed";
 import { useWindowId } from "@/components/window/WindowContext";
 import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useTabDragStore, type TabDragSource } from "@/store/tabDrag";
 import { useUiStore } from "@/store/useUiStore";
+import { agentDisplayTitle } from "@/lib/agentDisplayName";
 import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { SidebarCell } from "@/components/sidebar/SidebarCell";
 import {
   applySidebarAgentClick,
   applySidebarAgentDrop,
+  createProjectFromDroppedAgents,
   moveAgentsIntoProject,
   sidebarAgentActionIds,
 } from "@/components/sidebar/sidebarAgentSelection";
@@ -36,8 +36,6 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
-const SEED_PROJECT_ID_SET = new Set<string>(SEED_PROJECT_IDS);
-
 interface AgentCellProps {
   agent: Agent;
   selected: boolean;
@@ -53,27 +51,23 @@ export function AgentCell({ agent, selected, nested, nestLevel, demoteOnHide }: 
   const windowId = useWindowId();
   const activeAgentId = useWindow()?.activeAgentId;
   const archiveAgent = useWorkspaceStore((s) => s.archiveAgent);
-  const togglePinnedAgent = useWorkspaceStore((s) => s.togglePinnedAgent);
   const setActiveAgent = useWorkspaceStore((s) => s.setActiveAgent);
   const setAgentElevated = useWorkspaceStore((s) => s.setAgentElevated);
+  const updateAgentMeta = useWorkspaceStore((s) => s.updateAgentMeta);
   const pinned = useWorkspaceStore((s) => isAgentPinned(s.pinnedAgents, agent.id));
   const agents = useWorkspaceStore((s) => s.agents);
   const projectOrder = useWorkspaceStore((s) => s.projectOrder);
-  const createDraftProject = useWorkspaceStore((s) => s.createDraftProject);
   const openNewProject = useUiStore((s) => s.openNewProject);
   const setPendingMoveAgentIds = useUiStore((s) => s.setPendingMoveAgentIds);
-  const createMode = useFeatureFlags((s) => s.projectCreate);
-  const onboardingNew = useFeatureFlags((s) => s.projectOnboarding) === "new";
+  const merged = useFeatureFlags((s) => s.sidebarSections) === "one";
+  const namesMode = useFeatureFlags((s) => s.agentNames);
+  const displayTitle = agentDisplayTitle(agent, namesMode);
   const projects = useMemo(
     () =>
       projectOrder
         .map((id) => agents[id])
-        .filter((p): p is Agent => {
-          if (!p || !isProject(p) || p.draft) return false;
-          if (onboardingNew && SEED_PROJECT_ID_SET.has(p.id)) return false;
-          return true;
-        }),
-    [agents, onboardingNew, projectOrder],
+        .filter((p): p is Agent => !!p && isProject(p) && !p.draft),
+    [agents, projectOrder],
   );
   const openAgentInTile = useWorkspaceStore((s) => s.openAgentInTile);
   const openAgentAtChatRoot = useWorkspaceStore((s) => s.openAgentAtChatRoot);
@@ -118,34 +112,22 @@ export function AgentCell({ agent, selected, nested, nestLevel, demoteOnHide }: 
 
   const moveSelectionToNewProject = () => {
     const ids = actionIds();
-    setPendingMoveAgentIds(ids);
-    switch (createMode) {
-      case "composer": {
-        const projectId = createDraftProject(windowId, primaryWorkspaceId(agent));
-        if (projectId) moveAgentsIntoProject(windowId, ids, projectId);
-        setPendingMoveAgentIds(null);
-        return;
-      }
-      case "advanced":
-      case "modal":
-      case "suggestions":
-        openNewProject(windowId);
-        return;
-      default: {
-        const _exhaustive: never = createMode;
-        return _exhaustive;
-      }
+    if (merged) {
+      createProjectFromDroppedAgents(windowId, ids);
+      return;
     }
+    setPendingMoveAgentIds(ids);
+    openNewProject(windowId);
   };
 
-  const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) =>
+  const onPointerDown = (e: ReactPointerEvent<HTMLElement>) =>
     beginTabDrag(e, {
       createSource: (): TabDragSource => {
         const ids = sidebarAgentActionIds(windowId, agent.id);
         return {
           tileId: "",
           tabId: "",
-          title: agent.title,
+          title: displayTitle,
           icon: "agent",
           pane: "chat",
           tabType: "chat",
@@ -170,6 +152,7 @@ export function AgentCell({ agent, selected, nested, nestLevel, demoteOnHide }: 
               applySidebarAgentDrop(windowId, ids, { kind: "chats" });
               break;
             case "projects":
+              createProjectFromDroppedAgents(windowId, ids);
               break;
             default: {
               const _exhaustive: never = target.section;
@@ -198,7 +181,7 @@ export function AgentCell({ agent, selected, nested, nestLevel, demoteOnHide }: 
           className={clsx(dragging && "opacity-40")}
         >
           <SidebarCell
-            label={agent.title}
+            label={displayTitle}
             leading={{ kind: "agent", status: agent.status }}
             selected={selected}
             nested={nested}
@@ -207,6 +190,11 @@ export function AgentCell({ agent, selected, nested, nestLevel, demoteOnHide }: 
               demoteOnHide ? () => setAgentElevated(agent.id, false) : undefined
             }
             onPointerDown={onPointerDown}
+            onRename={
+              displayTitle === agent.title
+                ? (title) => updateAgentMeta(agent.id, { title })
+                : undefined
+            }
             onClick={(e) => {
               if (didDragRef.current) {
                 didDragRef.current = false;
@@ -230,21 +218,36 @@ export function AgentCell({ agent, selected, nested, nestLevel, demoteOnHide }: 
             <Icon name={pinned ? "pin-slash" : "pin"} size="base" color="tertiary" />
             {pinned ? "Unpin" : "Pin"}
           </ContextMenuItem>
+        </ContextMenuSection>
+        <ContextMenuSeparator />
+        <ContextMenuSection>
+          {merged && (
+            <ContextMenuItem onSelect={moveSelectionToNewProject}>
+              <Icon name="folder-plus" size="base" color="tertiary" />
+              Group
+            </ContextMenuItem>
+          )}
           <ContextMenuSub>
             <ContextMenuSubTrigger>
-              <Icon name="folder" size="base" color="tertiary" />
-              Move to Project...
+              <Icon
+                name={merged ? "folder-arrow-right-up" : "folder"}
+                size="base"
+                color="tertiary"
+              />
+              {merged ? "Move to Group" : "Move to Project..."}
             </ContextMenuSubTrigger>
             <ContextMenuSubContent>
-              <ContextMenuSection>
-                <ContextMenuItem onSelect={moveSelectionToNewProject}>
-                  <Icon name="plus" size="base" color="tertiary" />
-                  New Project
-                </ContextMenuItem>
-              </ContextMenuSection>
+              {!merged && (
+                <ContextMenuSection>
+                  <ContextMenuItem onSelect={moveSelectionToNewProject}>
+                    <Icon name="plus" size="base" color="tertiary" />
+                    New Project
+                  </ContextMenuItem>
+                </ContextMenuSection>
+              )}
               {projects.length > 0 && (
                 <>
-                  <ContextMenuSeparator />
+                  {!merged && <ContextMenuSeparator />}
                   <ContextMenuSection>
                     {projects.map((project) => (
                       <ContextMenuItem

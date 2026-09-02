@@ -1,0 +1,59 @@
+.agent-link-node {
+  display: inline;
+}
+
+.agent-link-node__link,
+.agent-link-node__link:link,
+.agent-link-node__link:visited,
+.agent-link-node__link:hover,
+.agent-link-node__link:active {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+  background-color: var(--tt-inline-code-bg-color);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875em;
+  font-weight: 400;
+  line-height: 1.4;
+  text-decoration: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.agent-link-node__icon {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.agent-link-node__label {
+  font-family: inherit;
+  font-weight: 400;
+}
+
+.tiptap.ProseMirror {
+  .agent-link-node__link,
+  .agent-link-node__link:link,
+  .agent-link-node__link:visited,
+  .agent-link-node__link:hover,
+  .agent-link-node__link:active {
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+
+  .agent-link-node__link:hover .agent-link-node__label {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+
+.tiptap.ProseMirror p:has(> .agent-link-node) {
+  margin-top: 0;
+}

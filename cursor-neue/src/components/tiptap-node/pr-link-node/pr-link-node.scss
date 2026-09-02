@@ -1,0 +1,72 @@
+.pr-link-node {
+  display: inline;
+}
+
+.pr-link-node__link,
+.pr-link-node__link:link,
+.pr-link-node__link:visited,
+.pr-link-node__link:hover,
+.pr-link-node__link:active {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+  background-color: color-mix(in oklab, var(--pr-status, var(--green)) 12%, transparent);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875em;
+  font-weight: 400;
+  line-height: 1.4;
+  text-decoration: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.pr-link-node__icon {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.pr-link-node__label {
+  font-family: inherit;
+  font-weight: 400;
+}
+
+.tiptap.ProseMirror {
+  .pr-link-node__link,
+  .pr-link-node__link:link,
+  .pr-link-node__link:visited,
+  .pr-link-node__link:hover,
+  .pr-link-node__link:active {
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+
+  .pr-link-node__link:hover .pr-link-node__label {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .pr-link-node__link--done,
+  .pr-link-node__link--done:link,
+  .pr-link-node__link--done:visited,
+  .pr-link-node__link--done:hover,
+  .pr-link-node__link--done:active {
+    color: var(--text-primary);
+  }
+
+  .pr-link-node__link--done:hover .pr-link-node__label {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+
+.tiptap.ProseMirror p:has(> .pr-link-node) {
+  margin-top: 0;
+}

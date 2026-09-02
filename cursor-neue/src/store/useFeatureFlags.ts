@@ -30,15 +30,20 @@ export const SIDEBAR_SECTIONS_LABEL: Record<SidebarSectionsMode, string> = {
 
 /**
  * Project chrome in the sidebar.
- *  - Folders: nest elevated children. Send a message or pin a temp tab to
- *    elevate; X demotes. No chevron when the project has no elevated children.
+ *  - Folders: always expandable. The body lists every child agent, first
+ *    three plus a More row, or all four when a fifth would not exist.
+ *    Elevation still exists; it does not gate the list.
+ *  - Focus Folders: project folders nest elevated children only. X demotes
+ *    even if the agent is unread or working. No chevron when empty.
+ *    Repo folders stay regular folders and list every child.
  *  - Agents: project rows act like agents; they keep the colored leading icon.
  */
-export const PROJECT_FOLDERS_MODES = ["folders", "agents"] as const;
+export const PROJECT_FOLDERS_MODES = ["folders", "focus", "agents"] as const;
 export type ProjectFoldersMode = (typeof PROJECT_FOLDERS_MODES)[number];
 
 export const PROJECT_FOLDERS_LABEL: Record<ProjectFoldersMode, string> = {
   folders: "Folders",
+  focus: "Focus Folders",
   agents: "Agents",
 };
 
@@ -49,6 +54,8 @@ export function projectFolderCollapsible(
 ): boolean {
   switch (mode) {
     case "folders":
+      return true;
+    case "focus":
       return elevatedCount > 0;
     case "agents":
       return false;
@@ -58,65 +65,6 @@ export function projectFolderCollapsible(
     }
   }
 }
-
-/**
- * Extra chat tabs opened beside a project.
- *  - Tabs: one italic temporary slot; a later agent replaces it until the
- *    user double-clicks to keep the tab.
- *  - Crumbs: no tab bar. The header is a breadcrumb; a child rewrites the
- *    current chat. Parent crumb, Back pill, and mouse back/forward pop one
- *    level.
- */
-export const EPHEMERAL_TABS_MODES = ["tabs", "crumbs"] as const;
-export type EphemeralTabsMode = (typeof EPHEMERAL_TABS_MODES)[number];
-
-export const EPHEMERAL_TABS_LABEL: Record<EphemeralTabsMode, string> = {
-  tabs: "Tabs",
-  crumbs: "Crumbs",
-};
-
-/**
- * Create-project dialog.
- *  - Modal: compact form. Model and Create sit in the footer.
- *  - Advanced: larger form. Model is a labeled select. Templates sit below a rule.
- *  - Suggestions: checkbox list of For You + Templates. Custom opens Modal.
- *  - Composer: plus opens a New Project empty chat (same shell as New Agent).
- */
-export const PROJECT_CREATE_MODES = ["modal", "advanced", "suggestions", "composer"] as const;
-export type ProjectCreateMode = (typeof PROJECT_CREATE_MODES)[number];
-
-export const PROJECT_CREATE_LABEL: Record<ProjectCreateMode, string> = {
-  modal: "Modal",
-  advanced: "Advanced",
-  suggestions: "Suggestions",
-  composer: "Composer",
-};
-
-/**
- * Seeded projects vs empty onboarding.
- *  - Off: three seed projects. The user is already onboarded.
- *  - New: no seed projects. Four suggestion placeholders in the sidebar.
- */
-export const PROJECT_ONBOARDING_MODES = ["off", "new"] as const;
-export type ProjectOnboardingMode = (typeof PROJECT_ONBOARDING_MODES)[number];
-
-export const PROJECT_ONBOARDING_LABEL: Record<ProjectOnboardingMode, string> = {
-  off: "Off",
-  new: "New",
-};
-
-/**
- * 2D canvas on the project board.
- *  - Off: columns and rows only. The map control is hidden.
- *  - Map: the layout selector includes the canvas view.
- */
-export const PROJECT_MAP_MODES = ["off", "map"] as const;
-export type ProjectMapMode = (typeof PROJECT_MAP_MODES)[number];
-
-export const PROJECT_MAP_LABEL: Record<ProjectMapMode, string> = {
-  off: "Off",
-  map: "Map",
-};
 
 /**
  * Surfaces on the project right panel.
@@ -131,30 +79,50 @@ export const PROJECT_SURFACE_LABEL: Record<ProjectSurfaceMode, string> = {
   tasks: "Tasks",
 };
 
+/**
+ * Ticket and mention codes in the project document.
+ *  - Off: task titles and agent names only.
+ *  - IDs: each task starts with a gray `#XX-N` mark. Agent names get `@`.
+ */
+export const DOC_IDS_MODES = ["off", "ids"] as const;
+export type DocIdsMode = (typeof DOC_IDS_MODES)[number];
+
+export const DOC_IDS_LABEL: Record<DocIdsMode, string> = {
+  off: "Off",
+  ids: "IDs",
+};
+
+/**
+ * Subagent titles for project children.
+ *  - Off: task-based seed names (Focus Trap, Composer Tabs).
+ *  - Names: stars, constellations, and solar-system moons.
+ */
+export const AGENT_NAMES_MODES = ["off", "names"] as const;
+export type AgentNamesMode = (typeof AGENT_NAMES_MODES)[number];
+
+export const AGENT_NAMES_LABEL: Record<AgentNamesMode, string> = {
+  off: "Off",
+  names: "Names",
+};
+
 interface FeatureFlagState {
   flags: Record<FeatureFlag, boolean>;
-  /** Dedicated Projects section vs one Chats list. Default is Two. */
+  /** Dedicated Projects section vs one Chats list. Default is Merged. */
   sidebarSections: SidebarSectionsMode;
-  /** Project folder chrome. Default is Agents. */
+  /** Project folder chrome. Default is Folders (all children). */
   projectFolders: ProjectFoldersMode;
-  /** Extra project tabs. Default is Tabs. */
-  ephemeralTabs: EphemeralTabsMode;
-  /** Create-project dialog. Default is Modal. */
-  projectCreate: ProjectCreateMode;
-  /** Seeded projects vs empty onboarding. Default is Off. */
-  projectOnboarding: ProjectOnboardingMode;
-  /** Project board canvas. Default is Off. */
-  projectMap: ProjectMapMode;
-  /** Project board surfaces. Default is All. */
+  /** Project board surfaces. Default is Tasks. */
   projectSurface: ProjectSurfaceMode;
+  /** Linear-style IDs and @mentions in the project document. Default is Off. */
+  docIds: DocIdsMode;
+  /** Celestial names for project subagents. Default is Off. */
+  agentNames: AgentNamesMode;
   toggleFlag: (flag: FeatureFlag) => void;
   setSidebarSections: (mode: SidebarSectionsMode) => void;
   setProjectFolders: (mode: ProjectFoldersMode) => void;
-  setEphemeralTabs: (mode: EphemeralTabsMode) => void;
-  setProjectCreate: (mode: ProjectCreateMode) => void;
-  setProjectOnboarding: (mode: ProjectOnboardingMode) => void;
-  setProjectMap: (mode: ProjectMapMode) => void;
   setProjectSurface: (mode: ProjectSurfaceMode) => void;
+  setDocIds: (mode: DocIdsMode) => void;
+  setAgentNames: (mode: AgentNamesMode) => void;
 }
 
 export const useFeatureFlags = create<FeatureFlagState>((set) => ({
@@ -162,22 +130,25 @@ export const useFeatureFlags = create<FeatureFlagState>((set) => ({
     Object.entries(FLAG_DEFS).map(([flag, def]) => [flag, def.default]),
   ),
   sidebarSections: "two",
-  projectFolders: "agents",
-  ephemeralTabs: "tabs",
-  projectCreate: "modal",
-  projectOnboarding: "off",
-  projectMap: "off",
-  projectSurface: "all",
+  projectFolders: "focus",
+  projectSurface: "tasks",
+  docIds: "off",
+  agentNames: "off",
   toggleFlag: (flag) => set((s) => ({ flags: { ...s.flags, [flag]: !s.flags[flag] } })),
   setSidebarSections: (sidebarSections) => set({ sidebarSections }),
   setProjectFolders: (projectFolders) => set({ projectFolders }),
-  setEphemeralTabs: (ephemeralTabs) => set({ ephemeralTabs }),
-  setProjectCreate: (projectCreate) => set({ projectCreate }),
-  setProjectOnboarding: (projectOnboarding) => set({ projectOnboarding }),
-  setProjectMap: (projectMap) => set({ projectMap }),
   setProjectSurface: (projectSurface) => set({ projectSurface }),
+  setDocIds: (docIds) => set({ docIds }),
+  setAgentNames: (agentNames) => set({ agentNames }),
 }));
 
 /** Flag value outside React (store actions); components subscribe instead. */
 export const flagEnabled = (flag: FeatureFlag): boolean =>
   useFeatureFlags.getState().flags[flag];
+
+/** Merged sidebar: one Chats list, no Projects section, no "Project" copy. */
+export const sidebarIsMerged = (): boolean =>
+  useFeatureFlags.getState().sidebarSections === "one";
+
+export const useMergedSidebar = (): boolean =>
+  useFeatureFlags((s) => s.sidebarSections) === "one";

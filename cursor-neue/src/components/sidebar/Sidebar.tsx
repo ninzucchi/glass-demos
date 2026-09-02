@@ -2,9 +2,12 @@ import { useMemo, useRef, type ReactNode } from "react";
 import {
   isAgentPinned,
   isProject,
+  isTrackerOwner,
   pinnedAgentsFor,
   SIDEBAR_SECTION,
   sidebarCollapsed,
+  sortTopLevelGroupFolders,
+  topLevelProjectGroupItems,
   type Agent,
   type AgentGroupBy,
 } from "@/types";
@@ -16,18 +19,16 @@ import { useUiStore } from "@/store/useUiStore";
 import { AgentList } from "@/components/sidebar/AgentList";
 import { chatsRows, recentsList } from "@/components/sidebar/chatsRows";
 import { ProjectGroup } from "@/components/sidebar/ProjectGroup";
-import { ProjectPlaceholderRow } from "@/components/sidebar/ProjectPlaceholderRow";
+import { ProjectsSectionNux } from "@/components/sidebar/ProjectsNux";
 import { SidebarCell } from "@/components/sidebar/SidebarCell";
 import { SidebarCollapse } from "@/components/sidebar/SidebarCollapse";
 import { SidebarDropOutline } from "@/components/sidebar/SidebarDropOutline";
-import { WorkspaceGroup } from "@/components/sidebar/WorkspaceGroup";
+import { GroupFolderSortList } from "@/components/sidebar/GroupFolderSortList";
 import { ProjectSortList } from "@/components/sidebar/ProjectSortList";
 import { SidebarFooter } from "@/components/sidebar/SidebarFooter";
 import { WorkspaceSortList } from "@/components/sidebar/WorkspaceSortList";
 import { Icon } from "@/components/ui/Icon";
 import { ScrollArea } from "@/components/ui/ScrollArea";
-import { SIDEBAR_PROJECT_PLACEHOLDERS } from "@/data/projectTemplates";
-import { SEED_PROJECT_IDS } from "@/data/seed";
 import {
   AgentGroupControls,
   SidebarNavControls,
@@ -55,8 +56,8 @@ function SidebarSection({
   id: string;
   label: string;
   trailing?: ReactNode;
-  /** Agent-row drop: pin on Pinned, unpin on Chats. Project-row drop: pin on
-   *  Pinned, unpin on Projects. */
+  /** Agent-row drop: pin on Pinned, unpin on Chats, form a project on Projects.
+   *  Project-row drop: pin on Pinned, unpin on Projects. */
   dropKind?: "pinned" | "chats" | "projects";
   children: ReactNode;
 }) {
@@ -86,31 +87,17 @@ function SidebarSection({
   );
 }
 
-function NewProjectButton() {
-  const windowId = useWindowId();
-  const createMode = useFeatureFlags((s) => s.projectCreate);
-  const openNewProject = useUiStore((s) => s.openNewProject);
-  const createDraftProject = useWorkspaceStore((s) => s.createDraftProject);
-  const onClick = () => {
-    switch (createMode) {
-      case "composer":
-        createDraftProject(windowId);
-        return;
-      case "advanced":
-      case "modal":
-      case "suggestions":
-        openNewProject(windowId);
-        return;
-      default: {
-        const _exhaustive: never = createMode;
-        return _exhaustive;
-      }
-    }
-  };
+function HeaderPlusButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
-      aria-label="New project"
+      aria-label={label}
       onClick={onClick}
       className="flex size-4 shrink-0 items-center justify-center text-[color:var(--icon-tertiary)] hover:text-[color:var(--icon-secondary)]"
     >
@@ -119,43 +106,31 @@ function NewProjectButton() {
   );
 }
 
-const SEED_PROJECT_ID_SET = new Set<string>(SEED_PROJECT_IDS);
+function NewProjectButton() {
+  const windowId = useWindowId();
+  const openNewProject = useUiStore((s) => s.openNewProject);
+  return <HeaderPlusButton label="New project" onClick={() => openNewProject(windowId)} />;
+}
 
-function useProjectPlaceholders() {
-  const agents = useWorkspaceStore((s) => s.agents);
-  const onboardingNew = useFeatureFlags((s) => s.projectOnboarding) === "new";
-  const dismissed = useUiStore((s) => s.dismissedProjectPlaceholders);
-  return useMemo(() => {
-    if (!onboardingNew) return [];
-    const existing = new Set(
-      Object.values(agents)
-        .filter((agent) => isProject(agent) && !agent.draft && !SEED_PROJECT_ID_SET.has(agent.id))
-        .map((agent) => agent.title.toLowerCase()),
-    );
-    const hidden = new Set(dismissed);
-    return SIDEBAR_PROJECT_PLACEHOLDERS.filter(
-      (item) => !hidden.has(item.id) && !existing.has(item.title.toLowerCase()),
-    );
-  }, [agents, dismissed, onboardingNew]);
+function NewAgentButton() {
+  const windowId = useWindowId();
+  const createAgent = useWorkspaceStore((s) => s.createAgent);
+  return <HeaderPlusButton label="New agent" onClick={() => createAgent(windowId)} />;
 }
 
 function ProjectsSection() {
   const agents = useWorkspaceStore((s) => s.agents);
   const projectOrder = useWorkspaceStore((s) => s.projectOrder);
   const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
-  const onboarding = useFeatureFlags((s) => s.projectOnboarding);
-  const onboardingNew = onboarding === "new";
-  const placeholders = useProjectPlaceholders();
   const projects = useMemo(
     () =>
       projectOrder
         .map((pid) => agents[pid])
-        .filter((a): a is Agent => {
-          if (!a || !isProject(a) || a.draft || isAgentPinned(pinnedAgents, a.id)) return false;
-          if (onboardingNew && SEED_PROJECT_ID_SET.has(a.id)) return false;
-          return true;
-        }),
-    [agents, onboardingNew, pinnedAgents, projectOrder],
+        .filter(
+          (a): a is Agent =>
+            !!a && isProject(a) && !a.draft && !isAgentPinned(pinnedAgents, a.id),
+        ),
+    [agents, pinnedAgents, projectOrder],
   );
   const draggingProject = useTabDragStore((s) => {
     const id = s.source?.agentId;
@@ -171,9 +146,7 @@ function ProjectsSection() {
       trailing={<NewProjectButton />}
     >
       {(projects.length > 0 || draggingProject) && <ProjectSortList projects={projects} />}
-      {placeholders.map((item) => (
-        <ProjectPlaceholderRow key={item.id} item={item} />
-      ))}
+      {projects.length === 0 && !draggingProject && <ProjectsSectionNux />}
     </SidebarSection>
   );
 }
@@ -185,10 +158,11 @@ function PinnedSection() {
     () => pinnedAgentsFor(agents, pinnedAgents),
     [agents, pinnedAgents],
   );
+  if (pinned.length === 0) return null;
   return (
     <SidebarSection id={SIDEBAR_SECTION.pinned} label="Pinned" dropKind="pinned">
       {pinned.map((item, i) =>
-        isProject(item) ? (
+        isTrackerOwner(item) ? (
           <ProjectGroup
             key={item.id}
             project={item}
@@ -207,14 +181,9 @@ function RecentsList() {
   const agentOrder = useWorkspaceStore((s) => s.agentOrder);
   const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
   const includeProjects = useFeatureFlags((s) => s.sidebarSections) === "one";
-  const hideSeedProjects = useFeatureFlags((s) => s.projectOnboarding) === "new";
   const list = useMemo(
-    () =>
-      recentsList(agents, agentOrder, pinnedAgents, {
-        includeProjects,
-        hideSeedProjects,
-      }),
-    [agentOrder, agents, hideSeedProjects, includeProjects, pinnedAgents],
+    () => recentsList(agents, agentOrder, pinnedAgents, { includeProjects }),
+    [agentOrder, agents, includeProjects, pinnedAgents],
   );
   return (
     <div className="flex flex-col gap-px">
@@ -226,11 +195,37 @@ function RecentsList() {
 function WorkspaceChats() {
   const workspaceOrder = useWorkspaceStore((s) => s.workspaceOrder);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const agents = useWorkspaceStore((s) => s.agents);
+  const agentOrder = useWorkspaceStore((s) => s.agentOrder);
   const rows = useMemo(
-    () => chatsRows({ workspaceOrder, workspaces }),
-    [workspaceOrder, workspaces],
+    () =>
+      chatsRows({
+        workspaceOrder,
+        workspaces,
+        agents,
+        agentOrder,
+        includeProjects: true,
+      }),
+    [agentOrder, agents, workspaceOrder, workspaces],
   );
   return <WorkspaceSortList rows={rows} />;
+}
+
+function GroupFoldersList() {
+  const agents = useWorkspaceStore((s) => s.agents);
+  const agentOrder = useWorkspaceStore((s) => s.agentOrder);
+  const workspaceOrder = useWorkspaceStore((s) => s.workspaceOrder);
+  const pinnedAgents = useWorkspaceStore((s) => s.pinnedAgents);
+  const groupFolderOrder = useWorkspaceStore((s) => s.groupFolderOrder);
+  const list = useMemo(
+    () =>
+      sortTopLevelGroupFolders(
+        topLevelProjectGroupItems(agents, agentOrder, workspaceOrder, pinnedAgents),
+        groupFolderOrder,
+      ),
+    [agentOrder, agents, groupFolderOrder, pinnedAgents, workspaceOrder],
+  );
+  return <GroupFolderSortList folders={list} />;
 }
 
 function GroupSection({
@@ -242,11 +237,6 @@ function GroupSection({
   trailing?: ReactNode;
   oneList?: boolean;
 }) {
-  const placeholders = useProjectPlaceholders();
-  const extras =
-    oneList && placeholders.length > 0
-      ? placeholders.map((item) => <ProjectPlaceholderRow key={item.id} item={item} />)
-      : null;
   switch (groupBy) {
     case "workspace":
       return (
@@ -256,7 +246,6 @@ function GroupSection({
           trailing={trailing}
           dropKind="chats"
         >
-          {extras}
           <WorkspaceChats />
         </SidebarSection>
       );
@@ -269,12 +258,22 @@ function GroupSection({
             trailing={trailing}
             dropKind="chats"
           >
-            {extras}
             <RecentsList />
           </SidebarSection>
         );
       }
       return <RecentsList />;
+    case "projects":
+      return (
+        <SidebarSection
+          id={SIDEBAR_SECTION.group}
+          label="Chats"
+          trailing={trailing}
+          dropKind="chats"
+        >
+          <GroupFoldersList />
+        </SidebarSection>
+      );
     default: {
       const _exhaustive: never = groupBy;
       return _exhaustive;
@@ -284,14 +283,18 @@ function GroupSection({
 
 export function Sidebar() {
   const windowId = useWindowId();
-  const groupBy = useWindow()?.agentGroupBy ?? "workspace";
+  const storedGroupBy = useWindow()?.agentGroupBy ?? "workspace";
   const createAgent = useWorkspaceStore((s) => s.createAgent);
   const openCustomize = useUiStore((s) => s.openCustomize);
   const oneList = useFeatureFlags((s) => s.sidebarSections) === "one";
+  // Separate already has a Projects section. Group-by Projects would hide
+  // that section and keep one merged-looking list.
+  const groupBy: AgentGroupBy =
+    !oneList && storedGroupBy === "projects" ? "workspace" : storedGroupBy;
   const groupControls = <AgentGroupControls />;
   const listTrailing = (
     <div className="flex items-center gap-4">
-      {oneList && <NewProjectButton />}
+      {oneList && <NewAgentButton />}
       {groupControls}
     </div>
   );
@@ -318,7 +321,7 @@ export function Sidebar() {
       </div>
 
       <ScrollArea className="min-h-0 flex-1" contentClassName="gap-3 px-2 pb-3 pt-3">
-        {!oneList && <ProjectsSection />}
+        {!oneList && groupBy !== "workspace" && <ProjectsSection />}
         <PinnedSection />
         {group}
       </ScrollArea>

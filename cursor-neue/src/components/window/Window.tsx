@@ -11,7 +11,6 @@ import { ComposerSurface } from "@/components/chat/ComposerSurface";
 import { NewProjectDialog } from "@/components/sidebar/NewProjectDialog";
 import { CustomizeModal } from "@/components/ui/CustomizeModal";
 import { useDeferredPaneCollapse } from "@/components/layout/useDeferredPaneCollapse";
-import { useCrumbMouseNav } from "@/components/window/useCrumbMouseNav";
 import {
   SidebarChromeCollapsedProvider,
   SidebarCollapseChainProvider,
@@ -45,7 +44,6 @@ const CHAT_COLUMN_PAD_PX = 12; // the column's own px-3
 // (traffic lights in the sidebar top, panel toggle inline in the top-right tab toolbar).
 export function Window() {
   const windowId = useWindowId();
-  useCrumbMouseNav();
   const win = useWindow();
   const collapsed = win?.sidebarCollapsed ?? false;
   // When the chat (agent) is hidden, Content fills the main area and the sidebar

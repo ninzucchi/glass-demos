@@ -10,7 +10,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/menu";
 import { TAB_REGISTRY } from "@/components/tabs/registry";
-import { CONTENT_TAB_TYPES, TAB_LABEL } from "@/types";
+import { CONTENT_TAB_TYPES } from "@/types";
+import { projectBoardIcon, tabTypeLabel } from "@/lib/mergedLabels";
+import { useMergedSidebar } from "@/store/useFeatureFlags";
 import { useActiveScopeId, useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useUiStore } from "@/store/useUiStore";
 import { useWindowId } from "@/components/window/WindowContext";
@@ -23,6 +25,7 @@ export function AddTabMenu({ tileId }: { tileId: string }) {
   // Recents come from the active workspace's file tree (same source as the
   // Files tab), so the menu shows files that actually exist in this workspace.
   const recents = getRecentFiles(useActiveScopeId());
+  const merged = useMergedSidebar();
 
   return (
     <DropdownMenu>
@@ -33,8 +36,12 @@ export function AddTabMenu({ tileId }: { tileId: string }) {
         <DropdownMenuSection>
           {CONTENT_TAB_TYPES.map((type) => (
             <DropdownMenuItem key={type} onSelect={() => addTab(tileId, type)}>
-              <Icon name={TAB_REGISTRY[type].icon} size="base" color="tertiary" />
-              {TAB_LABEL[type]}
+              <Icon
+                name={type === "project" ? projectBoardIcon(merged) : TAB_REGISTRY[type].icon}
+                size="base"
+                color="tertiary"
+              />
+              {tabTypeLabel(type, merged)}
             </DropdownMenuItem>
           ))}
         </DropdownMenuSection>

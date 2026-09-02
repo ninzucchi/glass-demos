@@ -1,5 +1,14 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { isAgentPinned, isProject } from "@/types";
+import {
+  DEFAULT_WORKSPACE_ID,
+  isAgentPinned,
+  isProject,
+  isTrackerOwner,
+  isWorkspace,
+  primaryWorkspaceId,
+  resolvedGroupParentId,
+} from "@/types";
+import { blankProjectTitle } from "@/lib/mergedLabels";
 import { useUiStore } from "@/store/useUiStore";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 
@@ -85,7 +94,7 @@ export function applySidebarAgentDrop(
   for (const id of ids) {
     const live = useWorkspaceStore.getState();
     const agent = live.agents[id];
-    if (!agent || isProject(agent)) continue;
+    if (!agent || isTrackerOwner(agent)) continue;
     const pinnedNow = isAgentPinned(live.pinnedAgents, id);
     switch (dest.kind) {
       case "project": {
@@ -100,7 +109,9 @@ export function applySidebarAgentDrop(
         break;
       case "chats":
         if (pinnedNow) live.togglePinnedAgent(id);
-        else if (agent.projectId) live.moveAgentToProject(windowId, id, null);
+        else if (agent.projectId || resolvedGroupParentId(agent)) {
+          live.moveAgentToProject(windowId, id, null);
+        }
         break;
       default: {
         const _exhaustive: never = dest;
@@ -111,26 +122,44 @@ export function applySidebarAgentDrop(
   return joined;
 }
 
-/** Open the destination project and show its Agents board. */
-export function revealMovedAgentsInProject(windowId: string, projectId: string): void {
-  useUiStore.getState().setProjectBoardSurface("agents");
-  const workspace = useWorkspaceStore.getState();
-  workspace.setActiveAgent(windowId, projectId);
-  workspace.openPinnedTab(windowId, "project");
-}
-
-/** Re-parent agents, announce the join, pulse their cards, and open Agents. */
+/** Re-parent agents, announce the join, and pulse their cards. */
 export function moveAgentsIntoProject(
   windowId: string,
   ids: string[],
   projectId: string,
 ): void {
   const joined = applySidebarAgentDrop(windowId, ids, { kind: "project", projectId });
-  if (joined.length) {
+  const dest = useWorkspaceStore.getState().agents[projectId];
+  if (joined.length && isProject(dest)) {
     useWorkspaceStore.getState().appendProjectJoinNotice(projectId, joined);
     useUiStore.getState().pulseJoinedAgents(joined);
   }
-  revealMovedAgentsInProject(windowId, projectId);
+}
+
+/** Drop onto the Projects section: make a folder project and move the agents in. */
+export function createProjectFromDroppedAgents(windowId: string, ids: string[]): void {
+  const workspace = useWorkspaceStore.getState();
+  const agents = ids
+    .map((id) => workspace.agents[id])
+    .filter(
+      (agent): agent is NonNullable<typeof agent> =>
+        !!agent && !isProject(agent) && !isWorkspace(agent) && !agent.thread,
+    );
+  if (agents.length === 0) return;
+  const workspaceId = primaryWorkspaceId(agents[0]) || DEFAULT_WORKSPACE_ID;
+  const projectId = workspace.createProject(windowId, {
+    title: blankProjectTitle(),
+    workspaceId,
+    icon: "folder",
+    color: "default",
+    groupParentId: null,
+  });
+  if (!projectId) return;
+  moveAgentsIntoProject(windowId, agents.map((agent) => agent.id), projectId);
+  useUiStore.getState().setSidebarAgentSelection(windowId, {
+    ids: [],
+    anchorId: projectId,
+  });
 }
 
 /** After Move to → New Project, re-parent the queued agents. */

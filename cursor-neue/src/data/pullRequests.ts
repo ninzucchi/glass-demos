@@ -35,6 +35,14 @@ export const PR_STATE_LABEL: Record<PrState, string> = {
   closed: "Closed",
 };
 
+/** Singular status for a PR tab header badge. */
+export const PR_STATE_BADGE: Record<PrState, string> = {
+  draft: "Draft",
+  open: "Open",
+  merged: "Merged",
+  closed: "Closed",
+};
+
 const STATE_ICON: Record<PrState, IconName> = {
   draft: "git-pull-request-draft",
   open: "git-pull-request",
@@ -361,3 +369,21 @@ export const PULL_REQUESTS_BY_PROJECT: Record<string, PullRequest[]> = {
 
 export const pullRequestsFor = (projectId: string): PullRequest[] =>
   PULL_REQUESTS_BY_PROJECT[projectId] ?? [];
+
+const PR_BY_ID: Record<string, PullRequest> = Object.fromEntries(
+  Object.values(PULL_REQUESTS_BY_PROJECT).flatMap((list) =>
+    list.map((item) => [item.id, item] as const),
+  ),
+);
+
+export const pullRequestById = (id: string): PullRequest | undefined => PR_BY_ID[id];
+
+/** Tab handle label: GitHub number only. */
+export const prTabTitle = (pr: PullRequest): string => `PR #${pr.number}`;
+
+/** Source branch for the PR header. Slug comes from the title. */
+export const prBranchName = (pr: PullRequest): string =>
+  `feat/${pr.title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")}`;

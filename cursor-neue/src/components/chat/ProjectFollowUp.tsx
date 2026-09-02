@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { FollowUpPill } from "@/components/ui/FollowUpPill";
 import { Icon } from "@/components/ui/Icon";
@@ -9,8 +9,13 @@ import {
   prStateIcon,
   pullRequestsFor,
 } from "@/data/pullRequests";
-import { AGENT_TRAY_STATUSES, agentsInProject, type Agent } from "@/types";
-import { useWorkspaceStore } from "@/store/useWorkspaceStore";
+import { AGENT_TRAY_STATUSES, agentsInProject, isWorkspace, type Agent } from "@/types";
+import { agentDisplayTitle } from "@/lib/agentDisplayName";
+import { workspaceBoardAgents, workspaceBoardPrs } from "@/lib/workspaceBoard";
+import { useWindowId } from "@/components/window/WindowContext";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
+import { useUiStore } from "@/store/useUiStore";
+import { useActiveContent, useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 type TrayKind = "prs" | "subagents";
 
@@ -40,22 +45,34 @@ export function ProjectFollowUp({
   project: Agent;
   tileId: string;
 }) {
+  const windowId = useWindowId();
+  const contentOpen = useActiveContent().open;
+  const openPinnedTab = useWorkspaceStore((s) => s.openPinnedTab);
+  const openPrTab = useWorkspaceStore((s) => s.openPrTab);
   const agents = useWorkspaceStore((s) => s.agents);
   const agentOrder = useWorkspaceStore((s) => s.agentOrder);
   const openAgentInTile = useWorkspaceStore((s) => s.openAgentInTile);
-  const [open, setOpen] = useState<TrayKind | null>(null);
+  const open = useUiStore((s) => s.projectFollowUpTray);
+  const setOpen = useUiStore((s) => s.setProjectFollowUpTray);
+  const namesMode = useFeatureFlags((s) => s.agentNames);
   const hostRef = useRef<HTMLDivElement>(null);
+  const showTracker = !contentOpen;
 
-  const prs = [...pullRequestsFor(project.id)].sort(
-    (a, b) => PR_TRAY_RANK[a.state] - PR_TRAY_RANK[b.state],
-  );
-  const subagents = [...agentsInProject(agents, agentOrder, project.id)].sort(
-    (a, b) => AGENT_TRAY_RANK[a.status] - AGENT_TRAY_RANK[b.status],
-  );
+  const workspace = isWorkspace(project);
+  const prs = [
+    ...(workspace
+      ? workspaceBoardPrs(agents, agentOrder, project.id)
+      : pullRequestsFor(project.id)),
+  ].sort((a, b) => PR_TRAY_RANK[a.state] - PR_TRAY_RANK[b.state]);
+  const subagents = [
+    ...(workspace
+      ? workspaceBoardAgents(agents, agentOrder, project.id)
+      : agentsInProject(agents, agentOrder, project.id)),
+  ].sort((a, b) => AGENT_TRAY_RANK[a.status] - AGENT_TRAY_RANK[b.status]);
 
   const showAgents = subagents.length > 0;
   const showPrs = prs.length > 0;
-  const toggle = (kind: TrayKind) => setOpen((cur) => (cur === kind ? null : kind));
+  const toggle = (kind: TrayKind) => setOpen(open === kind ? null : kind);
 
   useEffect(() => {
     if (!open) return;
@@ -73,10 +90,10 @@ export function ProjectFollowUp({
     };
   }, [open]);
 
-  if (!showAgents && !showPrs) return null;
+  if (!showAgents && !showPrs && !showTracker && !open) return null;
 
   return (
-    <div ref={hostRef} className="relative flex flex-col items-start gap-2">
+    <div ref={hostRef} className="relative mb-2 flex flex-col items-start gap-2">
       <AnimatePresence>
         {open && (
           <motion.div
@@ -107,6 +124,10 @@ export function ProjectFollowUp({
                       }
                       label={`#${item.number}`}
                       description={item.title}
+                      onClick={() => {
+                        openPrTab(windowId, item.id);
+                        setOpen(null);
+                      }}
                     />
                   ))}
                 </TrayRows>
@@ -131,7 +152,7 @@ export function ProjectFollowUp({
                           }}
                         />
                       }
-                      label={agent.title}
+                      label={agentDisplayTitle(agent, namesMode)}
                       onClick={() => {
                         openAgentInTile(agent.id, tileId, "tab");
                         setOpen(null);
@@ -145,6 +166,11 @@ export function ProjectFollowUp({
         )}
       </AnimatePresence>
       <div className="flex items-center gap-2">
+        {showTracker && (
+          <FollowUpPill onClick={() => openPinnedTab(windowId, "project")}>
+            View Tracker
+          </FollowUpPill>
+        )}
         {showAgents && (
           <FollowUpPill
             count={subagents.length}

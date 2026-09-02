@@ -62,29 +62,10 @@ export function MainContainer() {
   // hit-test through to the tiles underneath.
   const dragging = useTabDragStore((s) => s.source !== null);
 
-  // Content hidden -> Chat fills the main area (the two panes are never both
-  // hidden). Checked first so this holds regardless of the chat-collapsed flag.
-  if (!open) {
-    return (
-      // `data-content-closed` lets a dragged tab target this window: releasing
-      // here opens the content pane and appends the tab. `relative` anchors the
-      // drop overlay.
-      <div
-        data-content-closed
-        data-window-id={windowId}
-        data-scope-id={scopeId}
-        className="relative h-full w-full"
-      >
-        <ChatPanel topRight topLeft />
-        <OpenContentDropZone windowId={windowId} scopeId={scopeId} />
-      </div>
-    );
-  }
-
   // Chat collapsed (maximized) -> Content fills the main area, so it owns the
   // window's top-left corner. The re-expand cluster hosted there self-gates on
   // `sidebarCollapsed`, rendering nothing while the sidebar is the corner.
-  if (chatCollapsed) {
+  if (open && chatCollapsed) {
     return (
       <div className="relative h-full w-full">
         <ContentPanel topRight topLeft />
@@ -112,38 +93,59 @@ export function MainContainer() {
     );
   }
 
+  // Keep ChatPanel on one tree so opening or closing Content does not remount
+  // the transcript and reset scroll. `data-content-closed` lets a dragged tab
+  // target this window when Content is hidden. `relative` anchors the drop overlay.
   return (
     // No autoSaveId: the chat/content split is identical in every window, so a
     // shared autoSaveId would leak its ratio/collapse across windows. Chat
     // collapse is the per-window store flag; the split ratio stays in-memory per
     // group so each window stays sandboxed.
-    <PanelGroup direction="horizontal" className="h-full w-full">
-      {/* Mirrors the sidebar's over-drag-to-collapse: shrinking the chat past its
-          min snaps it to 0 (live preview), and releasing there hides the chat pane
-          (sidebar untouched). Dragging back out before release expands the chat
-          again, cancelling the collapse. Double-click instead maximizes fully
-          (chat + sidebar). */}
-      <Panel
-        defaultSize={CHAT_DEFAULT_SIZE}
-        minSize={CHAT_MIN_SIZE}
-        order={1}
-        collapsible
-        collapsedSize={0}
-        onCollapse={chatCollapse.onCollapse}
-        onExpand={chatCollapse.onExpand}
-      >
-        <ChatPanel topLeft />
-      </Panel>
-      <ResizeHandle
-        direction="horizontal"
-        onDoubleClick={toggle}
-        onDragging={onChatDragging}
-        hint="Double-Click to Maximize"
-        hintSide="left"
-      />
-      <Panel defaultSize={CONTENT_DEFAULT_SIZE} minSize={CONTENT_MIN_SIZE} order={2}>
-        <ContentPanel topRight />
-      </Panel>
-    </PanelGroup>
+    <div
+      data-content-closed={open ? undefined : ""}
+      data-window-id={windowId}
+      data-scope-id={scopeId}
+      className="relative h-full w-full"
+    >
+      <PanelGroup direction="horizontal" className="h-full w-full">
+        {/* Mirrors the sidebar's over-drag-to-collapse: shrinking the chat past its
+            min snaps it to 0 (live preview), and releasing there hides the chat pane
+            (sidebar untouched). Dragging back out before release expands the chat
+            again, cancelling the collapse. Double-click instead maximizes fully
+            (chat + sidebar). */}
+        <Panel
+          id="chat"
+          defaultSize={open ? CHAT_DEFAULT_SIZE : 100}
+          minSize={open ? CHAT_MIN_SIZE : 0}
+          order={1}
+          collapsible={open}
+          collapsedSize={0}
+          onCollapse={open ? chatCollapse.onCollapse : undefined}
+          onExpand={open ? chatCollapse.onExpand : undefined}
+        >
+          <ChatPanel topLeft topRight={!open} />
+        </Panel>
+        {open && (
+          <>
+            <ResizeHandle
+              direction="horizontal"
+              onDoubleClick={toggle}
+              onDragging={onChatDragging}
+              hint="Double-Click to Maximize"
+              hintSide="left"
+            />
+            <Panel
+              id="content"
+              defaultSize={CONTENT_DEFAULT_SIZE}
+              minSize={CONTENT_MIN_SIZE}
+              order={2}
+            >
+              <ContentPanel topRight />
+            </Panel>
+          </>
+        )}
+      </PanelGroup>
+      {!open && <OpenContentDropZone windowId={windowId} scopeId={scopeId} />}
+    </div>
   );
 }

@@ -18,6 +18,8 @@ import {
   syncDocText,
   textBlock,
 } from "@/lib/composerDoc";
+import { agentDisplayTitle } from "@/lib/agentDisplayName";
+import { useFeatureFlags } from "@/store/useFeatureFlags";
 import { useUiStore } from "@/store/useUiStore";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import type { ComposerBlock } from "@/types";
@@ -66,7 +68,9 @@ export function ComposerSurface() {
   const open = surface?.windowId === windowId;
   const agentId = surface?.agentId ?? "";
 
-  const title = useWorkspaceStore((s) => (agentId ? s.agents[agentId]?.title : undefined));
+  const surfaceAgent = useWorkspaceStore((s) => (agentId ? s.agents[agentId] : undefined));
+  const namesMode = useFeatureFlags((s) => s.agentNames);
+  const title = surfaceAgent ? agentDisplayTitle(surfaceAgent, namesMode) : undefined;
   const draft = useWorkspaceStore((s) => (agentId ? s.drafts[agentId] ?? "" : ""));
   const blocks = useWorkspaceStore((s) => (agentId ? s.composerDoc[agentId] : undefined));
   const setComposerDoc = useWorkspaceStore((s) => s.setComposerDoc);

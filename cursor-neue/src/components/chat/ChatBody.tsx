@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Composer } from "@/components/chat/Composer";
-import { ProjectTemplateStrip } from "@/components/chat/ProjectTemplateStrip";
 import { ProjectFollowUp } from "@/components/chat/ProjectFollowUp";
 import { ProjectThreadHeader } from "@/components/chat/ProjectThreadHeader";
 import { ThreadOriginPin } from "@/components/chat/ThreadOrigin";
-import { FollowUpPill } from "@/components/ui/FollowUpPill";
+import {
+  TranscriptMarkdown,
+  TRANSCRIPT_TYPE,
+} from "@/components/chat/TranscriptMarkdown";
 import { ScrollArea } from "@/components/ui/ScrollArea";
-import { isDraftProject, isProject, type Agent, type Tab } from "@/types";
-import { useFeatureFlags } from "@/store/useFeatureFlags";
-import { useWindowId } from "@/components/window/WindowContext";
+import { isProject, isTrackerOwner, isWorkspace, type Agent, type Tab } from "@/types";
+import { projectCreatedDividerText } from "@/lib/projectJoinNotice";
 import {
   useActiveAgent,
   useWorkspaceStore,
@@ -24,10 +25,14 @@ const COLUMN = "mx-auto w-full max-w-[640px] pl-3 pr-[calc(12px+var(--island-ins
 // the thread as a new tab instead (half of a narrower pane would be cramped).
 const SPLIT_MIN_TILE_W = 560;
 
-function CrumbBackPill() {
-  const windowId = useWindowId();
-  const crumbBack = useWorkspaceStore((s) => s.crumbBack);
-  return <FollowUpPill onClick={() => crumbBack(windowId)}>Back</FollowUpPill>;
+function TranscriptDivider({ text }: { text: string }) {
+  return (
+    <div role="separator" className="flex items-center gap-3 px-2.5 py-1">
+      <span className="h-px min-w-4 flex-1 bg-[var(--border-tertiary)]" />
+      <span className="shrink-0 text-sm text-tertiary">{text}</span>
+      <span className="h-px min-w-4 flex-1 bg-[var(--border-tertiary)]" />
+    </div>
+  );
 }
 
 const threadDisposition = (tileId: string): ThreadDisposition => {
@@ -62,8 +67,6 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
   const agent = tabAgent ?? activeAgent;
   const messages = agent?.messages ?? [];
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const crumbs = useFeatureFlags((s) => s.ephemeralTabs === "crumbs");
-  const showCrumbBack = crumbs && !!agent && !isProject(agent) && !!agent.projectId;
 
   // Threads spawned from this conversation, grouped by source message index,
   // for the reply pills. A thread earns a pill once it has activity ("N
@@ -96,20 +99,14 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
   // expanded composer. An empty THREAD falls through to the standard layout —
   // origin pin on top, (empty) transcript, docked composer with the quote.
   // A project always shows its thread header, even with no messages yet.
-  if (messages.length === 0 && !agent?.thread && (!isProject(agent) || isDraftProject(agent))) {
-    if (isDraftProject(agent)) {
-      return (
-        <div className="flex h-full flex-col bg-chrome">
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-3">
-            <Composer variant="expanded" agent={agent} />
-          </div>
-          <ProjectTemplateStrip agent={agent} />
-        </div>
-      );
-    }
+  if (
+    messages.length === 0 &&
+    !agent?.thread &&
+    !isWorkspace(agent) &&
+    !isProject(agent)
+  ) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 bg-chrome px-3">
-        {showCrumbBack && <CrumbBackPill />}
         <Composer variant="expanded" agent={agent} />
       </div>
     );
@@ -129,12 +126,17 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
         contentClassName={`${COLUMN} pb-4 pt-2`}
         viewportRef={transcriptRef}
       >
-        {isProject(agent) && (
+        {isTrackerOwner(agent) && (
           <div className="my-12">
             <ProjectThreadHeader project={agent} />
           </div>
         )}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-10">
+            {isProject(agent) && (
+              <TranscriptDivider
+                text={projectCreatedDividerText(agent.createdAt ?? agent.updatedAt)}
+              />
+            )}
             {messages.map((m, i) => {
               const threads = threadsByMessage.get(i);
               let body: ReactNode;
@@ -144,33 +146,27 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
                   // Bubble hugs content up to 500px and sits on the right;
                   // copy stays left-aligned.
                   body = (
-                    <div className="ml-auto w-fit max-w-[500px] rounded-2xl bg-elevated px-3.5 py-3 text-left text-lg text-primary shadow-[0_0_0_1px_var(--border-tertiary)]">
-                      {m.text}
+                    <div className="ml-auto w-fit max-w-[500px] rounded-2xl bg-elevated px-3.5 py-3 text-left text-primary shadow-[0_0_0_1px_var(--border-tertiary)]">
+                      <TranscriptMarkdown text={m.text} />
                     </div>
                   );
                   break;
                 case "agent":
-                  // Agent turn: optional tool line + message grouped with no gap; tool
-                  // py-[3px] (6px total), message py-1. px-2.5 matches the bubble inset
-                  // so every chat line shares one 22px left margin.
+                  // Agent turn: tool line + reply with a 12px gap. px-2.5 matches
+                  // the bubble inset so every chat line shares one 22px left margin.
                   body = (
-                    <div className="flex flex-col px-2.5">
-                      {m.tool && <div className="py-[3px] text-lg text-tertiary">{m.tool}</div>}
-                      <div className="py-1 text-lg text-primary">{m.text}</div>
+                    <div className="flex flex-col gap-3 px-2.5">
+                      {m.tool && (
+                        <div className={`text-tertiary ${TRANSCRIPT_TYPE}`}>{m.tool}</div>
+                      )}
+                      <div>
+                        <TranscriptMarkdown text={m.text} />
+                      </div>
                     </div>
                   );
                   break;
                 case "divider":
-                  body = (
-                    <div
-                      role="separator"
-                      className="flex items-center gap-3 px-2.5 py-1"
-                    >
-                      <span className="h-px min-w-4 flex-1 bg-[var(--border-tertiary)]" />
-                      <span className="shrink-0 text-sm text-tertiary">{m.text}</span>
-                      <span className="h-px min-w-4 flex-1 bg-[var(--border-tertiary)]" />
-                    </div>
-                  );
+                  body = <TranscriptDivider text={m.text} />;
                   break;
                 default: {
                   const _exhaustive: never = m.role;
@@ -191,14 +187,9 @@ export function ChatBody({ tab, tileId }: { tab: Tab; tileId: string }) {
             })}
         </div>
       </ScrollArea>
-      {agent && isProject(agent) && (
-        <div className={`${COLUMN} pb-2`}>
+      {agent && isTrackerOwner(agent) && (
+        <div className={COLUMN}>
           <ProjectFollowUp project={agent} tileId={tileId} />
-        </div>
-      )}
-      {showCrumbBack && (
-        <div className={`${COLUMN} pb-2`}>
-          <CrumbBackPill />
         </div>
       )}
       <Composer agent={agent} />

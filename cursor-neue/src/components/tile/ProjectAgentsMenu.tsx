@@ -9,6 +9,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/menu";
 import { agentsInProject, isProject, type Agent, type TileNode } from "@/types";
+import { agentDisplayTitle } from "@/lib/agentDisplayName";
+import { useFeatureFlags, useMergedSidebar } from "@/store/useFeatureFlags";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 /** Project that owns this chat strip: the active tab, the first tab, or the
@@ -42,6 +44,8 @@ export function ProjectAgentsMenu({ tile }: { tile: TileNode }) {
   const openAgentInTile = useWorkspaceStore((s) => s.openAgentInTile);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const merged = useMergedSidebar();
+  const namesMode = useFeatureFlags((s) => s.agentNames);
 
   const project = projectForTile(tile, agents);
   const children = useMemo(
@@ -51,15 +55,22 @@ export function ProjectAgentsMenu({ tile }: { tile: TileNode }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return children;
-    return children.filter((a) => a.title.toLowerCase().includes(q));
-  }, [children, query]);
+    return children.filter((a) =>
+      agentDisplayTitle(a, namesMode).toLowerCase().includes(q),
+    );
+  }, [children, namesMode, query]);
 
   if (!project) return null;
 
   return (
     <DropdownMenu onOpenChange={(open) => !open && setQuery("")}>
       <DropdownMenuTrigger asChild>
-        <IconButton name="plus" size="lg" aria-label="Open project agent" className="mx-1 self-center" />
+        <IconButton
+          name="plus"
+          size="lg"
+          aria-label={merged ? "Open group agent" : "Open project agent"}
+          className="mx-1 self-center"
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
@@ -106,7 +117,7 @@ export function ProjectAgentsMenu({ tile }: { tile: TileNode }) {
                   }}
                 />
               </span>
-              {agent.title}
+              {agentDisplayTitle(agent, namesMode)}
             </DropdownMenuItem>
           ))
         )}

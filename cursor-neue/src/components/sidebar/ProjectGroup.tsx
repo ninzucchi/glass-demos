@@ -1,17 +1,24 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import {
+  agentsInGroup,
+  agentsInProject,
   elevatedAgentsInProject,
+  focusAgentsInGroup,
+  groupsInParent,
   isAgentPinned,
   isProject,
+  isWorkspace,
   primaryWorkspaceId,
   projectWorkspaceIds,
   sidebarCollapsed,
+  sortSidebarFolderItems,
   type Agent,
 } from "@/types";
+import { titleCaseFolderName } from "@/lib/titleCase";
 import { useWindowId } from "@/components/window/WindowContext";
-import { projectFolderCollapsible, useFeatureFlags } from "@/store/useFeatureFlags";
+import { projectFolderCollapsible, useFeatureFlags, useMergedSidebar } from "@/store/useFeatureFlags";
 import { useUiStore } from "@/store/useUiStore";
 import { useWindow, useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useTabDragStore } from "@/store/tabDrag";
@@ -35,7 +42,10 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
-const VISIBLE = 3;
+const FOLDERS_VISIBLE = 5;
+const FOCUS_VISIBLE = 3;
+/** Focus Folders: More only when it would reveal at least two extra agents. */
+const FOCUS_MORE_AT = FOCUS_VISIBLE + 2;
 
 /** A project row: folder chrome plus the project's own chat (click opens it).
  *  Nested agents live here instead of Chats. */
@@ -58,34 +68,50 @@ export function ProjectGroup({
   const windowId = useWindowId();
   const win = useWindow();
   const activeAgentId = win?.activeAgentId;
-  const activeAgent = activeAgentId ? agents[activeAgentId] : undefined;
-  const projectSelected =
-    project.id === activeAgentId ||
-    (!!activeAgent && !isProject(activeAgent) && activeAgent.projectId === project.id);
+  const projectSelected = project.id === activeAgentId;
   const setActiveAgent = useWorkspaceStore((s) => s.setActiveAgent);
   const createAgent = useWorkspaceStore((s) => s.createAgent);
+  const updateAgentMeta = useWorkspaceStore((s) => s.updateAgentMeta);
   const togglePinnedAgent = useWorkspaceStore((s) => s.togglePinnedAgent);
   const archiveAgent = useWorkspaceStore((s) => s.archiveAgent);
   const moveProject = useWorkspaceStore((s) => s.moveProject);
+  const moveGroupFolder = useWorkspaceStore((s) => s.moveGroupFolder);
+  const moveGroup = useWorkspaceStore((s) => s.moveGroup);
   const toggleSidebarCollapsed = useWorkspaceStore((s) => s.toggleSidebarCollapsed);
   const openAgentInTile = useWorkspaceStore((s) => s.openAgentInTile);
   const openAgentAtChatRoot = useWorkspaceStore((s) => s.openAgentAtChatRoot);
   const openAgentInNewWindow = useWorkspaceStore((s) => s.openAgentInNewWindow);
-  const collapsed = sidebarCollapsed(project.id, win?.collapsedSidebar);
+  const collapsed = sidebarCollapsed(
+    project.id,
+    win?.collapsedSidebar,
+    isWorkspace(project) ? (workspaces[project.id]?.collapsed ?? false) : false,
+  );
   const foldersMode = useFeatureFlags((s) => s.projectFolders);
+  const merged = useMergedSidebar();
   const pinned = isAgentPinned(pinnedAgents, project.id);
   const dragging = useTabDragStore((s) => s.source?.agentId === project.id);
   const didDragRef = useRef(false);
   const [seeMore, setSeeMore] = useState(false);
+  // Collapse keeps children mounted for the close animation. Reset More after
+  // that 200ms so the next open shows the first page again.
+  useEffect(() => {
+    if (!collapsed) return;
+    const id = window.setTimeout(() => setSeeMore(false), 200);
+    return () => window.clearTimeout(id);
+  }, [collapsed]);
   const hostRef = useRef<HTMLDivElement>(null);
   const openEditProject = useUiStore((s) => s.openEditProject);
+  const projectsMode = (win?.agentGroupBy ?? "workspace") === "projects";
+  const repoFolder = isWorkspace(project);
+  const folderLabel =
+    repoFolder && projectsMode ? titleCaseFolderName(project.title) : project.title;
 
-  const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) =>
+  const onPointerDown = (e: ReactPointerEvent<HTMLElement>) =>
     beginTabDrag(e, {
       createSource: () => ({
         tileId: "",
         tabId: "",
-        title: project.title,
+        title: folderLabel,
         icon: project.icon ?? "folder",
         pane: "chat",
         tabType: "chat",
@@ -94,14 +120,24 @@ export function ProjectGroup({
       suppressSelfTile: false,
       didDragRef,
       onDrop: (_source, target, pointer) => {
-        if (target?.scope === "sidebar-project") return;
+        if (target?.scope === "sidebar-project") {
+          moveGroup(windowId, project.id, target.projectId);
+          return;
+        }
         if (target?.scope === "sidebar-section") {
           const pinnedNow = isAgentPinned(
             useWorkspaceStore.getState().pinnedAgents,
             project.id,
           );
           if (target.section === "pinned" && !pinnedNow) togglePinnedAgent(project.id);
-          else if (
+          else if (target.section === "chats" && !pinnedNow) {
+            const drag = useTabDragStore.getState();
+            if (drag.listIndex != null && drag.listScope === "group-folder-order") {
+              moveGroupFolder(project.id, drag.listIndex);
+            } else {
+              moveGroup(windowId, project.id, null);
+            }
+          } else if (
             (target.section === "projects" || target.section === "chats") &&
             pinnedNow
           ) {
@@ -113,9 +149,13 @@ export function ProjectGroup({
           }
           return;
         }
-        const listIndex = useTabDragStore.getState().listIndex;
-        if (listIndex != null) {
-          moveProject(project.id, listIndex);
+        const drag = useTabDragStore.getState();
+        if (drag.listIndex != null) {
+          if (drag.listScope === "group-folder-order") {
+            moveGroupFolder(project.id, drag.listIndex);
+          } else {
+            moveProject(project.id, drag.listIndex);
+          }
           return;
         }
         if (target) {
@@ -133,18 +173,55 @@ export function ProjectGroup({
     (s) => s.target?.scope === "sidebar-project" && s.target.projectId === project.id,
   );
 
-  const children = useMemo(
-    () => elevatedAgentsInProject(agents, agentOrder, project.id),
-    [agents, agentOrder, project.id],
-  );
+  const children = useMemo(() => {
+    const nested = groupsInParent(agents, project.id);
+    // Repo folders list loose chats only. Projects stay top-level unless
+    // the user nests them. Focus Folders / Agents only change project rows.
+    let members: Agent[];
+    if (repoFolder) {
+      members = agentsInGroup(agents, agentOrder, project.id);
+    } else {
+      switch (foldersMode) {
+        case "folders":
+          members = projectsMode
+            ? agentsInGroup(agents, agentOrder, project.id)
+            : agentsInProject(agents, agentOrder, project.id);
+          break;
+        case "focus":
+          members = projectsMode
+            ? focusAgentsInGroup(agents, agentOrder, project.id)
+            : elevatedAgentsInProject(agents, agentOrder, project.id);
+          break;
+        case "agents":
+          members = [];
+          break;
+        default: {
+          const _exhaustive: never = foldersMode;
+          return _exhaustive;
+        }
+      }
+    }
+    return [...nested, ...members];
+  }, [agentOrder, agents, foldersMode, project.id, projectsMode, repoFolder]);
   const list = useMemo(
-    () => children.filter((a) => pinned || !isAgentPinned(pinnedAgents, a.id)),
-    [children, pinned, pinnedAgents],
+    () =>
+      sortSidebarFolderItems(
+        children.filter((a) => pinned || !isAgentPinned(pinnedAgents, a.id)),
+        agents,
+        agentOrder,
+      ),
+    [agentOrder, agents, children, pinned, pinnedAgents],
   );
-  const collapsible = projectFolderCollapsible(foldersMode, list.length);
+  const collapsible = repoFolder
+    ? true
+    : projectFolderCollapsible(foldersMode, list.length);
+  const demoteOnHide = !repoFolder && foldersMode === "focus";
 
-  const shown = seeMore ? list : list.slice(0, VISIBLE);
-  const showMore = !seeMore && list.length > VISIBLE;
+  const visible = foldersMode === "folders" ? FOLDERS_VISIBLE : FOCUS_VISIBLE;
+  const truncated =
+    foldersMode === "folders" ? list.length > visible : list.length >= FOCUS_MORE_AT;
+  const shown = seeMore || !truncated ? list : list.slice(0, visible);
+  const showMore = !seeMore && truncated;
   const workspaceNames = useMemo(
     () =>
       workspaceNamesInOrder(
@@ -168,16 +245,25 @@ export function ProjectGroup({
             <SidebarWorkspaceTooltip names={workspaceNames}>
               <div>
                 <SidebarCell
-                  label={project.title}
-                  leading={{
-                    kind: "project",
-                    collapsed,
-                    icon: project.icon ?? "pencil",
-                    color: project.color ?? "blue",
-                    collapsible,
-                  }}
+                  label={folderLabel}
+                  leading={
+                    isWorkspace(project)
+                      ? { kind: "workspace", collapsed, hitTarget: merged }
+                      : {
+                          kind: "project",
+                          collapsed,
+                          icon: project.icon ?? "pencil",
+                          color: project.color ?? "blue",
+                          collapsible,
+                        }
+                  }
                   nestLevel={nestLevel}
                   selected={projectSelected}
+                  onRename={
+                    isProject(project) || (repoFolder && !!workspaces[project.id])
+                      ? (title) => updateAgentMeta(project.id, { title })
+                      : undefined
+                  }
                   onPointerDown={onPointerDown}
                   onClick={() => {
                     if (didDragRef.current) {
@@ -202,7 +288,8 @@ export function ProjectGroup({
                             workspaceId:
                               projectWorkspaceIds(project.id, agents, agentOrder)[0] ??
                               primaryWorkspaceId(project),
-                            projectId: project.id,
+                            projectId: isProject(project) ? project.id : undefined,
+                            groupParentId: project.id,
                           });
                         }
                       : undefined
@@ -218,33 +305,47 @@ export function ProjectGroup({
               <Icon name={pinned ? "pin-slash" : "pin"} size="base" color="tertiary" />
               {pinned ? "Unpin" : "Pin"}
             </ContextMenuItem>
-            <ContextMenuItem onSelect={() => openEditProject(windowId, project.id)}>
-              <Icon name="pencil" size="base" color="tertiary" />
-              Edit
-            </ContextMenuItem>
+            {isProject(project) && (
+              <ContextMenuItem onSelect={() => openEditProject(windowId, project.id)}>
+                <Icon name="pencil" size="base" color="tertiary" />
+                Edit
+              </ContextMenuItem>
+            )}
           </ContextMenuSection>
-          <ContextMenuSeparator />
-          <ContextMenuSection>
-            <ContextMenuItem onSelect={() => archiveAgent(project.id)}>
-              <Icon name="trash" size="base" color="tertiary" />
-              Delete
-            </ContextMenuItem>
-          </ContextMenuSection>
+          {isProject(project) && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuSection>
+                <ContextMenuItem onSelect={() => archiveAgent(project.id)}>
+                  <Icon
+                    name={merged ? "folder-open" : "trash"}
+                    size="base"
+                    color="tertiary"
+                  />
+                  {merged ? "Ungroup" : "Delete"}
+                </ContextMenuItem>
+              </ContextMenuSection>
+            </>
+          )}
         </ContextMenuContent>
       </ContextMenu>
       {collapsible && (
-        <SidebarCollapse open={!collapsed} padded={padded}>
+        <SidebarCollapse
+          open={!collapsed}
+          padded={padded && nestLevel === 0}
+          threadParentLevel={merged && !projectsMode ? nestLevel : undefined}
+        >
           <div className="flex flex-col gap-px">
             <AgentList
               agents={shown}
               nestLevel={nestLevel + 1}
-              demoteOnHide
+              demoteOnHide={demoteOnHide}
             />
             {showMore && (
               <SidebarCell
                 muted
                 nestLevel={nestLevel + 1}
-                label="See more"
+                label="More"
                 onClick={() => setSeeMore(true)}
               />
             )}

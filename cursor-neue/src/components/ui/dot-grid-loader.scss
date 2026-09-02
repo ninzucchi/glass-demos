@@ -1,0 +1,99 @@
+/* sine_3x3 from everysphere packages/ui DotGridLoader. 175ms per frame. */
+$dgl-duration: 1400ms;
+
+.dot-grid-loader {
+  display: inline-flex;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  color: var(--icon-secondary);
+  contain: layout paint style;
+  vertical-align: middle;
+}
+
+.dot-grid-loader__grid {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.dot-grid-loader__dot {
+  fill: currentColor;
+  animation-duration: $dgl-duration;
+  animation-iteration-count: infinite;
+  animation-timing-function: steps(1, end);
+}
+
+.dot-grid-loader__dot--1 { opacity: 0; animation-name: dgl-1; }
+.dot-grid-loader__dot--2 { opacity: 1; animation-name: dgl-2; }
+.dot-grid-loader__dot--3 { opacity: 0; animation-name: dgl-3; }
+.dot-grid-loader__dot--4 { opacity: 1; animation-name: dgl-4; }
+.dot-grid-loader__dot--5 { opacity: 1; animation-name: dgl-5; }
+.dot-grid-loader__dot--6 { opacity: 1; animation-name: dgl-6; }
+.dot-grid-loader__dot--7 { opacity: 1; animation-name: dgl-7; }
+.dot-grid-loader__dot--8 { opacity: 0; animation-name: dgl-8; }
+.dot-grid-loader__dot--9 { opacity: 1; animation-name: dgl-9; }
+
+@keyframes dgl-1 {
+  0%, 62.499% { opacity: 0; }
+  62.5%, 99.999% { opacity: 1; }
+}
+
+@keyframes dgl-2 {
+  0%, 24.999% { opacity: 1; }
+  25%, 87.499% { opacity: 0; }
+  87.5%, 99.999% { opacity: 1; }
+}
+
+@keyframes dgl-3 {
+  0%, 12.499% { opacity: 0; }
+  12.5%, 49.999% { opacity: 1; }
+  50%, 99.999% { opacity: 0; }
+}
+
+@keyframes dgl-4 {
+  0%, 12.499% { opacity: 1; }
+  12.5%, 49.999% { opacity: 0; }
+  50%, 99.999% { opacity: 1; }
+}
+
+@keyframes dgl-5 {
+  0%, 37.499% { opacity: 1; }
+  37.5%, 74.999% { opacity: 0; }
+  75%, 99.999% { opacity: 1; }
+}
+
+@keyframes dgl-6 {
+  0%, 62.499% { opacity: 1; }
+  62.5%, 99.999% { opacity: 0; }
+}
+
+@keyframes dgl-7 {
+  0%, 24.999% { opacity: 1; }
+  25%, 37.499% { opacity: 0; }
+  37.5%, 62.499% { opacity: 1; }
+  62.5%, 99.999% { opacity: 0; }
+}
+
+@keyframes dgl-8 {
+  0%, 24.999% { opacity: 0; }
+  25%, 49.999% { opacity: 1; }
+  50%, 62.499% { opacity: 0; }
+  62.5%, 87.499% { opacity: 1; }
+  87.5%, 99.999% { opacity: 0; }
+}
+
+@keyframes dgl-9 {
+  0%, 12.499% { opacity: 1; }
+  12.5%, 49.999% { opacity: 0; }
+  50%, 74.999% { opacity: 1; }
+  75%, 87.499% { opacity: 0; }
+  87.5%, 99.999% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot-grid-loader__dot {
+    animation: none;
+  }
+}
